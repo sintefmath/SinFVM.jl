@@ -96,7 +96,7 @@ function run_stuff()
     Hi_dev = CuArray(flattenarr(Hi))
     H_dev = CuArray(flattenarr(H))
 
-    number_of_timesteps = 100_000
+    number_of_timesteps = 30_000
     @showprogress for i in 1:number_of_timesteps
         step::Int32 = (i + 1) % 2
         if i % 2 == 1
@@ -128,7 +128,7 @@ function run_stuff()
             H_dev, Int32(data_shape[1] * sizeof(Float32)),
             bc, bc, bc, bc, wind_stress,
             threads = num_threads, blocks = num_blocks)
-        save_every = 200
+        save_every = 20
         if step == 1
             if i % save_every == 2
                 eta1_copied = reshape(collect(curr_eta1_dev), data_shape)
