@@ -3,6 +3,7 @@ using Test
 using CUDA
 using Plots
 using ProgressMeter
+using NPZ
 
 function makeCentralBump!(eta, nx, ny, dx, dy)
     H0 = 60.0
@@ -95,7 +96,7 @@ function run_stuff()
     Hi_dev = CuArray(flattenarr(Hi))
     H_dev = CuArray(flattenarr(H))
 
-    number_of_timesteps = 10
+    number_of_timesteps = 100_000
     @showprogress for i in 1:number_of_timesteps
         step::Int32 = (i + 1) % 2
         if i % 2 == 1
@@ -127,12 +128,15 @@ function run_stuff()
             H_dev, Int32(data_shape[1] * sizeof(Float32)),
             bc, bc, bc, bc, wind_stress,
             threads = num_threads, blocks = num_blocks)
+        save_every = 200
         if step == 1
-            eta1_copied = collect(curr_eta1_dev)
-
-            heatmap(reshape(eta1_copied, data_shape), vmin = 0, vmax = 1, clim = (0.0, 1.0), c = :viridis, aspect_ratio = 1)
-            title!("timestep = $(div(i, 2))")
-            savefig("plots/eta_$(div(i, 2)).png")
+            if i % save_every == 2
+                eta1_copied = reshape(collect(curr_eta1_dev), data_shape)
+                npzwrite("data/eta_$(div(i, save_every)).npy", eta1_copied)
+                heatmap(eta1_copied, clim=(0.0, 1.0), c=:viridis, aspect_ratio=1)
+                title!("i = $i")
+                savefig("plots/eta_$(div(i, save_every)).png") 
+            end
         end
 
     end
@@ -171,4 +175,7 @@ function run_stuff()
 
     #         float wind_stress_t_)
 end
-run_stuff()
+# Make output folders. 
+mkpath("plots")
+mkpath("data")
+@time run_stuff()

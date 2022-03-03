@@ -26,10 +26,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #define block_height 16
 #define block_width 32
-#define KPSIMULATOR_DEPTH_CUTOFF 0.001
-#define KPSIMULATOR_FLUX_SLOPE_EPS 1e-8
-#define KPSIMULATOR_FLUX_SLOPE_EPS_4 1e-8
-#define KPSIMULATOR_FLUX_SLOPE_EPS_4 1e-8
+#define KPSIMULATOR_DEPTH_CUTOFF 1e-5f
+#define KPSIMULATOR_FLUX_SLOPE_EPS 1e-1f
+#define KPSIMULATOR_FLUX_SLOPE_EPS_4 1e-4f
 
 #include "common.cu"
 // Finds the coriolis term based on the linear Coriolis force
