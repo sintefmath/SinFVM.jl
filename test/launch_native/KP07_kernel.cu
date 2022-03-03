@@ -169,7 +169,7 @@ __device__ void adjustSlopeUx(float Qx[3][block_height+2][block_width+2],
     const float RHx_m = reconstructHx(Hi, p, q);
     const float RHx_p = reconstructHx(Hi, p+1, q);
     
-    // Western face
+    // // Western face
     Qx[0][qQx][pQx] = (Q[0][q][p]-Qx[0][qQx][pQx] < -RHx_m) ?
                         (Q[0][q][p] + RHx_m) : Qx[0][qQx][pQx];
     // Eastern face
@@ -531,123 +531,123 @@ __global__ void swe_2D(
     __syncthreads();
 
     // Adjust the slopes to avoid negative values at integration points
-    // adjustSlopes_x(Qx, Hi, Q);
+    adjustSlopes_x(Qx, Hi, Q);
     __syncthreads();
     
     float R1 = 0.0f;
     float R2 = 0.0f;
     float R3 = 0.0f;
     
-    // if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
-    //     const int i = tx + 2; //Skip local ghost cells, i.e., +2
-    //     const int j = ty + 2; 
+    if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
+        const int i = tx + 2; //Skip local ghost cells, i.e., +2
+        const int j = ty + 2; 
         
-    //     // Find bottom topography source terms: S3
-    //     const float ST2 = bottomSourceTerm2_kp(Q, Qx, Hi, g_, i, j);
+        // Find bottom topography source terms: S3
+        const float ST2 = bottomSourceTerm2_kp(Q, Qx, Hi, g_, i, j);
 
-    //     // Flux along x-direction
-    //     const float3 F_flux_p = computeSingleFluxF(Q, Qx, Hi, g_, tx+1, ty);
-    //     const float3 F_flux_m = computeSingleFluxF(Q, Qx, Hi, g_, tx  , ty);
+        // Flux along x-direction
+        const float3 F_flux_p = computeSingleFluxF(Q, Qx, Hi, g_, tx+1, ty);
+        const float3 F_flux_m = computeSingleFluxF(Q, Qx, Hi, g_, tx  , ty);
         
 
-    //     R1 = - (F_flux_p.x - F_flux_m.x) / dx_;
-    //     R2 = - (F_flux_p.y - F_flux_m.y) / dx_
-    //          + ( - ST2/dx_);
-    //     R3 = - (F_flux_p.z - F_flux_m.z) / dx_;
-    // }
-    // __syncthreads();
+        R1 = - (F_flux_p.x - F_flux_m.x) / dx_;
+        R2 = - (F_flux_p.y - F_flux_m.y) / dx_
+             + ( - ST2/dx_);
+        R3 = - (F_flux_p.z - F_flux_m.z) / dx_;
+    }
+    __syncthreads();
     
-    // // Reconstruct Q in y-direction while reusing Qx shmem buffer
+    // Reconstruct Q in y-direction while reusing Qx shmem buffer
     
-    // //Reconstruct slopes along x and axis
-    // // The Qx is here dQ/dx*0.5*dx
-    // minmodSlopeY(Q, Qx, theta_);
-    // __syncthreads();
+    //Reconstruct slopes along x and axis
+    // The Qx is here dQ/dx*0.5*dx
+    minmodSlopeY(Q, Qx, theta_);
+    __syncthreads();
 
-    // // Adjust the slopes to avoid negative values at integration points
-    // adjustSlopes_y(Qx, Hi, Q);
-    // __syncthreads();
+    // Adjust the slopes to avoid negative values at integration points
+    adjustSlopes_y(Qx, Hi, Q);
+    __syncthreads();
       
     
-    // //Sum fluxes and advance in time for all internal cells
-    // //Check global indices against global domain
-    // if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
-    //     const int i = tx + 2; //Skip local ghost cells, i.e., +2
-    //     const int j = ty + 2;
+    //Sum fluxes and advance in time for all internal cells
+    //Check global indices against global domain
+    if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
+        const int i = tx + 2; //Skip local ghost cells, i.e., +2
+        const int j = ty + 2;
 
-    //     // Flux along y-direction
-    //     const float3 G_flux_p = computeSingleFluxG(Q, Qx, Hi, g_, tx, ty+1);
-    //     const float3 G_flux_m = computeSingleFluxG(Q, Qx, Hi, g_, tx, ty  );
+        // Flux along y-direction
+        const float3 G_flux_p = computeSingleFluxG(Q, Qx, Hi, g_, tx, ty+1);
+        const float3 G_flux_m = computeSingleFluxG(Q, Qx, Hi, g_, tx, ty  );
 
 
-    //     // Find bottom topography source terms: S3
-    //     const float ST3 = bottomSourceTerm3_kp(Q, Qx, Hi, g_, i, j);
+        // Find bottom topography source terms: S3
+        const float ST3 = bottomSourceTerm3_kp(Q, Qx, Hi, g_, i, j);
         
-    //     const float X = 0.f; //windStressX(wind_stress_t_, ti+0.5f, tj+0.5f, nx_, ny_);
-    //     const float Y = 0.f; //windStressY(wind_stress_t_, ti+0.5f, tj+0.5f, nx_, ny_);
+        const float X = 0.f; //windStressX(wind_stress_t_, ti+0.5f, tj+0.5f, nx_, ny_);
+        const float Y = 0.f; //windStressY(wind_stress_t_, ti+0.5f, tj+0.5f, nx_, ny_);
 
-    //     // Coriolis parameter
-    //     float global_thread_y = tj-2; // Global id including ghost cells
-    //     float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
-    //                         dy_, y_zero_reference_cell_);
+        // Coriolis parameter
+        float global_thread_y = tj-2; // Global id including ghost cells
+        float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+                            dy_, y_zero_reference_cell_);
         
-    //     R1 += - (G_flux_p.x - G_flux_m.x) / dy_;
-    //     R2 += - (G_flux_p.y - G_flux_m.y) / dy_
-    //         + (X + coriolis_f*Q[2][j][i]);
-    //     R3 += - (G_flux_p.z - G_flux_m.z) / dy_
-    //         + (Y - coriolis_f*Q[1][j][i] - ST3/dy_);
+        R1 += - (G_flux_p.x - G_flux_m.x) / dy_;
+        R2 += - (G_flux_p.y - G_flux_m.y) / dy_
+            + (X + coriolis_f*Q[2][j][i]);
+        R3 += - (G_flux_p.z - G_flux_m.z) / dy_
+            + (Y - coriolis_f*Q[1][j][i] - ST3/dy_);
 
-    //     float* const eta_row  = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
-    //     float* const hu_row = (float*) ((char*) hu1_ptr_ + hu1_pitch_*tj);
-    //     float* const hv_row = (float*) ((char*) hv1_ptr_ + hv1_pitch_*tj);
+        float* const eta_row  = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
+        float* const hu_row = (float*) ((char*) hu1_ptr_ + hu1_pitch_*tj);
+        float* const hv_row = (float*) ((char*) hv1_ptr_ + hv1_pitch_*tj);
 
-    //     //const float C = 2.0f*r_*dt_/(Q[0][j][i]+Hm);
-    //     const float C = 0.0f;
+        //const float C = 2.0f*r_*dt_/(Q[0][j][i]+Hm);
+        const float C = 0.0f;
         
-    //     float eta;
-    //     float hu;
-    //     float hv;
+        float eta;
+        float hu;
+        float hv;
         
-    //     // TODO: Make absolutely sure that we use the correct values in relation to 
-    //     // dry cells. See the implementation for CDKLM!
+        // TODO: Make absolutely sure that we use the correct values in relation to 
+        // dry cells. See the implementation for CDKLM!
         
-    //     if  (step_ == 0) {
-    //         //First step of RK2 ODE integrator
+        if  (step_ == 0) {
+            //First step of RK2 ODE integrator
             
-    //         eta  =  Q[0][j][i] + dt_*R1;
-    //         hu = (Q[1][j][i] + dt_*R2) / (1.0f + C);
-    //         hv = (Q[2][j][i] + dt_*R3) / (1.0f + C);
-    //     }
-    //     else if (step_ == 1) {
-    //         //Second step of RK2 ODE integrator
+            eta  =  Q[0][j][i] + dt_*R1;
+            hu = (Q[1][j][i] + dt_*R2) / (1.0f + C);
+            hv = (Q[2][j][i] + dt_*R3) / (1.0f + C);
+        }
+        else if (step_ == 1) {
+            //Second step of RK2 ODE integrator
             
-    //         //First read Q^n
-    //         const float eta_a  = max(eta_row[ti], -Hm);
-    //         const float hu_a = hu_row[ti];
-    //         const float hv_a = hv_row[ti];
+            //First read Q^n
+            const float eta_a  = max(eta_row[ti], -Hm);
+            const float hu_a = hu_row[ti];
+            const float hv_a = hv_row[ti];
             
-    //         //Compute Q^n+1
-    //         const float eta_b  = 0.5f*(eta_a  + (Q[0][j][i] + dt_*R1));
-    //         const float hu_b = 0.5f*(hu_a + (Q[1][j][i] + dt_*R2));
-    //         const float hv_b = 0.5f*(hv_a + (Q[2][j][i] + dt_*R3));
+            //Compute Q^n+1
+            const float eta_b  = 0.5f*(eta_a  + (Q[0][j][i] + dt_*R1));
+            const float hu_b = 0.5f*(hu_a + (Q[1][j][i] + dt_*R2));
+            const float hv_b = 0.5f*(hv_a + (Q[2][j][i] + dt_*R3));
             
-    //         //Write to main memory
-    //         eta = eta_b;
-    //         hu = hu_b / (1.0f + 0.5f*C);
-    //         hv = hv_b / (1.0f + 0.5f*C);
-    //     }
+            //Write to main memory
+            eta = eta_b;
+            hu = hu_b / (1.0f + 0.5f*C);
+            hv = hv_b / (1.0f + 0.5f*C);
+        }
         
-    //     const float h = eta + Hm;
-    //     if (h <=  KPSIMULATOR_DEPTH_CUTOFF) {
-    //         eta = -Hm; // 0.0f; //Hm;
-    //         hu  = 0.0f;
-    //         hv  = 0.0f;
-    //     }
-    //     // eta_row[ti] = eta;
-    //     // hu_row[ti]  = hu;
-    //     // hv_row[ti]  = hv;
+        const float h = eta + Hm;
+        if (h <=  KPSIMULATOR_DEPTH_CUTOFF) {
+            eta = -Hm; // 0.0f; //Hm;
+            hu  = 0.0f;
+            hv  = 0.0f;
+        }
+        eta_row[ti] = eta;
+        hu_row[ti]  = hu;
+        hv_row[ti]  = hv;
         
         
-    // }
+    }
 }
 } // extern "C"

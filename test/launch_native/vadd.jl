@@ -89,10 +89,10 @@ theta::Float32 = 1.3
 beta::Float32 = 0.0
 y_zero_reference_cell::Float32 = 0.0
 
-bc::Int32 = 0
+bc::Int32 = 1
 
-num_threads = (16, 32)
-num_blocks = (Ny ÷ 16, Nx ÷ 32)
+num_threads = (32, 16)
+num_blocks = (Ny ÷ num_threads[1], Nx ÷ num_threads[2])
 
 eta0_dev  = CuArray(flattenarr(eta0))
 u0_dev    = CuArray(flattenarr(u0))
