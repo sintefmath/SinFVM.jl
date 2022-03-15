@@ -4,6 +4,7 @@ using CUDA
 using Plots
 using ProgressMeter
 using NPZ
+using PyCall
 
 function makeCentralBump!(eta, nx, ny, dx, dy)
     H0 = 60.0
@@ -22,9 +23,10 @@ function makeCentralBump!(eta, nx, ny, dx, dy)
     nothing
 end
 
-
+CompareSchemes2DPython = pyimport("CompareSchemes2D")
 function run_stuff()
 
+    python_simulator = CompareSchemes2DPython.BumpSimulation()
 
     md_sw = CuModuleFile(joinpath(@__DIR__, "KP07_kernel.ptx"))
     swe_2D = CuFunction(md_sw, "swe_2D")
@@ -48,17 +50,22 @@ function run_stuff()
     wind_stress::Float32 = 0.0
     ngc = 2
     data_shape = (Ny + 2 * ngc, Nx + 2 * ngc)
-    H = ones(MyType, data_shape) .* 60.0
+    # H = ones(MyType, data_shape) .* 60.0
     Hi = ones(MyType, data_shape .+ 1) .* 60.0
-    eta0 = zeros(MyType, data_shape)
-    u0 = zeros(MyType, data_shape)
-    v0 = zeros(MyType, data_shape)
+    # eta0 = zeros(MyType, data_shape)
+    # u0 = zeros(MyType, data_shape)
+    # v0 = zeros(MyType, data_shape)
+
+    H = python_simulator.H
+    eta0 = python_simulator.eta0
+    u0 = python_simulator.u0
+    v0 = python_simulator.v0
 
     eta1 = zeros(MyType, data_shape)
     u1 = zeros(MyType, data_shape)
     v1 = zeros(MyType, data_shape)
     dx::Float32 = dy::Float32 = 200.0
-    makeCentralBump!(eta0, Nx, Ny, dx, dy)
+    # makeCentralBump!(eta0, Nx, Ny, dx, dy)
 
     signature = Tuple{
         Int32,Int32,
@@ -133,7 +140,9 @@ function run_stuff()
             if i % save_every == 2
                 eta1_copied = reshape(collect(curr_eta1_dev), data_shape)
                 npzwrite("data/eta_$(div(i, save_every)).npy", eta1_copied)
-                heatmap(eta1_copied, clim=(0.0, 1.0), c=:viridis, aspect_ratio=1)
+                heatmap(eta1_copied,
+                    # clim=(0.0, 1.0), 
+                    c=:viridis, aspect_ratio=1)
                 title!("i = $i")
                 savefig("plots/eta_$(div(i, save_every)).png") 
             end
