@@ -3,6 +3,8 @@ using Test
 using CUDA
 using Plots
 
+# nvcc -ptx kp07_kernel.cu -o kp07_kernel.ptx
+
 function makeCentralBump!(eta, nx, ny, dx, dy)
     H0 = 60.0
     x_center = dx*nx/2.0
