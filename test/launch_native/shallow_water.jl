@@ -23,10 +23,10 @@ function makeCentralBump!(eta, nx, ny, dx, dy)
     nothing
 end
 
-CompareSchemes2DPython = pyimport("CompareSchemes2D")
+# CompareSchemes2DPython = pyimport("CompareSchemes2D")
 function run_stuff()
 
-    python_simulator = CompareSchemes2DPython.BumpSimulation()
+    # python_simulator = CompareSchemes2DPython.BumpSimulation()
 
     md_sw = CuModuleFile(joinpath(@__DIR__, "KP07_kernel.ptx"))
     swe_2D = CuFunction(md_sw, "swe_2D")
@@ -50,16 +50,16 @@ function run_stuff()
     wind_stress::Float32 = 0.0
     ngc = 2
     data_shape = (Ny + 2 * ngc, Nx + 2 * ngc)
-    # H = ones(MyType, data_shape) .* 60.0
+    H = ones(MyType, data_shape) .* 60.0
     Hi = ones(MyType, data_shape .+ 1) .* 60.0
-    # eta0 = zeros(MyType, data_shape)
-    # u0 = zeros(MyType, data_shape)
-    # v0 = zeros(MyType, data_shape)
+    eta0 = zeros(MyType, data_shape)
+    u0 = zeros(MyType, data_shape)
+    v0 = zeros(MyType, data_shape)
 
-    H = python_simulator.H
-    eta0 = python_simulator.eta0
-    u0 = python_simulator.u0
-    v0 = python_simulator.v0
+    # H = python_simulator.H
+    # eta0 = python_simulator.eta0
+    # u0 = python_simulator.u0
+    # v0 = python_simulator.v0
 
     eta1 = zeros(MyType, data_shape)
     u1 = zeros(MyType, data_shape)
@@ -103,7 +103,7 @@ function run_stuff()
     Hi_dev = CuArray(flattenarr(Hi))
     H_dev = CuArray(flattenarr(H))
 
-    number_of_timesteps = 30_000
+    number_of_timesteps = 30
     @showprogress for i in 1:number_of_timesteps
         step::Int32 = (i + 1) % 2
         if i % 2 == 1
