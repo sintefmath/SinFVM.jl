@@ -6,22 +6,9 @@ using ProgressMeter
 using NPZ
 using PyCall
 
-function makeCentralBump!(eta, nx, ny, dx, dy)
-    H0 = 60.0
-    x_center = dx * nx / 2.0
-    y_center = dy * ny / 2.0
-    for j in range(-2, ny + 2 - 1)
-        for i in range(-2, nx + 2 - 1)
-            x = dx * i - x_center
-            y = dy * j - y_center
-            sizenx = (0.15 * min(nx, ny) * min(dx, dy))^2
-            if (sqrt(x^2 + y^2) < sizenx)
-                eta[j+2+1, i+2+1] = exp(-(x^2 / sizenx + y^2 / sizenx))
-            end
-        end
-    end
-    nothing
-end
+#using .GPUOceanUtils
+include("GPUOceanUtils.jl")
+
 
 # CompareSchemes2DPython = pyimport("CompareSchemes2D")
 function run_stuff()
@@ -65,7 +52,7 @@ function run_stuff()
     u1 = zeros(MyType, data_shape)
     v1 = zeros(MyType, data_shape)
     dx::Float32 = dy::Float32 = 200.0
-    # makeCentralBump!(eta0, Nx, Ny, dx, dy)
+    makeCentralBump!(eta0, Nx, Ny, dx, dy)
 
     signature = Tuple{
         Int32,Int32,
@@ -103,7 +90,10 @@ function run_stuff()
     Hi_dev = CuArray(flattenarr(Hi))
     H_dev = CuArray(flattenarr(H))
 
-    number_of_timesteps = 30
+    npzwrite("data/eta_init.npy", eta0)
+
+
+    number_of_timesteps = 300
     @showprogress for i in 1:number_of_timesteps
         step::Int32 = (i + 1) % 2
         if i % 2 == 1
