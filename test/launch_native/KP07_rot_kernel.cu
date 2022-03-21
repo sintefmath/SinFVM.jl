@@ -31,6 +31,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define KPSIMULATOR_FLUX_SLOPE_EPS_4 1e-4f
 
 #include "common.cu"
+// Finds the coriolis term based on the linear Coriolis force
+// f = \tilde{f} + beta*(y-y0)
+__device__ float linear_coriolis_term(const float f, const float beta,
+			   const float tj, const float dy,
+			   const float y_zero_reference_cell) {
+    // y_0 is at the southern face of the row y_zero_reference_cell.
+    float y = (tj-y_zero_reference_cell + 0.5f)*dy;
+    return f + beta * y;
+}
 
 __device__ float reconstructHx(float Hi[block_height+4][block_width+4],
            const int p,
@@ -436,13 +445,17 @@ __device__ void init_H_with_garbage(float Hi[block_height+4][block_width+4],
   * This unsplit kernel computes the 2D numerical scheme with a TVD RK2 time integration scheme
   */
 extern "C" {
-__global__ void swe_2D(
+__global__ void swe_rot_2D(
         int nx_, int ny_,
         float dx_, float dy_, float dt_,
         float g_,
         
         float theta_,
-       
+        
+        float f_, //< Coriolis coefficient
+        float beta_, //< Coriolis force f_ + beta_*(y-y0)
+        float y_zero_reference_cell_, // the cell row representing y0 (y0 at southern face)
+	
         float r_, //< Bottom friction coefficient
         
         int step_,
@@ -462,8 +475,9 @@ __global__ void swe_2D(
         float* Hm_ptr_, int Hm_pitch_,
 
         // Boundary conditions (1: wall, 2: periodic, 3: numerical sponge)
-        int bc_north_, int bc_east_, int bc_south_, int bc_west_
-	) {
+        int bc_north_, int bc_east_, int bc_south_, int bc_west_,
+	
+        float wind_stress_t_) {
         
     //Index of thread within block
     const int tx = threadIdx.x;
@@ -571,10 +585,16 @@ __global__ void swe_2D(
         const float X = 0.f; //windStressX(wind_stress_t_, ti+0.5f, tj+0.5f, nx_, ny_);
         const float Y = 0.f; //windStressY(wind_stress_t_, ti+0.5f, tj+0.5f, nx_, ny_);
 
+        // Coriolis parameter
+        float global_thread_y = tj-2; // Global id including ghost cells
+        float coriolis_f = linear_coriolis_term(f_, beta_, global_thread_y,
+                            dy_, y_zero_reference_cell_);
         
         R1 += - (G_flux_p.x - G_flux_m.x) / dy_;
-        R2 += - (G_flux_p.y - G_flux_m.y) / dy_ + X ;
-        R3 += - (G_flux_p.z - G_flux_m.z) / dy_ + Y - ST3/dy_;
+        R2 += - (G_flux_p.y - G_flux_m.y) / dy_
+            + (X + coriolis_f*Q[2][j][i]);
+        R3 += - (G_flux_p.z - G_flux_m.z) / dy_
+            + (Y - coriolis_f*Q[1][j][i] - ST3/dy_);
 
         float* const eta_row  = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
         float* const hu_row = (float*) ((char*) hu1_ptr_ + hu1_pitch_*tj);
@@ -593,9 +613,9 @@ __global__ void swe_2D(
         if  (step_ == 0) {
             //First step of RK2 ODE integrator
             
-            eta  =  Q[0][j][i]; // + dt_*R1;
-            hu = (Q[1][j][i]); // + dt_*R2) / (1.0f + C);
-            hv = (Q[2][j][i]); // + dt_*R3) / (1.0f + C);
+            eta  =  Q[0][j][i] + dt_*R1;
+            hu = (Q[1][j][i] + dt_*R2) / (1.0f + C);
+            hv = (Q[2][j][i] + dt_*R3) / (1.0f + C);
         }
         else if (step_ == 1) {
             //Second step of RK2 ODE integrator
