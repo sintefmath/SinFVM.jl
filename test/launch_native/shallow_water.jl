@@ -60,8 +60,14 @@ function singleStep(; useJulia::Bool)
         Hi = CuArray(Hi)
         H  = CuArray(H)
 
-        
-        
+        @cuda threads=num_threads blocks=num_blocks julia_kp07!(
+            Nx, Ny, dx, dy, dt,
+            g, theta, step,
+            eta0_dev, hu0_dev, hv0_dev,
+            eta1_dev, hu1_dev, hv1_dev,
+            Hi, H,
+            bc)
+
     else
         md_sw = CuModuleFile(joinpath(@__DIR__, "KP07_kernel.ptx"))
         swe_2D = CuFunction(md_sw, "swe_2D")
