@@ -6,10 +6,15 @@ using ProgressMeter
 using NPZ
 using PyCall
 
+
 #using .GPUOceanUtils
 include("GPUOceanUtils.jl")
 
 include("swe_kp07.jl")
+
+#num_threads = (32, 16)
+#num_threads = (BLOCK_WIDTH, BLOCK_HEIGHT)
+# num_threads = (width, height)
 
 function singleStep(; useJulia::Bool)
     dataFolder = "data/plain"
