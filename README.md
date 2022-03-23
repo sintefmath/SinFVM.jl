@@ -29,7 +29,7 @@ If the environment definition has been updated by someone else:
 `] activate .` + `] update`
 
 # Compiling CUDA directly:
-´´´nvcc -ptx kp07_kernel.cu -o kp07_kernel.ptx´´´
+`nvcc -ptx kp07_kernel.cu -o kp07_kernel.ptx`
 
 # Conditional CUDA programming:
 See here: https://cuda.juliagpu.org/stable/installation/conditional/
