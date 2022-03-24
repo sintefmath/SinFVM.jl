@@ -12,23 +12,26 @@ include("GPUOceanUtils.jl")
 
 include("swe_kp07.jl")
 
-#num_threads = (32, 16)
-#num_threads = (BLOCK_WIDTH, BLOCK_HEIGHT)
-# num_threads = (width, height)
 
 function singleStep(; useJulia::Bool)
     dataFolder = "data/plain"
     flattenarr(x) = collect(Iterators.flatten(x))
 
     MyType = Float32
-    N = Nx = Ny = 256
-    N_tot = Nx * Ny
+    #N = Nx = Ny = 256
+    Nx = 270
+    Ny = 230
+    #N_tot = Nx * Ny
     dt::Float32 = 0.001
     g::Float32 = 9.81
+    f::Float32 = 0.00
     r::Float32 = 0.0
+    dx::Float32 = 0.5
+    dy::Float32 = 0.4
+
     step::Int32 = 0
     ngc = 2
-    data_shape = (Ny + 2 * ngc, Nx + 2 * ngc)
+    data_shape = (Nx + 2 * ngc, Ny + 2 * ngc)
     H = ones(MyType, data_shape) .* 1
     Hi = ones(MyType, data_shape .+ 1) .* 1
     eta0 = zeros(MyType, data_shape)
@@ -38,7 +41,6 @@ function singleStep(; useJulia::Bool)
     eta1 = zeros(MyType, data_shape)
     hu1 = zeros(MyType, data_shape)
     hv1 = zeros(MyType, data_shape)
-    dx::Float32 = dy::Float32 = 0.4
     
     eta0 = npzread("data/plain/eta_final.npy")
     hu0 = npzread("data/plain/hu_final.npy")
@@ -50,10 +52,11 @@ function singleStep(; useJulia::Bool)
     
     bc::Int32 = 1
 
-    num_threads = (32, 16)
-    num_blocks = (Ny ÷ num_threads[1], Nx ÷ num_threads[2])
     
     if useJulia
+        num_threads = (BLOCK_WIDTH, BLOCK_HEIGHT)
+        num_blocks = Tuple(cld.([Nx, Ny], num_threads))
+
         eta0_dev = CuArray(eta0)
         hu0_dev = CuArray(hu0)
         hv0_dev = CuArray(hv0)
@@ -74,6 +77,10 @@ function singleStep(; useJulia::Bool)
             bc)
 
     else
+        num_threads = (32, 16)
+        # num_threads = (width, height)
+        num_blocks = Tuple(cld.([Nx, Ny], num_threads))
+
         md_sw = CuModuleFile(joinpath(@__DIR__, "KP07_kernel.ptx"))
         swe_2D = CuFunction(md_sw, "swe_2D")
         signature = Tuple{
@@ -125,7 +132,7 @@ end
 
 
 function run_stuff(rotation::Bool,     
-    number_of_timesteps = 20000
+    number_of_timesteps = 30000
     )   
 
     md_sw = CuModuleFile(joinpath(@__DIR__, "KP07_kernel.ptx"))
@@ -189,20 +196,27 @@ function run_stuff(rotation::Bool,
     flattenarr(x) = collect(Iterators.flatten(x))
 
     MyType = Float32
-    N = Nx = Ny = 256
-    N_tot = Nx * Ny
+    #N = Nx = Ny = 256
+    Nx = 270
+    Ny = 230
+    #N_tot = Nx * Ny
     dt::Float32 = 0.001
     g::Float32 = 9.81
     f::Float32 = 0.00
     r::Float32 = 0.0
+    dx::Float32 = 0.5
+    dy::Float32 = 0.4
+
     wind_stress::Float32 = 0.0
     ngc = 2
-    data_shape = (Ny + 2 * ngc, Nx + 2 * ngc)
+    data_shape = (Nx + 2 * ngc, Ny + 2 * ngc)
     H = ones(MyType, data_shape) .* 1
     Hi = ones(MyType, data_shape .+ 1) .* 1
     eta0 = zeros(MyType, data_shape)
     hu0 = zeros(MyType, data_shape)
     hv0 = zeros(MyType, data_shape)
+    println(typeof(hu0), size(hu0))
+    return hu0, eta0, hv0, data_shape
 
 
     # H = python_simulator.H
@@ -213,8 +227,7 @@ function run_stuff(rotation::Bool,
     eta1 = zeros(MyType, data_shape)
     hu1 = zeros(MyType, data_shape)
     hv1 = zeros(MyType, data_shape)
-    dx::Float32 = dy::Float32 = 0.4
-    makeCentralBump!(eta0, Nx, Ny, dx, dy)
+    makeCentralBump!(eta0, Nx, Ny, dx, dy; centerX=0.3, centerY=0.6)
 
     #maxDt = 0.25*(dx/sqrt(61*g))
     #print("max Δt: $(maxDt)\n")
@@ -226,8 +239,11 @@ function run_stuff(rotation::Bool,
     bc::Int32 = 1
 
     num_threads = (32, 16)
-    num_blocks = (Ny ÷ num_threads[1], Nx ÷ num_threads[2])
+    num_blocks = Tuple(cld.([Nx, Ny], num_threads))
 
+    npzwrite("$(dataFolder)/eta_init.npy", eta0)
+
+    
     eta0_dev = CuArray(flattenarr(eta0))
     hu0_dev = CuArray(flattenarr(hu0))
     hv0_dev = CuArray(flattenarr(hv0))
@@ -238,7 +254,6 @@ function run_stuff(rotation::Bool,
     H_dev = CuArray(flattenarr(H))
 
 
-    npzwrite("$(dataFolder)/eta_init.npy", eta0)
 
 
     @showprogress for i in 1:number_of_timesteps
@@ -259,32 +274,35 @@ function run_stuff(rotation::Bool,
             curr_hv1_dev = hv0_dev
         end
 
+        pitch = Int32(data_shape[1] * sizeof(Float32))
+        pitch_Hi = Int32((data_shape[1] + 1) * sizeof(Float32))
+
         if rotation
             cudacall(swe_2D, signature,
                 Int32(Nx), Int32(Ny), dx, dy, dt,
                 g, theta, f, beta, y_zero_reference_cell, r, step,
-                curr_eta0_dev, Int32(data_shape[1] * sizeof(Float32)),
-                curr_hu0_dev, Int32(data_shape[1] * sizeof(Float32)),
-                curr_hv0_dev, Int32(data_shape[1] * sizeof(Float32)),
-                curr_eta1_dev, Int32(data_shape[1] * sizeof(Float32)),
-                curr_hu1_dev, Int32(data_shape[1] * sizeof(Float32)),
-                curr_hv1_dev, Int32(data_shape[1] * sizeof(Float32)),
-                Hi_dev, Int32((data_shape[1] + 1) * sizeof(Float32)),
-                H_dev, Int32(data_shape[1] * sizeof(Float32)),
+                curr_eta0_dev, pitch,
+                curr_hu0_dev, pitch,
+                curr_hv0_dev, pitch,
+                curr_eta1_dev, pitch,
+                curr_hu1_dev, pitch,
+                curr_hv1_dev, pitch,
+                Hi_dev, pitch_Hi,
+                H_dev, pitch,
                 bc, bc, bc, bc, wind_stress,
                 threads = num_threads, blocks = num_blocks)
         else
             cudacall(swe_2D, signature,
                 Int32(Nx), Int32(Ny), dx, dy, dt,
                 g, theta, r, step,
-                curr_eta0_dev, Int32(data_shape[1] * sizeof(Float32)),
-                curr_hu0_dev, Int32(data_shape[1] * sizeof(Float32)),
-                curr_hv0_dev, Int32(data_shape[1] * sizeof(Float32)),
-                curr_eta1_dev, Int32(data_shape[1] * sizeof(Float32)),
-                curr_hu1_dev, Int32(data_shape[1] * sizeof(Float32)),
-                curr_hv1_dev, Int32(data_shape[1] * sizeof(Float32)),
-                Hi_dev, Int32((data_shape[1] + 1) * sizeof(Float32)),
-                H_dev, Int32(data_shape[1] * sizeof(Float32)),
+                curr_eta0_dev, pitch,
+                curr_hu0_dev, pitch,
+                curr_hv0_dev, pitch,
+                curr_eta1_dev, pitch,
+                curr_hu1_dev, pitch,
+                curr_hv1_dev, pitch,
+                Hi_dev, pitch_Hi,
+                H_dev, pitch,
                 bc, bc, bc, bc,
                 threads = num_threads, blocks = num_blocks)
         end
@@ -299,22 +317,25 @@ function run_stuff(rotation::Bool,
 
                 eta1_copied = reshape(collect(curr_eta1_dev), data_shape)
                 npzwrite("$(dataFolder)/eta_$(div(i, save_every)).npy", eta1_copied)
-                heatmap(eta1_copied,
-                    # clim=(0.0, 1.0), 
-                    c=:viridis, aspect_ratio=1)
-                title!("i = $i")
+                plotField(eta1_copied, title ="i = $i")
                 savefig("$(plotFolder)/eta_$(div(i, save_every)).png") 
             end
         end
     end
 
-    #eta1_copied = reshape(collect(eta1_dev), data_shape)
-    #hu1_copied = reshape(collect(hu1_dev), data_shape)
-    #hv1_copied = reshape(collect(hv1_dev), data_shape)
-    #
-    #npzwrite("$(dataFolder)/eta_final.npy", eta1_copied)
-    #npzwrite("$(dataFolder)/hu_final.npy", hu1_copied)
-    #npzwrite("$(dataFolder)/hv_final.npy", hv1_copied)
+    eta1_copied = reshape(collect(eta1_dev), data_shape)
+    hu1_copied = reshape(collect(hu1_dev), data_shape)
+    hv1_copied = reshape(collect(hv1_dev), data_shape)
+    
+    npzwrite("$(dataFolder)/eta_final.npy", eta1_copied)
+    npzwrite("$(dataFolder)/hu_final.npy", hu1_copied)
+    npzwrite("$(dataFolder)/hv_final.npy", hv1_copied)
+    plotField(eta1_copied, title="eta final")
+    savefig("$(plotFolder)/eta_final.png") 
+    plotField(hu1_copied, title="hu final")
+    savefig("$(plotFolder)/hu_final.png") 
+    plotField(hv1_copied, title="hv final")
+    savefig("$(plotFolder)/hv_final.png") 
 
     return Array(eta1_dev), Array(hu1_dev), Array(hv1_dev), data_shape
 end
@@ -334,5 +355,5 @@ if check_julia_kernel
     @time eta_jl, hu_jl, hv_jl, data_shape = singleStep(useJulia=true)
 
     compareArrays(eta_cuda, hu_cuda, hv_cuda, 
-                  eta_jl, hu_jl, hv_jl, data_shape, doPlot=false)
+                  eta_jl, hu_jl, hv_jl, data_shape, doPlot=true)
 end

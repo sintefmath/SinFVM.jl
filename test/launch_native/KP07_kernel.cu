@@ -597,8 +597,9 @@ __global__ void swe_2D(
             hu = (Q[1][j][i] + dt_*R2) / (1.0f + C);
             hv = (Q[2][j][i] + dt_*R3) / (1.0f + C);
             
-            //eta  =  Q[0][j][i];
-            //hu = (Q[1][j][i]); 
+            eta  =  Q[0][j][i];
+            hu = (Q[1][j][i]); 
+            hv = (Q[2][j][i]); 
             //hv = (Hi[j][i]); 
         }
         else if (step_ == 1) {

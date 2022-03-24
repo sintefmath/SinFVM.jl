@@ -20,6 +20,12 @@ function makeCentralBump!(eta, nx, ny, dx, dy; centerX=0.5, centerY=0.5, bumphei
     nothing
 end
 
+function plotField(field; kwargs...)
+    heatmap(transpose(field), 
+        c=:viridis,
+        aspect_ratio=1;
+        kwargs...)
+end
 
 
 function compareArrays(eta1, hu1, hv1, eta2, hu2, hv2, 
@@ -46,9 +52,9 @@ function compareArrays(eta1, hu1, hv1, eta2, hu2, hv2,
                     "hu1", "hu2", "hu diff",
                     "hv1", "hv2", "hv diff"]
             for i in 1:9
-                push!(plot_array, heatmap(field_array[i], 
-                                        c=:viridis, aspect_ratio=1, 
-                                        title=titles[i], titlefontsize=10))
+                push!(plot_array, 
+                      plotField(field_array[i], title=titles[i], 
+                      titlefontsize=10))
             end
             plot(plot_array..., layout=(3,3))
         else
