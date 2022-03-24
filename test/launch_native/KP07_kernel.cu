@@ -593,9 +593,13 @@ __global__ void swe_2D(
         if  (step_ == 0) {
             //First step of RK2 ODE integrator
             
-            eta  =  Q[0][j][i]; // + dt_*R1;
-            hu = (Q[1][j][i]); // + dt_*R2) / (1.0f + C);
-            hv = (Q[2][j][i]); // + dt_*R3) / (1.0f + C);
+            eta  =  Q[0][j][i] + dt_*R1;
+            hu = (Q[1][j][i] + dt_*R2) / (1.0f + C);
+            hv = (Q[2][j][i] + dt_*R3) / (1.0f + C);
+            
+            //eta  =  Q[0][j][i];
+            //hu = (Q[1][j][i]); 
+            //hv = (Hi[j][i]); 
         }
         else if (step_ == 1) {
             //Second step of RK2 ODE integrator
@@ -629,4 +633,23 @@ __global__ void swe_2D(
         
     }
 }
+
+
+__global__ void showMemoryStructureCu(
+        float* a, float* b,
+        const int nx, const int ny
+    ) {
+        
+    const int tx = blockIdx.x * blockDim.x + threadIdx.x; 
+    const int ty = blockIdx.y * blockDim.y + threadIdx.y;
+ 
+    if (tx < nx && ty < ny) {
+        // CUDA assuming row-major memory layout
+        float* const a_row  = (float*) ((char*) a + nx*4*ty);
+        float* const b_row  = (float*) ((char*) b + nx*4*ty);
+        a_row[tx] = tx+1;
+        b_row[tx] = ty+1;
+    }
+}
+
 } // extern "C"

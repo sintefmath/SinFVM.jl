@@ -1,17 +1,19 @@
 #module GPUOceanUtils
 #export makeCentralBump
 
-function makeCentralBump!(eta, nx, ny, dx, dy, bumpheight=1.0)
+using CUDA, Test, Plots
+
+function makeCentralBump!(eta, nx, ny, dx, dy; centerX=0.5, centerY=0.5, bumpheight=1.0)
     H0 = 60.0
-    x_center = dx * nx / 2.0
-    y_center = dy * ny / 2.0
+    x_center = dx * nx * centerX
+    y_center = dy * ny * centerY
     for j in range(-2, ny + 2 - 1)
         for i in range(-2, nx + 2 - 1)
             x = dx * i - x_center
             y = dy * j - y_center
             sizenx = (0.15 * min(nx, ny) * min(dx, dy))^2
             if (sqrt(x^2 + y^2) < sizenx)
-                eta[j+2+1, i+2+1] = bumpheight * exp(-(x^2 / sizenx + y^2 / sizenx))
+                eta[i+2+1, j+2+1] = bumpheight * exp(-(x^2 / sizenx + y^2 / sizenx))
             end
         end
     end
@@ -63,5 +65,82 @@ function compareArrays(eta1, hu1, hv1, eta2, hu2, hv2,
 
 end    
 
+function showMemoryStructureJl!(a, b, nx, ny)
+    # Kernel to illustrate memory layout (row-major vs column major)
+    tx = (blockIdx().x - 1)*blockDim().x + threadIdx().x
+    ty = (blockIdx().y - 1)*blockDim().y + threadIdx().y
 
-#end
+    if ((tx <= nx) && (ty <= ny))
+        a[tx, ty] = tx
+        b[tx, ty] = ty
+    end
+    return nothing
+end
+
+function testMemoryLayout(;doPlot=true)
+    nx::Int32 = 19
+    ny::Int32 = 31
+    a_h = zeros(Float32, (nx, ny))
+    b_h = zeros(Float32, (nx, ny))
+    
+ 
+    num_threads = (4, 8)
+    num_blocks =  (cld(nx, num_threads[1]), cld(ny, num_threads[2]))
+    
+    @info "num threads = $(num_threads), num blocks = $(num_blocks)"
+    @info "num threads = $(num_threads), num blocks = $(num_blocks)"
+    threads_total = num_threads .* num_blocks
+    @info "total num threads = $(threads_total), (nx, ny) = $((nx, ny))"
+    @info "nx*ny = $(nx*ny)"
+
+    # Run julia:
+    a_djl = CuArray(a_h)
+    b_djl = CuArray(b_h)
+
+    @cuda threads=num_threads blocks=num_blocks showMemoryStructureJl!(a_djl, b_djl, nx, ny)
+    a_hjl = Array(a_djl)
+    b_hjl = Array(b_djl)
+
+    # Run native CUDA:
+    md_sw = CuModuleFile(joinpath(@__DIR__, "KP07_kernel.ptx"))
+    showMemoryStructureCu = CuFunction(md_sw, "showMemoryStructureCu")
+
+    flattenarr(x) = collect(Iterators.flatten(x))
+    
+    a_dcu = CuArray(flattenarr(a_h))
+    b_dcu = CuArray(flattenarr(b_h))
+    
+   
+    cudacall(showMemoryStructureCu, 
+             Tuple{CuPtr{Cfloat}, CuPtr{Cfloat},
+                   Int32, Int32},
+            a_dcu, b_dcu, nx, ny,
+            threads=num_threads, blocks = num_blocks)
+
+    rebuildarr(x) = reshape(collect(x), (ny, nx))
+    
+    a_hcu = rebuildarr(a_dcu)
+    b_hcu = rebuildarr(b_dcu)
+    
+    if doPlot
+        plot_array = Any[]
+        push!(plot_array, plot(1:(nx*ny), 
+            [flattenarr(a_hcu) flattenarr(a_hjl)],
+                label=["a_hcu" "a_hjl"], title="x values"))
+        push!(plot_array, plot(1:(nx*ny), 
+            [flattenarr(b_hcu) flattenarr(b_hjl)],
+            label=["b_hcu" "b_hjl"], title="y values"))
+        display(plot(plot_array..., layout=(2,1)))
+    end
+
+    @test all(flattenarr(a_hcu) .== flattenarr(a_hjl))
+    @test all(flattenarr(b_hcu) .== flattenarr(b_hjl))
+    
+     return nothing
+end
+
+#testMemoryLayout(doPlot=false)
+
+
+
+
