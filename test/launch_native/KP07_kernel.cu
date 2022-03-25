@@ -194,7 +194,7 @@ __device__ void adjustSlopes_x(float Qx[3][block_height+2][block_width+2],
     const int p = threadIdx.x + 2;
     const int q = threadIdx.y + 2;
 
-    adjustSlopeUx(Qx, Hi, Q, p, q);
+    (Qx, Hi, Q, p, q);
 
     // Use one warp to perform the extra adjustments
     if (threadIdx.x == 0) {
@@ -516,12 +516,14 @@ __global__ void swe_2D(
     __syncthreads();
 
     // Adjust the slopes to avoid negative values at integration points
-    adjustSlopes_x(Qx, Hi, Q);
+    //adjustSlopes_x(Qx, Hi, Q);
     __syncthreads();
     
     float R1 = 0.0f;
     float R2 = 0.0f;
     float R3 = 0.0f;
+
+    if (false) {
     
     if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
         const int i = tx + 2; //Skip local ghost cells, i.e., +2
@@ -553,7 +555,7 @@ __global__ void swe_2D(
     adjustSlopes_y(Qx, Hi, Q);
     __syncthreads();
       
-    
+    }
     //Sum fluxes and advance in time for all internal cells
     //Check global indices against global domain
     if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
@@ -575,7 +577,7 @@ __global__ void swe_2D(
         R1 += - (G_flux_p.x - G_flux_m.x) / dy_;
         R2 += - (G_flux_p.y - G_flux_m.y) / dy_ + X ;
         R3 += - (G_flux_p.z - G_flux_m.z) / dy_ + Y - ST3/dy_;
-
+    
         float* const eta_row  = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
         float* const hu_row = (float*) ((char*) hu1_ptr_ + hu1_pitch_*tj);
         float* const hv_row = (float*) ((char*) hv1_ptr_ + hv1_pitch_*tj);
@@ -593,14 +595,14 @@ __global__ void swe_2D(
         if  (step_ == 0) {
             //First step of RK2 ODE integrator
             
-            eta  =  Q[0][j][i] + dt_*R1;
-            hu = (Q[1][j][i] + dt_*R2) / (1.0f + C);
-            hv = (Q[2][j][i] + dt_*R3) / (1.0f + C);
+            //eta  =  Q[0][j][i] + dt_*R1;
+            //hu = (Q[1][j][i] + dt_*R2) / (1.0f + C);
+            //hv = (Q[2][j][i] + dt_*R3) / (1.0f + C);
             
-            eta  =  Q[0][j][i];
-            hu = (Q[1][j][i]); 
-            hv = (Q[2][j][i]); 
-            //hv = (Hi[j][i]); 
+            eta  =  Qx[0][j-2][i-1];
+            hu = (Qx[1][j-2][i-1]); 
+            hv = (Qx[2][j-2][i-1]); 
+            
         }
         else if (step_ == 1) {
             //Second step of RK2 ODE integrator

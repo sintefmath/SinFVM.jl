@@ -45,6 +45,8 @@ function singleStep(; useJulia::Bool)
     eta0 = npzread("data/plain/eta_final.npy")
     hu0 = npzread("data/plain/hu_final.npy")
     hv0 = npzread("data/plain/hv_final.npy")
+    makeBathymetry!(H, Hi, Nx, Ny, dx, dy)
+
 
     eta0_dev = hu0_dev = hv0_dev = eta1_dev = hu1_dev = hv1_dev = nothing
 
@@ -215,9 +217,7 @@ function run_stuff(rotation::Bool,
     eta0 = zeros(MyType, data_shape)
     hu0 = zeros(MyType, data_shape)
     hv0 = zeros(MyType, data_shape)
-    println(typeof(hu0), size(hu0))
-    return hu0, eta0, hv0, data_shape
-
+    
 
     # H = python_simulator.H
     # eta0 = python_simulator.eta0
@@ -228,7 +228,8 @@ function run_stuff(rotation::Bool,
     hu1 = zeros(MyType, data_shape)
     hv1 = zeros(MyType, data_shape)
     makeCentralBump!(eta0, Nx, Ny, dx, dy; centerX=0.3, centerY=0.6)
-
+    makeBathymetry!(H, Hi, Nx, Ny, dx, dy)
+    
     #maxDt = 0.25*(dx/sqrt(61*g))
     #print("max Δt: $(maxDt)\n")
 

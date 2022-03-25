@@ -20,6 +20,28 @@ function makeCentralBump!(eta, nx, ny, dx, dy; centerX=0.5, centerY=0.5, bumphei
     nothing
 end
 
+function makeBathymetry!(H, Hi, nx, ny, dx, dy)
+    length = dx*nx*1.0
+    height = dy*ny*1.0
+    depth(x, y) = 1.0 - 0.25*((sin(π*(x/length)*4)^2 + sin(π*(y/height)*4)^2))
+    for j in range(-2, ny + 2 - 1)
+        for i in range(-2, nx + 2 -1)
+            x = dx*i
+            y = dy*j
+            H[i+2+1, j+2+1] = depth(x, y)
+        end
+    end
+    for j in range(-2, ny + 2)
+        for i in range(-2, nx + 2)
+            x = dx*(i-0.5)
+            y = dy*(j-0.5)
+            Hi[i+2+1, j+2+1] = depth(x, y)
+        end
+    end
+    
+
+end
+
 function plotField(field; kwargs...)
     heatmap(transpose(field), 
         c=:viridis,
@@ -48,23 +70,25 @@ function compareArrays(eta1, hu1, hv1, eta2, hu2, hv2,
             field_array = [eta1_h, eta2_h, eta_diff ,
                         hu1_h, hu2_h, hu_diff, 
                         hv1_h, hv2_h, hv_diff]
-            titles = ["eta1", "eta2", "eta diff",
-                    "hu1", "hu2", "hu diff",
-                    "hv1", "hv2", "hv diff"]
+            titles = ["eta cuda", "eta julia", "eta diff",
+                    "hu cuda", "hu julia", "hu diff",
+                    "hv cuda", "hv julia", "hv diff"]
             for i in 1:9
                 push!(plot_array, 
                       plotField(field_array[i], title=titles[i], 
                       titlefontsize=10))
             end
-            plot(plot_array..., layout=(3,3))
-        else
-            max_eta_diff = maximum(broadcast(abs, eta_diff))
-            max_hu_diff = maximum(broadcast(abs, hu_diff))
-            max_hv_diff = maximum(broadcast(abs, hv_diff))
-            print("Results differ!\n")
-            print("norms: eta = $(max_eta_diff), hu = $(max_hu_diff), hv = $(max_hv_diff): " )
-                    
+            display(plot(plot_array..., layout=(3,3)))
+            display(plot_array[1])
+            display(plot_array[2])
+            display(plot_array[3])
         end
+        max_eta_diff = maximum(broadcast(abs, eta_diff))
+        max_hu_diff = maximum(broadcast(abs, hu_diff))
+        max_hv_diff = maximum(broadcast(abs, hv_diff))
+        print("Results differ!\n")
+        print("norms: eta = $(max_eta_diff), hu = $(max_hu_diff), hv = $(max_hv_diff): " )
+        
     else
         print("Results are the same!\n")
     end
@@ -142,7 +166,7 @@ function testMemoryLayout(;doPlot=true)
     @test all(flattenarr(a_hcu) .== flattenarr(a_hjl))
     @test all(flattenarr(b_hcu) .== flattenarr(b_hjl))
     
-     return nothing
+    return nothing
 end
 
 #testMemoryLayout(doPlot=false)
