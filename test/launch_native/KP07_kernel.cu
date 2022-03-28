@@ -524,7 +524,6 @@ __global__ void swe_2D(
     float R3 = 0.0f;
 
     if (false) {
-    
     if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
         const int i = tx + 2; //Skip local ghost cells, i.e., +2
         const int j = ty + 2; 
@@ -541,6 +540,7 @@ __global__ void swe_2D(
         R2 = - (F_flux_p.y - F_flux_m.y) / dx_
              + ( - ST2/dx_);
         R3 = - (F_flux_p.z - F_flux_m.z) / dx_;
+        
     }
     __syncthreads();
     
@@ -591,7 +591,7 @@ __global__ void swe_2D(
         
         // TODO: Make absolutely sure that we use the correct values in relation to 
         // dry cells. See the implementation for CDKLM!
-        
+        __syncthreads();
         if  (step_ == 0) {
             //First step of RK2 ODE integrator
             
@@ -599,9 +599,12 @@ __global__ void swe_2D(
             //hu = (Q[1][j][i] + dt_*R2) / (1.0f + C);
             //hv = (Q[2][j][i] + dt_*R3) / (1.0f + C);
             
-            eta  =  Qx[0][j-2][i-1];
-            hu = (Qx[1][j-2][i-1]); 
-            hv = (Qx[2][j-2][i-1]); 
+            //eta  =  Q[1][j-2][i-2];
+            //hu = (Q[1][j+2][i+2]); 
+            eta  =  Q[0][j+2][i+2];
+            hu = (Q[1][j][i+2]); 
+            hv = Q[2][j-2][i];
+            //hv = bottomSourceTerm2_kp(Q, Qx, Hi, g_, i, j); //(Qx[2][j-2][i-1]); 
             
         }
         else if (step_ == 1) {

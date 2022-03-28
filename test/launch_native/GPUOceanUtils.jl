@@ -64,7 +64,11 @@ function compareArrays(eta1, hu1, hv1, eta2, hu2, hv2,
     hv_diff  = hv1_h .- hv2_h
 
     if !(all(eta_diff .== 0) && all(hu_diff .== 0) && all(hv_diff .== 0))
-        if doPlot
+        max_eta_diff = maximum(broadcast(abs, eta_diff))
+        max_hu_diff = maximum(broadcast(abs, hu_diff))
+        max_hv_diff = maximum(broadcast(abs, hv_diff))
+        if doPlot && max(max_eta_diff, max(max_hu_diff, max_hv_diff)) > 1e-6
+
             plot_array = Any[]
 
             field_array = [eta1_h, eta2_h, eta_diff ,
@@ -79,13 +83,10 @@ function compareArrays(eta1, hu1, hv1, eta2, hu2, hv2,
                       titlefontsize=10))
             end
             display(plot(plot_array..., layout=(3,3)))
-            display(plot_array[1])
-            display(plot_array[2])
-            display(plot_array[3])
+            display(plot_array[7])
+            display(plot_array[8])
+            display(plot_array[9])
         end
-        max_eta_diff = maximum(broadcast(abs, eta_diff))
-        max_hu_diff = maximum(broadcast(abs, hu_diff))
-        max_hv_diff = maximum(broadcast(abs, hv_diff))
         print("Results differ!\n")
         print("norms: eta = $(max_eta_diff), hu = $(max_hu_diff), hv = $(max_hv_diff): " )
         

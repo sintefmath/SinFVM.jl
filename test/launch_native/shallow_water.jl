@@ -6,7 +6,6 @@ using ProgressMeter
 using NPZ
 using PyCall
 
-
 #using .GPUOceanUtils
 include("GPUOceanUtils.jl")
 
@@ -19,8 +18,8 @@ function singleStep(; useJulia::Bool)
 
     MyType = Float32
     #N = Nx = Ny = 256
-    Nx = 270
-    Ny = 230
+    Nx::Int32 = 270
+    Ny::Int32 = 230
     #N_tot = Nx * Ny
     dt::Float32 = 0.001
     g::Float32 = 9.81
@@ -199,8 +198,8 @@ function run_stuff(rotation::Bool,
 
     MyType = Float32
     #N = Nx = Ny = 256
-    Nx = 270
-    Ny = 230
+    Nx::Int32 = 270
+    Ny::Int32 = 230
     #N_tot = Nx * Ny
     dt::Float32 = 0.001
     g::Float32 = 9.81

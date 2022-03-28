@@ -22,26 +22,26 @@ end
 
 
 function julia_kp07!(
-    Nx, Ny, dx, dy, dt,
-    g, theta, step,
+    Nx::Int32, Ny::Int32, dx::Float32, dy::Float32, dt::Float32,
+    g::Float32, theta::Float32, step::Int32,
     eta0, hu0, hv0,
     eta1, hu1, hv1,
-    Hi, H,
+    Hi_glob, H,
     bc)
 
-    tx = threadIdx().x
-    ty = threadIdx().y
+    tx::Int32 = threadIdx().x
+    ty::Int32 = threadIdx().y
 
 
-    blockStart_i = (blockIdx().x - 1)*blockDim().x
-    blockStart_j = (blockIdx().y - 1)*blockDim().y
+    blockStart_i::Int32 = (blockIdx().x - 1)*blockDim().x
+    blockStart_j::Int32 = (blockIdx().y - 1)*blockDim().y
     
-    ti = blockStart_i + threadIdx().x + 2
-    tj = blockStart_j + threadIdx().y + 2
+    ti::Int32 = blockStart_i + threadIdx().x + 2
+    tj::Int32 = blockStart_j + threadIdx().y + 2
 
     Q = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+4), (BLOCK_HEIGHT+4), 3))
     Qx = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+2),(BLOCK_HEIGHT+2), 3))
-    Hi_shmem = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+4),(BLOCK_HEIGHT+4)))
+    Hi = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+4),(BLOCK_HEIGHT+4)))
 
     # Read eta0, hu0, hv0 and Hi into shmem:
     for j = ty:BLOCK_HEIGHT:BLOCK_HEIGHT+4
@@ -51,58 +51,14 @@ function julia_kp07!(
             Q[i, j, 1] = eta0[glob_i, glob_j]
             Q[i, j, 2] = hu0[glob_i, glob_j]
             Q[i, j, 3] = hv0[glob_i, glob_j]
-            Hi_shmem[i, j] = Hi[glob_i, glob_j]
+            Hi[i, j] = Hi_glob[glob_i, glob_j]
         end
     end
     sync_threads()    
 
-    if (bc == 1)
-        #wall_bc_to_shmem!(Q, Nx, Ny)
-        i = tx + 2
-        j = ty + 2
-        if (ti == 3)
-            # First index within domain in x (west)
-            Q[i-1, j, 1] =  Q[i, j, 1]
-            Q[i-1, j, 2] = -Q[i, j, 2]
-            Q[i-1, j, 3] =  Q[i, j, 3]
-                
-            Q[i-2, j, 1] =  Q[i+1, j, 1]
-            Q[i-2, j, 2] = -Q[i+1, j, 2]
-            Q[i-2, j, 3] =  Q[i+1, j, 3]
-        end
-        if (ti == Nx+2)
-            # Last index within domain in x (east)
-            Q[i+1, j, 1] =  Q[i, j, 1]
-            Q[i+1, j, 2] = -Q[i, j, 2]
-            Q[i+1, j, 3] =  Q[i, j, 3]
-                
-            Q[i+2, j, 1] =  Q[i-1, j, 1]
-            Q[i+2, j, 2] = -Q[i-1, j, 2]
-            Q[i+2, j, 3] =  Q[i-1, j, 3]
-        end
-        if (tj == 3) 
-            # First index in domain in y (south)
-            Q[i, j-1, 1] =  Q[i, j, 1]
-            Q[i, j-1, 2] =  Q[i, j, 2]
-            Q[i, j-1, 3] = -Q[i, j, 3]
-                
-            Q[i, j-2, 1] =  Q[i, j+1, 1]
-            Q[i, j-2, 2] =  Q[i, j+1, 2]
-            Q[i, j-2, 3] = -Q[i, j+1, 3]
-        end
-        if (tj == Ny+2)
-            # Last index in domain in y (north)
-            Q[i, j+1, 1] =  Q[i, j, 1]
-            Q[i, j+1, 2] =  Q[i, j, 2]
-            Q[i, j+1, 3] = -Q[i, j, 3]
-                
-            Q[i, j+2, 1] =  Q[i, j-1, 1]
-            Q[i, j+2, 2] =  Q[i, j-1, 2]
-            Q[i, j+2, 3] = -Q[i, j-1, 3]
-           
-        end 
-        sync_threads()
-    end
+    #fillWithCrap!(Q, i, j)
+    wall_bc_to_shmem!(Q, Nx, Ny, Int32(tx+2), Int32(ty+2), ti, tj)
+    sync_threads()
 
     # Reconstruct Q in x-direction into Qx
     # 
@@ -122,7 +78,27 @@ function julia_kp07!(
 
     # TODO: Skipping adjustSlope_x
 
+    R1 = R2 = R3 = 0.0
+    if (ti > 2 && tj > 2 && ti <= Nx + 2 && tj <= Ny + 2)
+        i = tx + 2
+        j = ty + 2
 
+        # Bottom topography source term along x 
+        eta_p = Q[i, j, 1] + Qx[i-1, j-2, 1]
+        eta_m = Q[i, j, 1] - Qx[i-1, j-2, 1]
+        RHx_p = 0.5*(Hi[i+1, j] + Hi[i+1, j+1])
+        RHx_m = 0.5*(Hi[i  , j] + Hi[i  , j+1])
+        H_x = RHx_p - RHx_m
+
+        #h = Q[j,i,1] + (RHx_p + RHx_m)/2.0
+        # TODO Desingularize and ensure h >= 0
+        ST2 = -0.5*g*H_x *(eta_p + RHx_p + eta_m + RHx_m)
+        
+        
+        eta1[ti, tj] = Q[i+2, j+2, 1];
+        hu1[ti, tj]  = Q[i+2, j, 2];
+        hv1[ti, tj]  = Q[i, j-2, 3]; #ST2 #Qx[i-1, j-2, 3];
+    end
 
 
 
@@ -130,9 +106,9 @@ function julia_kp07!(
         i = tx + 2
         j = ty + 2
 
-        eta1[ti, tj] = Qx[i-1, j-2, 1];
-        hu1[ti, tj]  = Qx[i-1, j-2, 2];
-        hv1[ti, tj]  = Qx[i-1, j-2, 3];
+        #eta1[ti, tj] = Qx[i-1, j-2, 1];
+        #hu1[ti, tj]  = Qx[i-1, j-2, 2];
+        #hv1[ti, tj]  = Qx[i-1, j-2, 3];
         #hv1[ti, tj]  = Hi_shmem[i, j];
 
         #eta1[ti, tj] = eta0[ti, tj]
@@ -143,16 +119,17 @@ function julia_kp07!(
     return nothing
 end
 
+function fillWithCrap!(Q::CuDeviceArray{Float32, 3, 3}, i, j)
+    Q[i, j, 2] = i+j
+    return nothing
+end
+
 
 function wall_bc_to_shmem!(Q::CuDeviceArray{Float32, 3, 3}, 
-                           Nx::Int32, Ny::Int32)
+                           Nx::Int32, Ny::Int32, 
+                           i::Int32, j::Int32,
+                           ti::Int32, tj::Int32)
     # Global and local indices:
-    i = threadIdx().x + 2
-    j = threadIdx().y + 2
-
-    ti = (blockIdx().x - 1)*blockDim().x + i
-    tj = (blockIdx().y - 1)*blockDim().y + j
-
     if (ti == 3)
         # First index within domain in x (west)
         Q[i-1, j, 1] =  Q[i, j, 1]
@@ -192,8 +169,7 @@ function wall_bc_to_shmem!(Q::CuDeviceArray{Float32, 3, 3},
         Q[i, j+2, 1] =  Q[i, j-1, 1]
         Q[i, j+2, 2] =  Q[i, j-1, 2]
         Q[i, j+2, 3] = -Q[i, j-1, 3]
-       
-    end
+        
+    end 
     return nothing
-
 end
