@@ -542,7 +542,6 @@ __global__ void swe_2D(
         R3 = - (F_flux_p.z - F_flux_m.z) / dx_;
         
     }
-    if (false) {
     __syncthreads();
     
     // Reconstruct Q in y-direction while reusing Qx shmem buffer
@@ -553,10 +552,9 @@ __global__ void swe_2D(
     __syncthreads();
 
     // Adjust the slopes to avoid negative values at integration points
-    adjustSlopes_y(Qx, Hi, Q);
+    //adjustSlopes_y(Qx, Hi, Q);
     __syncthreads();
       
-    }
     //Sum fluxes and advance in time for all internal cells
     //Check global indices against global domain
     if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
@@ -600,9 +598,9 @@ __global__ void swe_2D(
             //hu = (Q[1][j][i] + dt_*R2) / (1.0f + C);
             //hv = (Q[2][j][i] + dt_*R3) / (1.0f + C);
             
-            eta = R1;
-            hu  = R2;
-            hv  = R3;
+            eta = Qx[0][ty+1][tx];
+            hu  = Qx[1][ty+1][tx];
+            hv  = Qx[2][ty+1][tx];
             //hv = bottomSourceTerm2_kp(Q, Qx, Hi, g_, i, j); //(Qx[2][j-2][i-1]); 
             
         }
@@ -621,6 +619,7 @@ __global__ void swe_2D(
             
             //Write to main memory
             eta = eta_b;
+
             hu = hu_b / (1.0f + 0.5f*C);
             hv = hv_b / (1.0f + 0.5f*C);
         }

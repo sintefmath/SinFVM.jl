@@ -64,7 +64,7 @@ function julia_kp07!(
     # Reconstruct slopes along x axis
     # Qx is here dQ/dx*0.5*dx
     # and represents [eta_x, hu_x, hv_x]
-    recontstruct_slope_x!(Q, Qx, theta, tx, ty)
+    reconstruct_slope_x!(Q, Qx, theta, tx, ty)
 
     sync_threads()
 
@@ -86,24 +86,28 @@ function julia_kp07!(
         R1 = - (F_flux_p_x - F_flux_m_x) / dx
         R2 = - (F_flux_p_y - F_flux_m_y) / dx + ( - ST2/dx)
         R3 = - (F_flux_p_z - F_flux_m_z) / dx
+ 
+    end
+    sync_threads()
 
-        eta1[ti, tj] = R1
-        hu1[ti, tj]  = R2
-        hv1[ti, tj]  = R3
-    
-end
-
+    # Reconstruct Q in y-direction into Qx
+    # 
+    # Reconstruct slopes along y axis
+    # Qx is here dQ/dy*0.5*dy
+    # and represents [eta_y, hu_y, hv_y]
+    reconstruct_slope_y!(Q, Qx, theta, tx, ty)
+    sync_threads()
 
 
     if (ti > 2 && tj > 2 && ti <= Nx + 2 && tj <= Ny + 2)
         i = tx + 2
         j = ty + 2
 
-        #eta1[ti, tj] = Qx[i-1, j-2, 1];
-        #hu1[ti, tj]  = Qx[i-1, j-2, 2];
-        #hv1[ti, tj]  = Qx[i-1, j-2, 3];
-        #hv1[ti, tj]  = Hi_shmem[i, j];
 
+        eta1[ti, tj] = Qx[tx, ty+1, 1]
+        hu1[ti, tj]  = Qx[tx, ty+1, 2]
+        hv1[ti, tj]  = Qx[tx, ty+1, 3]
+   
         #eta1[ti, tj] = eta0[ti, tj]
         #hu1[ti, tj] = hu0[ti, tj]
         #hv1[ti, tj] = hv0[ti, tj]
@@ -171,7 +175,7 @@ function reconstruct_Hx(Hi::CuDeviceMatrix{Float32, 3}, i::Int32  , j::Int32)
     return Float32(0.5)*(Hi[i  , j] + Hi[i  , j+1])
 end
 
-function recontstruct_slope_x!(Q::CuDeviceArray{Float32, 3, 3},
+function reconstruct_slope_x!(Q::CuDeviceArray{Float32, 3, 3},
                                Qx::CuDeviceArray{Float32, 3, 3}, 
                                theta::Float32, tx::Int32, ty::Int32)
     for j = ty:BLOCK_HEIGHT:BLOCK_HEIGHT
@@ -180,6 +184,21 @@ function recontstruct_slope_x!(Q::CuDeviceArray{Float32, 3, 3},
             k = i + 1
             for p=1:3
                 Qx[i, j, p] = 0.5 * minmodSlope(Q[k-1, l, p], Q[k, l, p], Q[k+1, l, p], theta);
+            end
+        end
+    end
+    return nothing
+end
+
+function reconstruct_slope_y!(Q::CuDeviceArray{Float32, 3, 3},
+                              Qx::CuDeviceArray{Float32, 3, 3}, 
+                              theta::Float32, tx::Int32, ty::Int32)
+    for j = ty:BLOCK_HEIGHT:BLOCK_HEIGHT+2
+        l = j + 1
+        for i = tx:BLOCK_WIDTH:BLOCK_WIDTH
+            k = i + 2
+            for p=1:3
+                Qx[i, j, p] = 0.5 * minmodSlope(Q[k, l-1, p], Q[k, l, p], Q[k, l+1, p], theta);
             end
         end
     end

@@ -83,9 +83,9 @@ function compareArrays(eta1, hu1, hv1, eta2, hu2, hv2,
                       titlefontsize=10))
             end
             display(plot(plot_array..., layout=(3,3)))
-            display(plot_array[1])
-            display(plot_array[2])
-            display(plot_array[3])
+            #display(plot_array[1])
+            #display(plot_array[2])
+            #display(plot_array[3])
         end
         print("Results differ!\n")
         print("norms: eta = $(max_eta_diff), hu = $(max_hu_diff), hv = $(max_hv_diff): " )
