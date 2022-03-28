@@ -1,6 +1,6 @@
 
-const BLOCK_WIDTH = 16
-const BLOCK_HEIGHT = 8
+const BLOCK_WIDTH = Int32(16)
+const BLOCK_HEIGHT = Int32(8)
 
 function clamp(i, low, high)
     return max(low, min(i, high))
@@ -78,11 +78,20 @@ function julia_kp07!(
         # Bottom topography source term along x 
         # TODO Desingularize and ensure h >= 0
         ST2 = bottom_source_term_x(Q, Qx, Hi, g, i, j)
+
+        # TODO: Not written for dry cells
+        F_flux_p_x, F_flux_p_y, F_flux_p_z = compute_single_flux_F(Q, Qx, Hi, g, tx+Int32(1), ty)
+        F_flux_m_x, F_flux_m_y, F_flux_m_z = compute_single_flux_F(Q, Qx, Hi, g, tx         , ty)
         
-        eta1[ti, tj] = Q[i, j, 1];
-        hu1[ti, tj]  = Q[i, j, 2];
-        hv1[ti, tj]  = ST2 #Qx[i-1, j-2, 3];
-    end
+        R1 = - (F_flux_p_x - F_flux_m_x) / dx
+        R2 = - (F_flux_p_y - F_flux_m_y) / dx + ( - ST2/dx)
+        R3 = - (F_flux_p_z - F_flux_m_z) / dx
+
+        eta1[ti, tj] = R1
+        hu1[ti, tj]  = R2
+        hv1[ti, tj]  = R3
+    
+end
 
 
 
@@ -158,6 +167,9 @@ function wall_bc_to_shmem!(Q::CuDeviceArray{Float32, 3, 3},
     return nothing
 end
 
+function reconstruct_Hx(Hi::CuDeviceMatrix{Float32, 3}, i::Int32  , j::Int32)
+    return Float32(0.5)*(Hi[i  , j] + Hi[i  , j+1])
+end
 
 function recontstruct_slope_x!(Q::CuDeviceArray{Float32, 3, 3},
                                Qx::CuDeviceArray{Float32, 3, 3}, 
@@ -180,10 +192,74 @@ function bottom_source_term_x(Q::CuDeviceArray{Float32, 3, 3},
                               g::Float32, i::Int32, j::Int32)
     eta_p = Q[i, j, 1] + Qx[i-1, j-2, 1]
     eta_m = Q[i, j, 1] - Qx[i-1, j-2, 1]
-    RHx_p =  0.5*(Hi[i+1, j] + Hi[i+1, j+1])
-    RHx_m = 0.5*(Hi[i  , j] + Hi[i  , j+1])
+    RHx_p = reconstruct_Hx(Hi, i+Int32(1), j)
+    RHx_m = reconstruct_Hx(Hi, i         , j)
+    
+    #RHx_p =  0.5*(Hi[i+1, j] + Hi[i+1, j+1])
     H_x = RHx_p - RHx_m
     #h = Q[j,i,1] + (RHx_p + RHx_m)/2.0
     # TODO Desingularize and ensure h >= 0
     return -0.5*g*H_x *(eta_p + RHx_p + eta_m + RHx_m)
+end
+
+function compute_single_flux_F(Q::CuDeviceArray{Float32, 3, 3},
+                               Qx::CuDeviceArray{Float32, 3, 3},
+                               Hi::CuDeviceMatrix{Float32, 3},
+                               g::Float32, qxi::Int32, qxj::Int32)
+    # Indices into Q with input being indices into Qx
+    qj = qxj + Int32(2)
+    qi = qxi + Int32(1);
+
+    # Q at interface from the right (p) and left (m)
+    Qpx = Q[qi+1, qj, 1] - Qx[qxi+1, qxj, 1]
+    Qpy = Q[qi+1, qj, 2] - Qx[qxi+1, qxj, 2]
+    Qpz = Q[qi+1, qj, 3] - Qx[qxi+1, qxj, 3]
+    Qmx = Q[qi  , qj, 1] + Qx[qxi  , qxj, 1]
+    Qmy = Q[qi  , qj, 2] + Qx[qxi  , qxj, 2]
+    Qmz = Q[qi  , qj, 3] + Qx[qxi  , qxj, 3]
+    
+
+    #float3 Qp = make_float3(Q[0][l][k+1] - Qx[0][j][i+1],
+    #                        Q[1][l][k+1] - Qx[1][j][i+1],
+    #                        Q[2][l][k+1] - Qx[2][j][i+1]);
+    #float3 Qm = make_float3(Q[0][l][k  ] + Qx[0][j][i  ],
+    #                        Q[1][l][k  ] + Qx[1][j][i  ],
+    #                        Q[2][l][k  ] + Qx[2][j][i  ]);
+                                
+    # Computed flux with respect to the reconstructed bottom elevation at the interface
+    RHx = reconstruct_Hx(Hi, qi+Int32(1), qj);
+    F1, F2, F3 = central_upwind_flux_bottom(Qmx, Qmy, Qmz, Qpx, Qpy, Qpz, RHx, g);
+
+    return F1, F2, F3 
+end
+
+function central_upwind_flux_bottom(Qmx::Float32, Qmy::Float32, Qmz::Float32, 
+                                    Qpx::Float32, Qpy::Float32, Qpz::Float32, 
+                                    RH::Float32, g::Float32)
+    # TODO: Not specialized for dry cells!
+    hp = Qpx + RH
+    up = Float32(Qpy / hp)
+    Fpx, Fpy, Fpz = F_func_bottom(Qpx, Qpy, Qpz, hp, up, g)
+    cp = sqrt(g*hp)
+
+    hm = Qmx + RH
+    um = Float32(Qmy / hm)
+    Fmx, Fmy, Fmz = F_func_bottom(Qmx, Qmy, Qmz, hm, um, g)
+    cm = sqrt(g*hm)
+    
+    am = min(min(um-cm, up-cp), 0.0)
+    ap = max(max(um+cm, up+cp), 0.0)
+
+    Fx = ((ap*Fmx - am*Fpx) + ap*am*(Qpx-Qmx))/(ap-am);
+    Fy = ((ap*Fmy - am*Fpy) + ap*am*(Qpy-Qmy))/(ap-am);
+    Fz = ((ap*Fmz - am*Fpz) + ap*am*(Qpz-Qmz))/(ap-am);
+
+    return Fx, Fy, Fz
+end
+
+function F_func_bottom(qx::Float32, qy::Float32, qz::Float32, h::Float32, u::Float32, g::Float32) 
+    Fx = qy;                       
+    Fy = qy*u + 0.5*g*(h*h);      
+    Fz = qz*u;                     
+    return Fx, Fy, Fz;
 end

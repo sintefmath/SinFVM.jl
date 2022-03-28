@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define block_height 16
 #define block_width 32
 #define KPSIMULATOR_DEPTH_CUTOFF 1e-5f
-#define KPSIMULATOR_FLUX_SLOPE_EPS 1e-1f
+#define KPSIMULATOR_FLUX_SLOPE_EPS 1e-4f
 #define KPSIMULATOR_FLUX_SLOPE_EPS_4 1e-4f
 
 #include "common.cu"
@@ -522,8 +522,7 @@ __global__ void swe_2D(
     float R1 = 0.0f;
     float R2 = 0.0f;
     float R3 = 0.0f;
-
-    if (false) {
+    
     if (ti > 1 && ti < nx_+2 && tj > 1 && tj < ny_+2) {
         const int i = tx + 2; //Skip local ghost cells, i.e., +2
         const int j = ty + 2; 
@@ -532,6 +531,7 @@ __global__ void swe_2D(
         const float ST2 = bottomSourceTerm2_kp(Q, Qx, Hi, g_, i, j);
 
         // Flux along x-direction
+        //const float3 F_flux_p = computeSingleFluxF(Q, Qx, Hi, g_, tx+1, ty);
         const float3 F_flux_p = computeSingleFluxF(Q, Qx, Hi, g_, tx+1, ty);
         const float3 F_flux_m = computeSingleFluxF(Q, Qx, Hi, g_, tx  , ty);
         
@@ -542,6 +542,7 @@ __global__ void swe_2D(
         R3 = - (F_flux_p.z - F_flux_m.z) / dx_;
         
     }
+    if (false) {
     __syncthreads();
     
     // Reconstruct Q in y-direction while reusing Qx shmem buffer
@@ -574,9 +575,9 @@ __global__ void swe_2D(
         const float Y = 0.f; //windStressY(wind_stress_t_, ti+0.5f, tj+0.5f, nx_, ny_);
 
         
-        R1 += - (G_flux_p.x - G_flux_m.x) / dy_;
-        R2 += - (G_flux_p.y - G_flux_m.y) / dy_ + X ;
-        R3 += - (G_flux_p.z - G_flux_m.z) / dy_ + Y - ST3/dy_;
+        //R1 += - (G_flux_p.x - G_flux_m.x) / dy_;
+        //R2 += - (G_flux_p.y - G_flux_m.y) / dy_ + X ;
+        //R3 += - (G_flux_p.z - G_flux_m.z) / dy_ + Y - ST3/dy_;
     
         float* const eta_row  = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
         float* const hu_row = (float*) ((char*) hu1_ptr_ + hu1_pitch_*tj);
@@ -599,12 +600,10 @@ __global__ void swe_2D(
             //hu = (Q[1][j][i] + dt_*R2) / (1.0f + C);
             //hv = (Q[2][j][i] + dt_*R3) / (1.0f + C);
             
-            //eta  =  Q[1][j-2][i-2];
-            //hu = (Q[1][j+2][i+2]); 
-            eta  =  Q[0][j][i];
-            hu = (Q[1][j][i]); 
-            //hv = Q[2][j-2][i];
-            hv = bottomSourceTerm2_kp(Q, Qx, Hi, g_, i, j); //(Qx[2][j-2][i-1]); 
+            eta = R1;
+            hu  = R2;
+            hv  = R3;
+            //hv = bottomSourceTerm2_kp(Q, Qx, Hi, g_, i, j); //(Qx[2][j-2][i-1]); 
             
         }
         else if (step_ == 1) {
