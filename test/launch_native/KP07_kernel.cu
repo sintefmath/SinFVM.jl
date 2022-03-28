@@ -601,10 +601,10 @@ __global__ void swe_2D(
             
             //eta  =  Q[1][j-2][i-2];
             //hu = (Q[1][j+2][i+2]); 
-            eta  =  Q[0][j+2][i+2];
-            hu = (Q[1][j][i+2]); 
-            hv = Q[2][j-2][i];
-            //hv = bottomSourceTerm2_kp(Q, Qx, Hi, g_, i, j); //(Qx[2][j-2][i-1]); 
+            eta  =  Q[0][j][i];
+            hu = (Q[1][j][i]); 
+            //hv = Q[2][j-2][i];
+            hv = bottomSourceTerm2_kp(Q, Qx, Hi, g_, i, j); //(Qx[2][j-2][i-1]); 
             
         }
         else if (step_ == 1) {

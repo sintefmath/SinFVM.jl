@@ -56,7 +56,6 @@ function julia_kp07!(
     end
     sync_threads()    
 
-    #fillWithCrap!(Q, i, j)
     wall_bc_to_shmem!(Q, Nx, Ny, Int32(tx+2), Int32(ty+2), ti, tj)
     sync_threads()
 
@@ -65,39 +64,24 @@ function julia_kp07!(
     # Reconstruct slopes along x axis
     # Qx is here dQ/dx*0.5*dx
     # and represents [eta_x, hu_x, hv_x]
-    for j = ty:BLOCK_HEIGHT:BLOCK_HEIGHT
-        l = j + 2
-        for i = tx:BLOCK_WIDTH:BLOCK_WIDTH+2
-            k = i + 1
-            for p=1:3
-                Qx[i, j, p] = 0.5 * minmodSlope(Q[k-1, l, p], Q[k, l, p], Q[k+1, l, p], theta);
-            end
-        end
-    end
+    recontstruct_slope_x!(Q, Qx, theta, tx, ty)
+
     sync_threads()
 
     # TODO: Skipping adjustSlope_x
 
     R1 = R2 = R3 = 0.0
     if (ti > 2 && tj > 2 && ti <= Nx + 2 && tj <= Ny + 2)
-        i = tx + 2
-        j = ty + 2
+        i = tx + Int32(2)
+        j = ty + Int32(2)
 
         # Bottom topography source term along x 
-        eta_p = Q[i, j, 1] + Qx[i-1, j-2, 1]
-        eta_m = Q[i, j, 1] - Qx[i-1, j-2, 1]
-        RHx_p = 0.5*(Hi[i+1, j] + Hi[i+1, j+1])
-        RHx_m = 0.5*(Hi[i  , j] + Hi[i  , j+1])
-        H_x = RHx_p - RHx_m
-
-        #h = Q[j,i,1] + (RHx_p + RHx_m)/2.0
         # TODO Desingularize and ensure h >= 0
-        ST2 = -0.5*g*H_x *(eta_p + RHx_p + eta_m + RHx_m)
+        ST2 = bottom_source_term_x(Q, Qx, Hi, g, i, j)
         
-        
-        eta1[ti, tj] = Q[i+2, j+2, 1];
-        hu1[ti, tj]  = Q[i+2, j, 2];
-        hv1[ti, tj]  = Q[i, j-2, 3]; #ST2 #Qx[i-1, j-2, 3];
+        eta1[ti, tj] = Q[i, j, 1];
+        hu1[ti, tj]  = Q[i, j, 2];
+        hv1[ti, tj]  = ST2 #Qx[i-1, j-2, 3];
     end
 
 
@@ -172,4 +156,34 @@ function wall_bc_to_shmem!(Q::CuDeviceArray{Float32, 3, 3},
         
     end 
     return nothing
+end
+
+
+function recontstruct_slope_x!(Q::CuDeviceArray{Float32, 3, 3},
+                               Qx::CuDeviceArray{Float32, 3, 3}, 
+                               theta::Float32, tx::Int32, ty::Int32)
+    for j = ty:BLOCK_HEIGHT:BLOCK_HEIGHT
+        l = j + 2
+        for i = tx:BLOCK_WIDTH:BLOCK_WIDTH+2
+            k = i + 1
+            for p=1:3
+                Qx[i, j, p] = 0.5 * minmodSlope(Q[k-1, l, p], Q[k, l, p], Q[k+1, l, p], theta);
+            end
+        end
+    end
+    return nothing
+end
+
+function bottom_source_term_x(Q::CuDeviceArray{Float32, 3, 3},
+                              Qx::CuDeviceArray{Float32, 3, 3},
+                              Hi::CuDeviceMatrix{Float32, 3},
+                              g::Float32, i::Int32, j::Int32)
+    eta_p = Q[i, j, 1] + Qx[i-1, j-2, 1]
+    eta_m = Q[i, j, 1] - Qx[i-1, j-2, 1]
+    RHx_p =  0.5*(Hi[i+1, j] + Hi[i+1, j+1])
+    RHx_m = 0.5*(Hi[i  , j] + Hi[i  , j+1])
+    H_x = RHx_p - RHx_m
+    #h = Q[j,i,1] + (RHx_p + RHx_m)/2.0
+    # TODO Desingularize and ensure h >= 0
+    return -0.5*g*H_x *(eta_p + RHx_p + eta_m + RHx_m)
 end
