@@ -51,7 +51,7 @@ end
 
 
 function compareArrays(eta1, hu1, hv1, eta2, hu2, hv2, 
-        data_shape; doPlot=true)
+        data_shape; doPlot=true, forcePlot=false)
     eta1_h = reshape(collect(eta1), data_shape)
     hu1_h = reshape(collect(hu1), data_shape)
     hv1_h = reshape(collect(hv1), data_shape)
@@ -67,7 +67,7 @@ function compareArrays(eta1, hu1, hv1, eta2, hu2, hv2,
         max_eta_diff = maximum(broadcast(abs, eta_diff))
         max_hu_diff = maximum(broadcast(abs, hu_diff))
         max_hv_diff = maximum(broadcast(abs, hv_diff))
-        if doPlot && max(max_eta_diff, max(max_hu_diff, max_hv_diff)) > 1e-5
+        if forcePlot || (doPlot && max(max_eta_diff, max(max_hu_diff, max_hv_diff)) > 1e-5)
 
             plot_array = Any[]
 
@@ -83,9 +83,9 @@ function compareArrays(eta1, hu1, hv1, eta2, hu2, hv2,
                       titlefontsize=10))
             end
             display(plot(plot_array..., layout=(3,3)))
-            #display(plot_array[1])
-            #display(plot_array[2])
-            #display(plot_array[3])
+            display(plot_array[3])
+            display(plot_array[6])
+            display(plot_array[9])
         end
         print("Results differ!\n")
         print("norms: eta = $(max_eta_diff), hu = $(max_hu_diff), hv = $(max_hv_diff): " )

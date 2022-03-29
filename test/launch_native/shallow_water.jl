@@ -12,7 +12,7 @@ include("GPUOceanUtils.jl")
 include("swe_kp07.jl")
 
 
-function singleStep(; useJulia::Bool)
+function compare_julia_and_cuda(; useJulia::Bool, number_of_timesteps=1)
     dataFolder = "data/plain"
     flattenarr(x) = collect(Iterators.flatten(x))
 
@@ -28,11 +28,10 @@ function singleStep(; useJulia::Bool)
     dx::Float32 = 0.5
     dy::Float32 = 0.4
 
-    step::Int32 = 0
     ngc = 2
     data_shape = (Nx + 2 * ngc, Ny + 2 * ngc)
-    H = ones(MyType, data_shape) .* 1
-    Hi = ones(MyType, data_shape .+ 1) .* 1
+    H_h = ones(MyType, data_shape) .* 1
+    Hi_h = ones(MyType, data_shape .+ 1) .* 1
     eta0 = zeros(MyType, data_shape)
     hu0 = zeros(MyType, data_shape)
     hv0 = zeros(MyType, data_shape)
@@ -44,7 +43,7 @@ function singleStep(; useJulia::Bool)
     eta0 = npzread("data/plain/eta_final.npy")
     hu0 = npzread("data/plain/hu_final.npy")
     hv0 = npzread("data/plain/hv_final.npy")
-    makeBathymetry!(H, Hi, Nx, Ny, dx, dy)
+    makeBathymetry!(H_h, Hi_h, Nx, Ny, dx, dy)
 
 
     eta0_dev = hu0_dev = hv0_dev = eta1_dev = hu1_dev = hv1_dev = nothing
@@ -53,6 +52,8 @@ function singleStep(; useJulia::Bool)
     
     bc::Int32 = 1
 
+    md_sw = swe_2D = signature = nothing
+    num_threads = num_blocks = nothing
     
     if useJulia
         num_threads = (BLOCK_WIDTH, BLOCK_HEIGHT)
@@ -66,16 +67,8 @@ function singleStep(; useJulia::Bool)
         hu1_dev = CuArray(hu1)
         hv1_dev = CuArray(hv1)
 
-        Hi = CuArray(Hi)
-        H  = CuArray(H)
-
-        @cuda threads=num_threads blocks=num_blocks julia_kp07!(
-            Nx, Ny, dx, dy, dt,
-            g, theta, step,
-            eta0_dev, hu0_dev, hv0_dev,
-            eta1_dev, hu1_dev, hv1_dev,
-            Hi, H,
-            bc)
+        Hi = CuArray(Hi_h)
+        H  = CuArray(H_h)
 
     else
         num_threads = (32, 16)
@@ -106,27 +99,57 @@ function singleStep(; useJulia::Bool)
         eta1_dev = CuArray(flattenarr(eta1))
         hu1_dev = CuArray(flattenarr(hu1))
         hv1_dev = CuArray(flattenarr(hv1))
-        Hi_dev = CuArray(flattenarr(Hi))
-        H_dev = CuArray(flattenarr(H))
+        Hi_dev = CuArray(flattenarr(Hi_h))
+        H_dev = CuArray(flattenarr(H_h))
+    end
 
-        cudacall(swe_2D, signature,
-                Int32(Nx), Int32(Ny), dx, dy, dt,
-                g, theta, r, step,
-                eta0_dev, Int32(data_shape[1] * sizeof(Float32)),
-                hu0_dev, Int32(data_shape[1] * sizeof(Float32)),
-                hv0_dev, Int32(data_shape[1] * sizeof(Float32)),
-                eta1_dev, Int32(data_shape[1] * sizeof(Float32)),
-                hu1_dev, Int32(data_shape[1] * sizeof(Float32)),
-                hv1_dev, Int32(data_shape[1] * sizeof(Float32)),
-                Hi_dev, Int32((data_shape[1] + 1) * sizeof(Float32)),
-                H_dev, Int32(data_shape[1] * sizeof(Float32)),
-                bc, bc, bc, bc,
-                threads = num_threads, blocks = num_blocks)
+    @showprogress for i in 1:number_of_timesteps
+        step::Int32 = (i + 1) % 2
+        if i % 2 == 1
+            curr_eta0_dev = eta0_dev
+            curr_hu0_dev = hu0_dev
+            curr_hv0_dev = hv0_dev
+            curr_eta1_dev = eta1_dev
+            curr_hu1_dev = hu1_dev
+            curr_hv1_dev = hv1_dev
+        else
+            curr_eta0_dev = eta1_dev
+            curr_hu0_dev = hu1_dev
+            curr_hv0_dev = hv1_dev
+            curr_eta1_dev = eta0_dev
+            curr_hu1_dev = hu0_dev
+            curr_hv1_dev = hv0_dev
+        end
 
+        if useJulia
+
+            @cuda threads=num_threads blocks=num_blocks julia_kp07!(
+                Nx, Ny, dx, dy, dt,
+                g, theta, step,
+                curr_eta0_dev, curr_hu0_dev, curr_hv0_dev,
+                curr_eta1_dev, curr_hu1_dev, curr_hv1_dev,
+                Hi, H,
+                bc)
+
+        else
+            cudacall(swe_2D, signature,
+                    Int32(Nx), Int32(Ny), dx, dy, dt,
+                    g, theta, r, step,
+                    curr_eta0_dev, Int32(data_shape[1] * sizeof(Float32)),
+                    curr_hu0_dev, Int32(data_shape[1] * sizeof(Float32)),
+                    curr_hv0_dev, Int32(data_shape[1] * sizeof(Float32)),
+                    curr_eta1_dev, Int32(data_shape[1] * sizeof(Float32)),
+                    curr_hu1_dev, Int32(data_shape[1] * sizeof(Float32)),
+                    curr_hv1_dev, Int32(data_shape[1] * sizeof(Float32)),
+                    Hi_dev, Int32((data_shape[1] + 1) * sizeof(Float32)),
+                    H_dev, Int32(data_shape[1] * sizeof(Float32)),
+                    bc, bc, bc, bc,
+                    threads = num_threads, blocks = num_blocks)
+
+        end
     end
 
     return Array(eta1_dev), Array(hu1_dev), Array(hv1_dev), data_shape
-
 
 end
 
@@ -351,9 +374,11 @@ end
 
 check_julia_kernel = true
 if check_julia_kernel
-    @time eta_cuda, hu_cuda, hv_cuda, data_shape = singleStep(useJulia=false)
-    @time eta_jl, hu_jl, hv_jl, data_shape = singleStep(useJulia=true)
+    num_iterations = 30000
+    @time eta_cuda, hu_cuda, hv_cuda, data_shape = compare_julia_and_cuda(useJulia=false, number_of_timesteps=num_iterations)
+    @time eta_jl, hu_jl, hv_jl, data_shape = compare_julia_and_cuda(useJulia=true, number_of_timesteps=num_iterations)
 
     compareArrays(eta_cuda, hu_cuda, hv_cuda, 
-                  eta_jl, hu_jl, hv_jl, data_shape, doPlot=true)
+                  eta_jl, hu_jl, hv_jl, data_shape, doPlot=true,
+                  forcePlot=true)
 end

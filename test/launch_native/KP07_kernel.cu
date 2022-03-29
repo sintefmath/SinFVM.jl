@@ -194,7 +194,7 @@ __device__ void adjustSlopes_x(float Qx[3][block_height+2][block_width+2],
     const int p = threadIdx.x + 2;
     const int q = threadIdx.y + 2;
 
-    (Qx, Hi, Q, p, q);
+    adjustSlopeUx(Qx, Hi, Q, p, q);
 
     // Use one warp to perform the extra adjustments
     if (threadIdx.x == 0) {
@@ -292,11 +292,11 @@ __device__ float3 computeSingleFluxG(float Q[3][block_height+4][block_width+4],
     // Q at interface from the right and left
     // Note that we swap hu and hv
     float3 Qp = make_float3(Q[0][l+1][k] - Qy[0][j+1][i],
-                         Q[2][l+1][k] - Qy[2][j+1][i],
-                         Q[1][l+1][k] - Qy[1][j+1][i]);
+                            Q[2][l+1][k] - Qy[2][j+1][i],
+                            Q[1][l+1][k] - Qy[1][j+1][i]);
     float3 Qm = make_float3(Q[0][l  ][k] + Qy[0][j  ][i],
-                         Q[2][l  ][k] + Qy[2][j  ][i],
-                         Q[1][l  ][k] + Qy[1][j  ][i]);
+                            Q[2][l  ][k] + Qy[2][j  ][i],
+                            Q[1][l  ][k] + Qy[1][j  ][i]);
                                
     // Computed flux
     // Note that we swap back
@@ -573,9 +573,9 @@ __global__ void swe_2D(
         const float Y = 0.f; //windStressY(wind_stress_t_, ti+0.5f, tj+0.5f, nx_, ny_);
 
         
-        //R1 += - (G_flux_p.x - G_flux_m.x) / dy_;
-        //R2 += - (G_flux_p.y - G_flux_m.y) / dy_ + X ;
-        //R3 += - (G_flux_p.z - G_flux_m.z) / dy_ + Y - ST3/dy_;
+        R1 += - (G_flux_p.x - G_flux_m.x) / dy_;
+        R2 += - (G_flux_p.y - G_flux_m.y) / dy_ + X ;
+        R3 += - (G_flux_p.z - G_flux_m.z) / dy_ + Y - ST3/dy_;
     
         float* const eta_row  = (float*) ((char*) eta1_ptr_ + eta1_pitch_*tj);
         float* const hu_row = (float*) ((char*) hu1_ptr_ + hu1_pitch_*tj);
@@ -594,13 +594,10 @@ __global__ void swe_2D(
         if  (step_ == 0) {
             //First step of RK2 ODE integrator
             
-            //eta  =  Q[0][j][i] + dt_*R1;
-            //hu = (Q[1][j][i] + dt_*R2) / (1.0f + C);
-            //hv = (Q[2][j][i] + dt_*R3) / (1.0f + C);
+            eta  =  Q[0][j][i] + dt_*R1;
+            hu = (Q[1][j][i] + dt_*R2) / (1.0f + C);
+            hv = (Q[2][j][i] + dt_*R3) / (1.0f + C);
             
-            eta = Qx[0][ty+1][tx];
-            hu  = Qx[1][ty+1][tx];
-            hv  = Qx[2][ty+1][tx];
             //hv = bottomSourceTerm2_kp(Q, Qx, Hi, g_, i, j); //(Qx[2][j-2][i-1]); 
             
         }

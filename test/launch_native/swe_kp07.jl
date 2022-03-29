@@ -100,17 +100,31 @@ function julia_kp07!(
 
 
     if (ti > 2 && tj > 2 && ti <= Nx + 2 && tj <= Ny + 2)
-        i = tx + 2
-        j = ty + 2
+        i = tx + Int32(2)
+        j = ty + Int32(2)
+        
+        # Bottom topography source term along y 
+        # TODO Desingularize and ensure h >= 0
+        ST3 = bottom_source_term_y(Q, Qx, Hi, g, i, j)
 
+        # TODO: Not written for dry cells
+        G_flux_p_x, G_flux_p_y, G_flux_p_z = compute_single_flux_G(Q, Qx, Hi, g, tx, ty+Int32(1))
+        G_flux_m_x, G_flux_m_y, G_flux_m_z = compute_single_flux_G(Q, Qx, Hi, g, tx         , ty)
+        
+        R1 += - (G_flux_p_x - G_flux_m_x) / dy
+        R2 += - (G_flux_p_y - G_flux_m_y) / dy
+        R3 += - (G_flux_p_z - G_flux_m_z) / dy + ( - ST3/dy );
 
-        eta1[ti, tj] = Qx[tx, ty+1, 1]
-        hu1[ti, tj]  = Qx[tx, ty+1, 2]
-        hv1[ti, tj]  = Qx[tx, ty+1, 3]
-   
-        #eta1[ti, tj] = eta0[ti, tj]
-        #hu1[ti, tj] = hu0[ti, tj]
-        #hv1[ti, tj] = hv0[ti, tj]
+        if step == 0
+            eta1[ti, tj] = Q[i, j, 1] + dt*R1
+             hu1[ti, tj] = Q[i, j, 2] + dt*R2
+             hv1[ti, tj] = Q[i, j, 3] + dt*R3
+        elseif step == 1
+            # RK2 ODE integrator
+            eta1[ti, tj] = 0.5f0*( eta1[ti, tj] +  (Q[i, j, 1] + dt*R1))
+             hu1[ti, tj] = 0.5f0*(  hu1[ti, tj] +  (Q[i, j, 2] + dt*R2))
+             hv1[ti, tj] = 0.5f0*(  hv1[ti, tj] +  (Q[i, j, 3] + dt*R3))
+        end
     end
 
     return nothing
@@ -174,6 +188,9 @@ end
 function reconstruct_Hx(Hi::CuDeviceMatrix{Float32, 3}, i::Int32  , j::Int32)
     return Float32(0.5)*(Hi[i  , j] + Hi[i  , j+1])
 end
+function reconstruct_Hy(Hi::CuDeviceMatrix{Float32, 3}, i::Int32  , j::Int32)
+    return Float32(0.5)*(Hi[i  , j] + Hi[i+1, j  ])
+end
 
 function reconstruct_slope_x!(Q::CuDeviceArray{Float32, 3, 3},
                                Qx::CuDeviceArray{Float32, 3, 3}, 
@@ -221,6 +238,20 @@ function bottom_source_term_x(Q::CuDeviceArray{Float32, 3, 3},
     return -0.5*g*H_x *(eta_p + RHx_p + eta_m + RHx_m)
 end
 
+function bottom_source_term_y(Q::CuDeviceArray{Float32, 3, 3},
+                              Qx::CuDeviceArray{Float32, 3, 3},
+                              Hi::CuDeviceMatrix{Float32, 3},
+                              g::Float32, i::Int32, j::Int32)
+    eta_p = Q[i, j, 1] + Qx[i-2, j-1, 1]
+    eta_m = Q[i, j, 1] - Qx[i-2, j-1, 1]
+    RHy_p = reconstruct_Hy(Hi, i, j+Int32(1))
+    RHy_m = reconstruct_Hy(Hi, i, j         )
+    
+    H_y = RHy_p - RHy_m
+    # TODO Desingularize and ensure h >= 0
+    return -0.5*g*H_y *(eta_p + RHy_p + eta_m + RHy_m)
+end
+
 function compute_single_flux_F(Q::CuDeviceArray{Float32, 3, 3},
                                Qx::CuDeviceArray{Float32, 3, 3},
                                Hi::CuDeviceMatrix{Float32, 3},
@@ -250,6 +281,39 @@ function compute_single_flux_F(Q::CuDeviceArray{Float32, 3, 3},
     F1, F2, F3 = central_upwind_flux_bottom(Qmx, Qmy, Qmz, Qpx, Qpy, Qpz, RHx, g);
 
     return F1, F2, F3 
+end
+
+function compute_single_flux_G(Q::CuDeviceArray{Float32, 3, 3},
+                               Qx::CuDeviceArray{Float32, 3, 3},
+                               Hi::CuDeviceMatrix{Float32, 3},
+                               g::Float32, qxi::Int32, qxj::Int32)
+    # Indices into Q with input being indices into Qx
+    qj = qxj + Int32(1)
+    qi = qxi + Int32(2);
+
+    # Q at interface from the north (p) and south (m)
+    # Note that we swap hu and hv
+    Qpx = Q[qi, qj+1, 1] - Qx[qxi, qxj+1, 1]
+    Qpy = Q[qi, qj+1, 3] - Qx[qxi, qxj+1, 3]
+    Qpz = Q[qi, qj+1, 2] - Qx[qxi, qxj+1, 2]
+    Qmx = Q[qi, qj  , 1] + Qx[qxi, qxj  , 1]
+    Qmy = Q[qi, qj  , 3] + Qx[qxi, qxj  , 3]
+    Qmz = Q[qi, qj  , 2] + Qx[qxi, qxj  , 2]
+    
+
+    #float3 Qp = make_float3(Q[0][l][k+1] - Qx[0][j][i+1],
+    #                        Q[1][l][k+1] - Qx[1][j][i+1],
+    #                        Q[2][l][k+1] - Qx[2][j][i+1]);
+    #float3 Qm = make_float3(Q[0][l][k  ] + Qx[0][j][i  ],
+    #                        Q[1][l][k  ] + Qx[1][j][i  ],
+    #                        Q[2][l][k  ] + Qx[2][j][i  ]);
+                                
+    # Computed flux with respect to the reconstructed bottom elevation at the interface
+    RHy = reconstruct_Hy(Hi, qi, qj+Int32(1));
+    G1, G2, G3 = central_upwind_flux_bottom(Qmx, Qmy, Qmz, Qpx, Qpy, Qpz, RHy, g);
+
+    # Swap fluxes back
+    return G1, G3, G2 
 end
 
 function central_upwind_flux_bottom(Qmx::Float32, Qmy::Float32, Qmz::Float32, 
