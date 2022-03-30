@@ -2,6 +2,9 @@
 const BLOCK_WIDTH = Int32(16)
 const BLOCK_HEIGHT = Int32(8)
 
+using StaticArrays
+
+
 function clamp(i::Int32, low::Int32, high::Int32)
     return max(low, min(i, high))
 end
@@ -80,12 +83,12 @@ function julia_kp07!(
         ST2 = bottom_source_term_x(Q, Qx, Hi, g, i, j)
 
         # TODO: Not written for dry cells
-        F_flux_p_x, F_flux_p_y, F_flux_p_z = compute_single_flux_F(Q, Qx, Hi, g, tx+Int32(1), ty)
-        F_flux_m_x, F_flux_m_y, F_flux_m_z = compute_single_flux_F(Q, Qx, Hi, g, tx         , ty)
+        F_flux_p = compute_single_flux_F(Q, Qx, Hi, g, tx+Int32(1), ty)
+        F_flux_m = compute_single_flux_F(Q, Qx, Hi, g, tx         , ty)
         
-        R1 = - (F_flux_p_x - F_flux_m_x) / dx
-        R2 = - (F_flux_p_y - F_flux_m_y) / dx + ( - ST2/dx)
-        R3 = - (F_flux_p_z - F_flux_m_z) / dx
+        R1 = - (F_flux_p[1] - F_flux_m[1]) / dx
+        R2 = - (F_flux_p[2] - F_flux_m[2]) / dx + ( - ST2/dx)
+        R3 = - (F_flux_p[3] - F_flux_m[3]) / dx
  
     end
     sync_threads()
@@ -108,12 +111,12 @@ function julia_kp07!(
         ST3 = bottom_source_term_y(Q, Qx, Hi, g, i, j)
 
         # TODO: Not written for dry cells
-        G_flux_p_x, G_flux_p_y, G_flux_p_z = compute_single_flux_G(Q, Qx, Hi, g, tx, ty+Int32(1))
-        G_flux_m_x, G_flux_m_y, G_flux_m_z = compute_single_flux_G(Q, Qx, Hi, g, tx         , ty)
+        G_flux_p = compute_single_flux_G(Q, Qx, Hi, g, tx, ty+Int32(1))
+        G_flux_m = compute_single_flux_G(Q, Qx, Hi, g, tx         , ty)
         
-        R1 += - (G_flux_p_x - G_flux_m_x) / dy
-        R2 += - (G_flux_p_y - G_flux_m_y) / dy
-        R3 += - (G_flux_p_z - G_flux_m_z) / dy + ( - ST3/dy );
+        R1 += - (G_flux_p[1] - G_flux_m[1]) / dy
+        R2 += - (G_flux_p[2] - G_flux_m[2]) / dy
+        R3 += - (G_flux_p[3] - G_flux_m[3]) / dy + ( - ST3/dy );
 
         if step == 0
             @inbounds eta1[ti, tj] = Q[i, j, 1] + dt*R1
@@ -256,13 +259,20 @@ function compute_single_flux_F(Q::CuDeviceArray{Float32, 3, 3},
     qi = qxi + Int32(1);
 
     # Q at interface from the right (p) and left (m)
-    @inbounds Qpx = Q[qi+Int32(1), qj, 1] - Qx[qxi+Int32(1), qxj, 1]
-    @inbounds Qpy = Q[qi+Int32(1), qj, 2] - Qx[qxi+Int32(1), qxj, 2]
-    @inbounds Qpz = Q[qi+Int32(1), qj, 3] - Qx[qxi+Int32(1), qxj, 3]
-    @inbounds Qmx = Q[qi  , qj, 1] + Qx[qxi  , qxj, 1]
-    @inbounds Qmy = Q[qi  , qj, 2] + Qx[qxi  , qxj, 2]
-    @inbounds Qmz = Q[qi  , qj, 3] + Qx[qxi  , qxj, 3]
+    #@inbounds Qpx = Q[qi+Int32(1), qj, 1] - Qx[qxi+Int32(1), qxj, 1]
+    #@inbounds Qpy = Q[qi+Int32(1), qj, 2] - Qx[qxi+Int32(1), qxj, 2]
+    #@inbounds Qpz = Q[qi+Int32(1), qj, 3] - Qx[qxi+Int32(1), qxj, 3]
+    #@inbounds Qmx = Q[qi  , qj, 1] + Qx[qxi  , qxj, 1]
+    #@inbounds Qmy = Q[qi  , qj, 2] + Qx[qxi  , qxj, 2]
+    #@inbounds Qmz = Q[qi  , qj, 3] + Qx[qxi  , qxj, 3]
     
+    @inbounds Qp = SVector{3, Float32}(Q[qi+Int32(1), qj, 1] - Qx[qxi+Int32(1), qxj, 1],
+                                       Q[qi+Int32(1), qj, 2] - Qx[qxi+Int32(1), qxj, 2],
+                                       Q[qi+Int32(1), qj, 3] - Qx[qxi+Int32(1), qxj, 3])
+    @inbounds Qm = SVector{3, Float32}(Q[qi  , qj, 1] + Qx[qxi  , qxj, 1],
+                                       Q[qi  , qj, 2] + Qx[qxi  , qxj, 2],
+                                       Q[qi  , qj, 3] + Qx[qxi  , qxj, 3])
+
 
     #float3 Qp = make_float3(Q[0][l][k+1] - Qx[0][j][i+1],
     #                        Q[1][l][k+1] - Qx[1][j][i+1],
@@ -273,9 +283,9 @@ function compute_single_flux_F(Q::CuDeviceArray{Float32, 3, 3},
                                 
     # Computed flux with respect to the reconstructed bottom elevation at the interface
     RHx = reconstruct_Hx(Hi, qi+Int32(1), qj);
-    F1, F2, F3 = central_upwind_flux_bottom(Qmx, Qmy, Qmz, Qpx, Qpy, Qpz, RHx, g);
+    F = central_upwind_flux_bottom(Qm, Qp, RHx, g);
 
-    return F1, F2, F3 
+    return F
 end
 
 function compute_single_flux_G(Q::CuDeviceArray{Float32, 3, 3},
@@ -288,13 +298,19 @@ function compute_single_flux_G(Q::CuDeviceArray{Float32, 3, 3},
 
     # Q at interface from the north (p) and south (m)
     # Note that we swap hu and hv
-    @inbounds Qpx = Q[qi, qj+Int32(1), 1] - Qx[qxi, qxj+Int32(1), 1]
-    @inbounds Qpy = Q[qi, qj+Int32(1), 3] - Qx[qxi, qxj+Int32(1), 3]
-    @inbounds Qpz = Q[qi, qj+Int32(1), 2] - Qx[qxi, qxj+Int32(1), 2]
-    @inbounds Qmx = Q[qi, qj  , 1] + Qx[qxi, qxj  , 1]
-    @inbounds Qmy = Q[qi, qj  , 3] + Qx[qxi, qxj  , 3]
-    @inbounds Qmz = Q[qi, qj  , 2] + Qx[qxi, qxj  , 2]
+    #@inbounds Qpx = Q[qi, qj+Int32(1), 1] - Qx[qxi, qxj+Int32(1), 1]
+    #@inbounds Qpy = Q[qi, qj+Int32(1), 3] - Qx[qxi, qxj+Int32(1), 3]
+    #@inbounds Qpz = Q[qi, qj+Int32(1), 2] - Qx[qxi, qxj+Int32(1), 2]
+    #@inbounds Qmx = Q[qi, qj  , 1] + Qx[qxi, qxj  , 1]
+    #@inbounds Qmy = Q[qi, qj  , 3] + Qx[qxi, qxj  , 3]
+    #@inbounds Qmz = Q[qi, qj  , 2] + Qx[qxi, qxj  , 2]
     
+    @inbounds Qp = SVector{3, Float32}(Q[qi, qj+Int32(1), 1] - Qx[qxi, qxj+Int32(1), 1], 
+                                       Q[qi, qj+Int32(1), 3] - Qx[qxi, qxj+Int32(1), 3],
+                                       Q[qi, qj+Int32(1), 2] - Qx[qxi, qxj+Int32(1), 2])
+    @inbounds Qm = SVector{3, Float32}(Q[qi, qj  , 1] + Qx[qxi, qxj  , 1],
+                                       Q[qi, qj  , 3] + Qx[qxi, qxj  , 3],
+                                       Q[qi, qj  , 2] + Qx[qxi, qxj  , 2])                                 
 
     #float3 Qp = make_float3(Q[0][l][k+1] - Qx[0][j][i+1],
     #                        Q[1][l][k+1] - Qx[1][j][i+1],
@@ -305,40 +321,39 @@ function compute_single_flux_G(Q::CuDeviceArray{Float32, 3, 3},
                                 
     # Computed flux with respect to the reconstructed bottom elevation at the interface
     RHy = reconstruct_Hy(Hi, qi, qj+Int32(1));
-    G1, G2, G3 = central_upwind_flux_bottom(Qmx, Qmy, Qmz, Qpx, Qpy, Qpz, RHy, g);
+    G = central_upwind_flux_bottom(Qm, Qp, RHy, g);
 
     # Swap fluxes back
-    return G1, G3, G2 
+    return SVector{3, Float32}(G[1], G[3], G[2])
 end
 
-function central_upwind_flux_bottom(Qmx::Float32, Qmy::Float32, Qmz::Float32, 
-                                    Qpx::Float32, Qpy::Float32, Qpz::Float32, 
+function central_upwind_flux_bottom(Qm::SVector{3, Float32}, Qp::SVector{3, Float32},
                                     RH::Float32, g::Float32)
     # TODO: Not specialized for dry cells!
-    hp = Qpx + RH
-    up = Qpy / hp
-    Fpx, Fpy, Fpz = F_func_bottom(Qpx, Qpy, Qpz, hp, up, g)
+    hp = Qp[1] + RH
+    up = Qp[2] / hp
+    Fp = F_func_bottom(Qp, hp, up, g)
     # https://github.com/JuliaArrays/StaticArrays.jl
     cp = sqrt(g*hp)
 
-    hm = Qmx + RH
-    um = Qmy / hm
-    Fmx, Fmy, Fmz = F_func_bottom(Qmx, Qmy, Qmz, hm, um, g)
+    hm = Qm[1] + RH
+    um = Qm[2] / hm
+    Fm = F_func_bottom(Qm, hm, um, g)
     cm = sqrt(g*hm)
     
     am = min(min(um-cm, up-cp), 0.0f0)
     ap = max(max(um+cm, up+cp), 0.0f0)
 
-    Fx = ((ap*Fmx - am*Fpx) + ap*am*(Qpx-Qmx))/(ap-am);
-    Fy = ((ap*Fmy - am*Fpy) + ap*am*(Qpy-Qmy))/(ap-am);
-    Fz = ((ap*Fmz - am*Fpz) + ap*am*(Qpz-Qmz))/(ap-am);
-
-    return Fx, Fy, Fz
+    F = ((ap*Fm - am*Fp) + ap*am*(Qp-Qm))/(ap-am);
+    return F
 end
 
-function F_func_bottom(qx::Float32, qy::Float32, qz::Float32, h::Float32, u::Float32, g::Float32) 
-    Fx = qy;                       
-    Fy = qy*u + 0.5f0*g*(h*h);      
-    Fz = qz*u;                     
-    return Fx, Fy, Fz;
+
+
+
+function F_func_bottom(q::SVector{3, Float32}, h::Float32, u::Float32, g::Float32) 
+    F = SVector{3, Float32}(q[2],
+                            q[2]*u + 0.5f0*g*(h*h), 
+                            q[3]*u)    
+    return F
 end
