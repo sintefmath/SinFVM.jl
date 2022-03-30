@@ -1,43 +1,43 @@
+include("../int32testing.jl")
+const BLOCK_WIDTH = Int32(32)
+const BLOCK_HEIGHT = Int32(16)
 
-const BLOCK_WIDTH = 32
-const BLOCK_HEIGHT = 16
-
-@inline function clamp(i, low, high)
+@inline @make_numeric_literals_32bits function clamp(i, low, high)
     return max(low, min(i, high))
 end
 
-@inline function minmodSlope(left::Float32, center::Float32, right::Float32, theta::Float32) 
+@inline @make_numeric_literals_32bits function minmodSlope(left, center, right, theta) 
     backward = (center - left) * theta
     central = (right - left) * 0.5
     forward = (right - center) * theta
     
 	return (0.25
-		*copysign(1.f0, backward)
-		*(copysign(1.f0, backward) + copysign(1.f0, central))
-		*(copysign(1.f0, central) + copysign(1.f0, forward))
+		*copysign(1., backward)
+		*(copysign(1., backward) + copysign(1., central))
+		*(copysign(1., central) + copysign(1., forward))
 		*min( min(abs(backward), abs(central)), abs(forward) ) )
 end
 
 
 
 
-function julia_kp07!(
-    Nx::Int32, Ny::Int32, dx::Float32, dy::Float32, dt::Float32,
-    g::Float32, theta::Float32, step::Int32,
+@make_numeric_literals_32bits function julia_kp07!(
+    Nx, Ny, dx, dy, dt,
+    g, theta, step,
     eta0, hu0, hv0,
     eta1, hu1, hv1,
     Hi_glob, H,
     bc)
 
-    tx::Int32 = threadIdx().x
-    ty::Int32 = threadIdx().y
+    tx = threadIdx().x
+    ty = threadIdx().y
 
 
-    blockStart_i::Int32 = (blockIdx().x - 1)*blockDim().x
-    blockStart_j::Int32 = (blockIdx().y - 1)*blockDim().y
+    blockStart_i = (blockIdx().x - 1)*blockDim().x
+    blockStart_j = (blockIdx().y - 1)*blockDim().y
     
-    ti::Int32 = blockStart_i + threadIdx().x + 2
-    tj::Int32 = blockStart_j + threadIdx().y + 2
+    ti = blockStart_i + threadIdx().x + 2
+    tj = blockStart_j + threadIdx().y + 2
 
     # Q = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+4), (BLOCK_HEIGHT+4), 3))
     # Qx = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+2),(BLOCK_HEIGHT+2), 3))
@@ -73,7 +73,7 @@ function julia_kp07!(
 
     # TODO: Skipping adjustSlope_x
 
-    R1 = R2 = R3 = 0.f0
+    R1 = R2 = R3 = 0.
     if (ti > 2 && tj > 2 && ti <= Nx + 2 && tj <= Ny + 2)
         i = tx + 2
         j = ty + 2
@@ -133,16 +133,16 @@ function julia_kp07!(
     return nothing
 end
 
-@inline function fillWithCrap!(Q, i, j)
+@inline @make_numeric_literals_32bits function fillWithCrap!(Q, i, j)
     Q[i, j, 2] = i+j
     return nothing
 end
 
 
-@inline function wall_bc_to_shmem!(Q, 
-                           Nx::Int32, Ny::Int32, 
-                           i::Int32, j::Int32,
-                           ti::Int32, tj::Int32)
+@inline @make_numeric_literals_32bits function wall_bc_to_shmem!(Q, 
+                           Nx, Ny, 
+                           i, j,
+                           ti, tj)
     # Global and local indices:
     if (ti == 3)
         # First index within domain in x (west)
@@ -188,16 +188,16 @@ end
     return nothing
 end
 
-@inline function reconstruct_Hx(Hi, i::Int32  , j::Int32)
+@inline @make_numeric_literals_32bits function reconstruct_Hx(Hi, i  , j)
     return 0.5*(Hi[i  , j] + Hi[i  , j+1])
 end
-@inline function reconstruct_Hy(Hi, i::Int32  , j::Int32)
+@inline @make_numeric_literals_32bits function reconstruct_Hy(Hi, i  , j)
     return 0.5*(Hi[i  , j] + Hi[i+1, j  ])
 end
 
-@inline function reconstruct_slope_x!(Q,
+@inline @make_numeric_literals_32bits function reconstruct_slope_x!(Q,
                                Qx, 
-                               theta::Float32, tx::Int32, ty::Int32)
+                               theta, tx, ty)
     for j = ty:BLOCK_HEIGHT:BLOCK_HEIGHT
         l = j + 2
         for i = tx:BLOCK_WIDTH:BLOCK_WIDTH+2
@@ -210,9 +210,9 @@ end
     return nothing
 end
 
-@inline function reconstruct_slope_y!(Q,
+@inline @make_numeric_literals_32bits function reconstruct_slope_y!(Q,
                               Qx, 
-                              theta::Float32, tx::Int32, ty::Int32)
+                              theta, tx, ty)
     for j = ty:BLOCK_HEIGHT:BLOCK_HEIGHT+2
         l = j + 1
         for i = tx:BLOCK_WIDTH:BLOCK_WIDTH
@@ -225,10 +225,10 @@ end
     return nothing
 end
 
-@inline function bottom_source_term_x(Q,
+@inline @make_numeric_literals_32bits function bottom_source_term_x(Q,
                               Qx,
                               Hi,
-                              g::Float32, i::Int32, j::Int32)
+                              g, i, j)
                                eta_p = Q[i, j, 1] + Qx[i-1, j-2, 1]
                                eta_m = Q[i, j, 1] - Qx[i-1, j-2, 1]
     RHx_p = reconstruct_Hx(Hi, i+1, j)
@@ -241,10 +241,10 @@ end
     return -0.5*g*H_x *(eta_p + RHx_p + eta_m + RHx_m)
 end
 
-@inline function bottom_source_term_y(Q,
+@inline @make_numeric_literals_32bits function bottom_source_term_y(Q,
                               Qx,
                               Hi,
-                              g::Float32, i::Int32, j::Int32)
+                              g, i, j)
                                eta_p = Q[i, j, 1] + Qx[i-2, j-1, 1]
                                eta_m = Q[i, j, 1] - Qx[i-2, j-1, 1]
     RHy_p = reconstruct_Hy(Hi, i, j+1)
@@ -255,10 +255,10 @@ end
     return -0.5*g*H_y *(eta_p + RHy_p + eta_m + RHy_m)
 end
 
-@inline function compute_single_flux_F(Q,
+@inline @make_numeric_literals_32bits function compute_single_flux_F(Q,
                                Qx,
                                Hi,
-                               g::Float32, qxi::Int32, qxj::Int32)
+                               g, qxi, qxj)
     # Indices into Q with input being indices into Qx
     qj = qxj + 2
     qi = qxi + 1;
@@ -286,10 +286,10 @@ end
     return F1, F2, F3 
 end
 
-@inline function compute_single_flux_G(Q,
+@inline @make_numeric_literals_32bits function compute_single_flux_G(Q,
                                Qx,
                                Hi,
-                               g::Float32, qxi::Int32, qxj::Int32)
+                               g, qxi, qxj)
     # Indices into Q with input being indices into Qx
     qj = qxj + 1
     qi = qxi + 2;
@@ -319,9 +319,9 @@ end
     return G1, G3, G2 
 end
 
-@inline function central_upwind_flux_bottom(Qmx::Float32, Qmy::Float32, Qmz::Float32, 
-                                    Qpx::Float32, Qpy::Float32, Qpz::Float32, 
-                                    RH::Float32, g::Float32)
+@inline @make_numeric_literals_32bits function central_upwind_flux_bottom(Qmx, Qmy, Qmz, 
+                                    Qpx, Qpy, Qpz, 
+                                    RH, g)
     # TODO: Not specialized for dry cells!
     hp = Qpx + RH
     up = Float32(Qpy / hp)
@@ -343,7 +343,7 @@ end
     return Fx, Fy, Fz
 end
 
-@inline function F_func_bottom(qx::Float32, qy::Float32, qz::Float32, h::Float32, u::Float32, g::Float32) 
+@inline @make_numeric_literals_32bits function F_func_bottom(qx, qy, qz, h, u, g) 
     Fx = qy;                       
     Fy = qy*u + 0.5*g*(h*h);      
     Fz = qz*u;                     
@@ -351,6 +351,6 @@ end
 end
 
 
-function compute_flux(numflux, reconstruct, u, cellindex)
+@make_numeric_literals_32bits function compute_flux(numflux, reconstruct, u, cellindex)
     return numflux(reconstruct_right(u, cellindex)) - numflux(reconstruct_left(u, cellindex+1, +1))
 end

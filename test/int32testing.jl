@@ -25,14 +25,14 @@ macro make_numeric_literals_32bits(definition)
     )
 end
 
-@inline @make_numeric_literals_32bits function myotherfunc(a)
-    return a + 2
-end
+# @inline @make_numeric_literals_32bits function myotherfunc(a)
+#     return a + 2
+# end
 
 
-@make_numeric_literals_32bits function my_function(a)
-    b = myotherfunc(a)
-    return b + a + 1+4.5+2.2f0
-end
+# @make_numeric_literals_32bits function my_function(a)
+#     b = myotherfunc(a)
+#     return b + a + 1+4.5+2.2f0
+# end
 
-@show my_function(Int32(3))
+# @show my_function(Int32(3))

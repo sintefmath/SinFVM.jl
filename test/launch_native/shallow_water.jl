@@ -9,10 +9,10 @@ using PyCall
 #using .GPUOceanUtils
 include("GPUOceanUtils.jl")
 
-include("swe_kp07.jl")
+include("swe_kp07_pure.jl")
 
 
-function compare_julia_and_cuda(; useJulia::Bool, number_of_timesteps=1)
+@make_numeric_literals_32bits function  compare_julia_and_cuda(; useJulia::Bool, number_of_timesteps=1)
     dataFolder = "data/plain"
     flattenarr(x) = collect(Iterators.flatten(x))
 
@@ -20,15 +20,15 @@ function compare_julia_and_cuda(; useJulia::Bool, number_of_timesteps=1)
     #N = Nx = Ny = 256
     #Nx::Int32 = 270
     #Ny::Int32 = 230
-    Nx::Int32 = 4096
-    Ny::Int32 = 4096
+    Nx = 4096
+    Ny = 4096
     #N_tot = Nx * Ny
-    dt::Float32 = 0.001
-    g::Float32 = 9.81
-    f::Float32 = 0.00
-    r::Float32 = 0.0
-    dx::Float32 = 0.5
-    dy::Float32 = 0.4
+    dt = 0.001
+    g = 9.81
+    f = 0.00
+    r = 0.0
+    dx = 0.5
+    dy = 0.4
 
     ngc = 2
     data_shape = (Nx + 2 * ngc, Ny + 2 * ngc)
@@ -50,9 +50,9 @@ function compare_julia_and_cuda(; useJulia::Bool, number_of_timesteps=1)
 
     eta0_dev = hu0_dev = hv0_dev = eta1_dev = hu1_dev = hv1_dev = nothing
 
-    theta::Float32 = 1.3
+    theta = 1.3
     
-    bc::Int32 = 1
+    bc = 1
 
     md_sw = swe_2D = signature = nothing
     num_threads = num_blocks = nothing
@@ -109,7 +109,7 @@ function compare_julia_and_cuda(; useJulia::Bool, number_of_timesteps=1)
     end
 
     @showprogress for i in 1:number_of_timesteps
-        step::Int32 = (i + 1) % 2
+        step = (i + 1) % 2
         if i % 2 == 1
             curr_eta0_dev = eta0_dev
             curr_hu0_dev = hu0_dev
@@ -127,18 +127,14 @@ function compare_julia_and_cuda(; useJulia::Bool, number_of_timesteps=1)
         end
 
         if useJulia
-            open("mypx.ptx", "w") do io
-            CUDA.@device_code_ptx io CUDA.@profile @cuda threads=num_threads blocks=num_blocks julia_kp07!(
+
+            CUDA.@profile @cuda threads=num_threads blocks=num_blocks julia_kp07!(
                 Nx, Ny, dx, dy, dt,
                 g, theta, step,
                 curr_eta0_dev, curr_hu0_dev, curr_hv0_dev,
                 curr_eta1_dev, curr_hu1_dev, curr_hv1_dev,
                 Hi, H,
                 bc)
-            
-            
-            end
-
         else
             CUDA.@profile cudacall(swe_2D, signature,
                     Int32(Nx), Int32(Ny), dx, dy, dt,
