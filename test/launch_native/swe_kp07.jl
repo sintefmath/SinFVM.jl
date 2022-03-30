@@ -2,7 +2,7 @@
 const BLOCK_WIDTH = Int32(16)
 const BLOCK_HEIGHT = Int32(8)
 
-function clamp(i, low, high)
+function clamp(i::Int32, low::Int32, high::Int32)
     return max(low, min(i, high))
 end
 
@@ -33,21 +33,21 @@ function julia_kp07!(
     ty::Int32 = threadIdx().y
 
 
-    blockStart_i::Int32 = (blockIdx().x - 1)*blockDim().x
-    blockStart_j::Int32 = (blockIdx().y - 1)*blockDim().y
+    blockStart_i::Int32 = (blockIdx().x - Int32(1))*blockDim().x
+    blockStart_j::Int32 = (blockIdx().y - Int32(1))*blockDim().y
     
-    ti::Int32 = blockStart_i + threadIdx().x + 2
-    tj::Int32 = blockStart_j + threadIdx().y + 2
+    ti::Int32 = blockStart_i + threadIdx().x + Int32(2)
+    tj::Int32 = blockStart_j + threadIdx().y + Int32(2)
 
-    Q = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+4), (BLOCK_HEIGHT+4), 3))
-    Qx = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+2),(BLOCK_HEIGHT+2), 3))
-    Hi = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+4),(BLOCK_HEIGHT+4)))
+    Q = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+Int32(4)), (BLOCK_HEIGHT+Int32(4)), Int32(3)))
+    Qx = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+Int32(2)),(BLOCK_HEIGHT+Int32(2)), Int32(3)))
+    Hi = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+Int32(4)),(BLOCK_HEIGHT+Int32(4))))
 
     # Read eta0, hu0, hv0 and Hi into shmem:
-    for j = ty:BLOCK_HEIGHT:BLOCK_HEIGHT+4
-        for i = tx:BLOCK_WIDTH:BLOCK_WIDTH+4
-            glob_j = clamp(blockStart_j + j, 1, Ny+4)
-            glob_i = clamp(blockStart_i + i, 1, Nx+4)
+    for j = ty:BLOCK_HEIGHT:BLOCK_HEIGHT+Int32(4)
+        for i = tx:BLOCK_WIDTH:BLOCK_WIDTH+Int32(4)
+            glob_j = clamp(blockStart_j + j, Int32(1), Ny+Int32(4))
+            glob_i = clamp(blockStart_i + i, Int32(1), Nx+Int32(4))
             @inbounds Q[i, j, 1] = eta0[glob_i, glob_j]
             @inbounds Q[i, j, 2] = hu0[glob_i, glob_j]
             @inbounds Q[i, j, 3] = hv0[glob_i, glob_j]
@@ -56,7 +56,7 @@ function julia_kp07!(
     end
     sync_threads()    
 
-    wall_bc_to_shmem!(Q, Nx, Ny, Int32(tx+2), Int32(ty+2), ti, tj)
+    wall_bc_to_shmem!(Q, Nx, Ny, Int32(tx+2), Int32(ty+Int32(2)), ti, tj)
     sync_threads()
 
     # Reconstruct Q in x-direction into Qx
@@ -71,7 +71,7 @@ function julia_kp07!(
     # TODO: Skipping adjustSlope_x
 
     R1 = R2 = R3 = 0.0f0
-    if (ti > 2 && tj > 2 && ti <= Nx + 2 && tj <= Ny + 2)
+    if (ti > Int32(2) && tj > Int32(2) && ti <= Nx + Int32(2) && tj <= Ny + Int32(2))
         i = tx + Int32(2)
         j = ty + Int32(2)
 
@@ -99,7 +99,7 @@ function julia_kp07!(
     sync_threads()
 
 
-    if (ti > 2 && tj > 2 && ti <= Nx + 2 && tj <= Ny + 2)
+    if (ti > Int32(2) && tj > Int32(2) && ti <= Nx + Int32(2) && tj <= Ny + Int32(2))
         i = tx + Int32(2)
         j = ty + Int32(2)
         
@@ -130,78 +130,72 @@ function julia_kp07!(
     return nothing
 end
 
-function fillWithCrap!(Q::CuDeviceArray{Float32, 3, 3}, i, j)
-    Q[i, j, 2] = i+j
-    return nothing
-end
-
 
 function wall_bc_to_shmem!(Q::CuDeviceArray{Float32, 3, 3}, 
                            Nx::Int32, Ny::Int32, 
                            i::Int32, j::Int32,
                            ti::Int32, tj::Int32)
     # Global and local indices:
-    if (ti == 3)
+    if (ti == Int32(3))
         # First index within domain in x (west)
-        @inbounds Q[i-1, j, 1] =  Q[i, j, 1]
-        @inbounds Q[i-1, j, 2] = -Q[i, j, 2]
-        @inbounds Q[i-1, j, 3] =  Q[i, j, 3]
+        @inbounds Q[i-Int32(1), j, 1] =  Q[i, j, 1]
+        @inbounds Q[i-Int32(1), j, 2] = -Q[i, j, 2]
+        @inbounds Q[i-Int32(1), j, 3] =  Q[i, j, 3]
             
-        @inbounds Q[i-2, j, 1] =  Q[i+1, j, 1]
-        @inbounds Q[i-2, j, 2] = -Q[i+1, j, 2]
-        @inbounds Q[i-2, j, 3] =  Q[i+1, j, 3]
+        @inbounds Q[i-Int32(2), j, 1] =  Q[i+Int32(1), j, 1]
+        @inbounds Q[i-Int32(2), j, 2] = -Q[i+Int32(1), j, 2]
+        @inbounds Q[i-Int32(2), j, 3] =  Q[i+Int32(1), j, 3]
     end
-    if (ti == Nx+2)
+    if (ti == Nx+Int32(2))
         # Last index within domain in x (east)
-        @inbounds Q[i+1, j, 1] =  Q[i, j, 1]
-        @inbounds Q[i+1, j, 2] = -Q[i, j, 2]
-        @inbounds Q[i+1, j, 3] =  Q[i, j, 3]
+        @inbounds Q[i+Int32(1), j, 1] =  Q[i, j, 1]
+        @inbounds Q[i+Int32(1), j, 2] = -Q[i, j, 2]
+        @inbounds Q[i+Int32(1), j, 3] =  Q[i, j, 3]
             
-        @inbounds Q[i+2, j, 1] =  Q[i-1, j, 1]
-        @inbounds Q[i+2, j, 2] = -Q[i-1, j, 2]
-        @inbounds Q[i+2, j, 3] =  Q[i-1, j, 3]
+        @inbounds Q[i+Int32(2), j, 1] =  Q[i-Int32(1), j, 1]
+        @inbounds Q[i+Int32(2), j, 2] = -Q[i-Int32(1), j, 2]
+        @inbounds Q[i+Int32(2), j, 3] =  Q[i-Int32(1), j, 3]
     end
-    if (tj == 3) 
+    if (tj == Int32(3)) 
         # First index in domain in y (south)
-        @inbounds Q[i, j-1, 1] =  Q[i, j, 1]
-        @inbounds Q[i, j-1, 2] =  Q[i, j, 2]
-        @inbounds Q[i, j-1, 3] = -Q[i, j, 3]
+        @inbounds Q[i, j-Int32(1), 1] =  Q[i, j, 1]
+        @inbounds Q[i, j-Int32(1), 2] =  Q[i, j, 2]
+        @inbounds Q[i, j-Int32(1), 3] = -Q[i, j, 3]
             
-        @inbounds Q[i, j-2, 1] =  Q[i, j+1, 1]
-        @inbounds Q[i, j-2, 2] =  Q[i, j+1, 2]
-        @inbounds Q[i, j-2, 3] = -Q[i, j+1, 3]
+        @inbounds Q[i, j-Int32(2), 1] =  Q[i, j+Int32(1), 1]
+        @inbounds Q[i, j-Int32(2), 2] =  Q[i, j+Int32(1), 2]
+        @inbounds Q[i, j-Int32(2), 3] = -Q[i, j+Int32(1), 3]
     end
-    if (tj == Ny+2)
+    if (tj == Ny+Int32(2))
         # Last index in domain in y (north)
-        @inbounds Q[i, j+1, 1] =  Q[i, j, 1]
-        @inbounds Q[i, j+1, 2] =  Q[i, j, 2]
-        @inbounds Q[i, j+1, 3] = -Q[i, j, 3]
+        @inbounds Q[i, j+Int32(1), 1] =  Q[i, j, 1]
+        @inbounds Q[i, j+Int32(1), 2] =  Q[i, j, 2]
+        @inbounds Q[i, j+Int32(1), 3] = -Q[i, j, 3]
             
-        @inbounds Q[i, j+2, 1] =  Q[i, j-1, 1]
-        @inbounds Q[i, j+2, 2] =  Q[i, j-1, 2]
-        @inbounds Q[i, j+2, 3] = -Q[i, j-1, 3]
+        @inbounds Q[i, j+Int32(2), 1] =  Q[i, j-Int32(1), 1]
+        @inbounds Q[i, j+Int32(2), 2] =  Q[i, j-Int32(1), 2]
+        @inbounds Q[i, j+Int32(2), 3] = -Q[i, j-Int32(1), 3]
         
     end 
     return nothing
 end
 
-#function reconstruct_Hx(Hi::CuDeviceMatrix{Float32, 3}, i , j)
-function reconstruct_Hx(Hi, i , j)
-        return 0.5f0*(Hi[i  , j] + Hi[i  , j+1])
+function reconstruct_Hx(Hi::CuDeviceMatrix{Float32, 3}, i::Int32  , j::Int32)
+    return Float32(0.5f0)*(Hi[i  , j] + Hi[i  , j+Int32(1)])
 end
 function reconstruct_Hy(Hi::CuDeviceMatrix{Float32, 3}, i::Int32  , j::Int32)
-    return 0.5f0*(Hi[i  , j] + Hi[i+1, j  ])
+    return Float32(0.5f0)*(Hi[i  , j] + Hi[i+Int32(1), j  ])
 end
 
 function reconstruct_slope_x!(Q::CuDeviceArray{Float32, 3, 3},
                                Qx::CuDeviceArray{Float32, 3, 3}, 
                                theta::Float32, tx::Int32, ty::Int32)
     for j = ty:BLOCK_HEIGHT:BLOCK_HEIGHT
-        l = j + 2
-        for i = tx:BLOCK_WIDTH:BLOCK_WIDTH+2
-            k = i + 1
+        l = j + Int32(2)
+        for i = tx:BLOCK_WIDTH:BLOCK_WIDTH+Int32(2)
+            k = i + Int32(1)
             for p=1:3
-                @inbounds Qx[i, j, p] = 0.5f0 * minmodSlope(Q[k-1, l, p], Q[k, l, p], Q[k+1, l, p], theta);
+                @inbounds Qx[i, j, p] = 0.5f0 * minmodSlope(Q[k-Int32(1), l, p], Q[k, l, p], Q[k+Int32(1), l, p], theta);
             end
         end
     end
@@ -212,11 +206,11 @@ function reconstruct_slope_y!(Q::CuDeviceArray{Float32, 3, 3},
                               Qx::CuDeviceArray{Float32, 3, 3}, 
                               theta::Float32, tx::Int32, ty::Int32)
     for j = ty:BLOCK_HEIGHT:BLOCK_HEIGHT+2
-        l = j + 1
+        l = j + Int32(1)
         for i = tx:BLOCK_WIDTH:BLOCK_WIDTH
-            k = i + 2
+            k = i + Int32(2)
             for p=1:3
-                @inbounds Qx[i, j, p] = 0.5f0 * minmodSlope(Q[k, l-1, p], Q[k, l, p], Q[k, l+1, p], theta);
+                @inbounds Qx[i, j, p] = 0.5f0 * minmodSlope(Q[k, l-Int32(1), p], Q[k, l, p], Q[k, l+Int32(1), p], theta);
             end
         end
     end
@@ -227,9 +221,9 @@ function bottom_source_term_x(Q::CuDeviceArray{Float32, 3, 3},
                               Qx::CuDeviceArray{Float32, 3, 3},
                               Hi::CuDeviceMatrix{Float32, 3},
                               g::Float32, i::Int32, j::Int32)
-    @inbounds eta_p = Q[i, j, 1] + Qx[i-1, j-2, 1]
-    @inbounds eta_m = Q[i, j, 1] - Qx[i-1, j-2, 1]
-    RHx_p = reconstruct_Hx(Hi, i+1, j)
+    @inbounds eta_p = Q[i, j, 1] + Qx[i-Int32(1), j-Int32(2), 1]
+    @inbounds eta_m = Q[i, j, 1] - Qx[i-Int32(1), j-Int32(2), 1]
+    RHx_p = reconstruct_Hx(Hi, i+Int32(1), j)
     RHx_m = reconstruct_Hx(Hi, i         , j)
     
     #RHx_p =  0.5*(Hi[i+1, j] + Hi[i+1, j+1])
@@ -243,8 +237,8 @@ function bottom_source_term_y(Q::CuDeviceArray{Float32, 3, 3},
                               Qx::CuDeviceArray{Float32, 3, 3},
                               Hi::CuDeviceMatrix{Float32, 3},
                               g::Float32, i::Int32, j::Int32)
-    @inbounds eta_p = Q[i, j, 1] + Qx[i-2, j-1, 1]
-    @inbounds eta_m = Q[i, j, 1] - Qx[i-2, j-1, 1]
+    @inbounds eta_p = Q[i, j, 1] + Qx[i-Int32(2), j-Int32(1), 1]
+    @inbounds eta_m = Q[i, j, 1] - Qx[i-Int32(2), j-Int32(1), 1]
     RHy_p = reconstruct_Hy(Hi, i, j+Int32(1))
     RHy_m = reconstruct_Hy(Hi, i, j         )
     
@@ -262,9 +256,9 @@ function compute_single_flux_F(Q::CuDeviceArray{Float32, 3, 3},
     qi = qxi + Int32(1);
 
     # Q at interface from the right (p) and left (m)
-    @inbounds Qpx = Q[qi+1, qj, 1] - Qx[qxi+1, qxj, 1]
-    @inbounds Qpy = Q[qi+1, qj, 2] - Qx[qxi+1, qxj, 2]
-    @inbounds Qpz = Q[qi+1, qj, 3] - Qx[qxi+1, qxj, 3]
+    @inbounds Qpx = Q[qi+Int32(1), qj, 1] - Qx[qxi+Int32(1), qxj, 1]
+    @inbounds Qpy = Q[qi+Int32(1), qj, 2] - Qx[qxi+Int32(1), qxj, 2]
+    @inbounds Qpz = Q[qi+Int32(1), qj, 3] - Qx[qxi+Int32(1), qxj, 3]
     @inbounds Qmx = Q[qi  , qj, 1] + Qx[qxi  , qxj, 1]
     @inbounds Qmy = Q[qi  , qj, 2] + Qx[qxi  , qxj, 2]
     @inbounds Qmz = Q[qi  , qj, 3] + Qx[qxi  , qxj, 3]
@@ -278,7 +272,7 @@ function compute_single_flux_F(Q::CuDeviceArray{Float32, 3, 3},
     #                        Q[2][l][k  ] + Qx[2][j][i  ]);
                                 
     # Computed flux with respect to the reconstructed bottom elevation at the interface
-    RHx = reconstruct_Hx(Hi, qi+1, qj);
+    RHx = reconstruct_Hx(Hi, qi+Int32(1), qj);
     F1, F2, F3 = central_upwind_flux_bottom(Qmx, Qmy, Qmz, Qpx, Qpy, Qpz, RHx, g);
 
     return F1, F2, F3 
@@ -294,9 +288,9 @@ function compute_single_flux_G(Q::CuDeviceArray{Float32, 3, 3},
 
     # Q at interface from the north (p) and south (m)
     # Note that we swap hu and hv
-    @inbounds Qpx = Q[qi, qj+1, 1] - Qx[qxi, qxj+1, 1]
-    @inbounds Qpy = Q[qi, qj+1, 3] - Qx[qxi, qxj+1, 3]
-    @inbounds Qpz = Q[qi, qj+1, 2] - Qx[qxi, qxj+1, 2]
+    @inbounds Qpx = Q[qi, qj+Int32(1), 1] - Qx[qxi, qxj+Int32(1), 1]
+    @inbounds Qpy = Q[qi, qj+Int32(1), 3] - Qx[qxi, qxj+Int32(1), 3]
+    @inbounds Qpz = Q[qi, qj+Int32(1), 2] - Qx[qxi, qxj+Int32(1), 2]
     @inbounds Qmx = Q[qi, qj  , 1] + Qx[qxi, qxj  , 1]
     @inbounds Qmy = Q[qi, qj  , 3] + Qx[qxi, qxj  , 3]
     @inbounds Qmz = Q[qi, qj  , 2] + Qx[qxi, qxj  , 2]

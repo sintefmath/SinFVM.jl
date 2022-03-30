@@ -18,8 +18,10 @@ function compare_julia_and_cuda(; useJulia::Bool, number_of_timesteps=1)
 
     MyType = Float32
     #N = Nx = Ny = 256
-    Nx::Int32 = 270
-    Ny::Int32 = 230
+    #Nx::Int32 = 270
+    #Ny::Int32 = 230
+    Nx::Int32 = 4096
+    Ny::Int32 = 4096
     #N_tot = Nx * Ny
     dt::Float32 = 0.001
     g::Float32 = 9.81
@@ -123,7 +125,7 @@ function compare_julia_and_cuda(; useJulia::Bool, number_of_timesteps=1)
 
         if useJulia
 
-            @cuda threads=num_threads blocks=num_blocks julia_kp07!(
+            CUDA.@profile @cuda threads=num_threads blocks=num_blocks julia_kp07!(
                 Nx, Ny, dx, dy, dt,
                 g, theta, step,
                 curr_eta0_dev, curr_hu0_dev, curr_hv0_dev,
@@ -132,7 +134,7 @@ function compare_julia_and_cuda(; useJulia::Bool, number_of_timesteps=1)
                 bc)
 
         else
-            cudacall(swe_2D, signature,
+            CUDA.@profile cudacall(swe_2D, signature,
                     Int32(Nx), Int32(Ny), dx, dy, dt,
                     g, theta, r, step,
                     curr_eta0_dev, Int32(data_shape[1] * sizeof(Float32)),
@@ -340,8 +342,8 @@ function run_stuff(rotation::Bool,
 
                 eta1_copied = reshape(collect(curr_eta1_dev), data_shape)
                 npzwrite("$(dataFolder)/eta_$(div(i, save_every)).npy", eta1_copied)
-                plotField(eta1_copied, title ="i = $i")
-                savefig("$(plotFolder)/eta_$(div(i, save_every)).png") 
+                #plotField(eta1_copied, title ="i = $i")
+               # savefig("$(plotFolder)/eta_$(div(i, save_every)).png") 
             end
         end
     end
@@ -353,12 +355,12 @@ function run_stuff(rotation::Bool,
     npzwrite("$(dataFolder)/eta_final.npy", eta1_copied)
     npzwrite("$(dataFolder)/hu_final.npy", hu1_copied)
     npzwrite("$(dataFolder)/hv_final.npy", hv1_copied)
-    plotField(eta1_copied, title="eta final")
-    savefig("$(plotFolder)/eta_final.png") 
-    plotField(hu1_copied, title="hu final")
-    savefig("$(plotFolder)/hu_final.png") 
-    plotField(hv1_copied, title="hv final")
-    savefig("$(plotFolder)/hv_final.png") 
+    #plotField(eta1_copied, title="eta final")
+#    savefig("$(plotFolder)/eta_final.png") 
+   # plotField(hu1_copied, title="hu final")
+    #savefig("$(plotFolder)/hu_final.png") 
+   # plotField(hv1_copied, title="hv final")
+   # savefig("$(plotFolder)/hv_final.png") 
 
     return Array(eta1_dev), Array(hu1_dev), Array(hv1_dev), data_shape
 end
@@ -372,13 +374,21 @@ if check_complete_kernel
                   eta_plain, hu_plain, hv_plain, data_shape)
 end
 
+function runme()
 check_julia_kernel = true
 if check_julia_kernel
-    num_iterations = 30000
+    num_iterations = 3
+    @time eta_cuda, hu_cuda, hv_cuda, data_shape = compare_julia_and_cuda(useJulia=false, number_of_timesteps=num_iterations)
+    @time eta_jl, hu_jl, hv_jl, data_shape = compare_julia_and_cuda(useJulia=true, number_of_timesteps=num_iterations)
     @time eta_cuda, hu_cuda, hv_cuda, data_shape = compare_julia_and_cuda(useJulia=false, number_of_timesteps=num_iterations)
     @time eta_jl, hu_jl, hv_jl, data_shape = compare_julia_and_cuda(useJulia=true, number_of_timesteps=num_iterations)
 
     compareArrays(eta_cuda, hu_cuda, hv_cuda, 
-                  eta_jl, hu_jl, hv_jl, data_shape, doPlot=true,
-                  forcePlot=true)
+                  eta_jl, hu_jl, hv_jl, data_shape, doPlot=false,
+                  forcePlot=false)
 end
+
+end
+
+runme()
+runme()
