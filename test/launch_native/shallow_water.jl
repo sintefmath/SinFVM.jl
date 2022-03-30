@@ -18,10 +18,10 @@ function compare_julia_and_cuda(; useJulia::Bool, number_of_timesteps=1)
 
     MyType = Float32
     #N = Nx = Ny = 256
-    #Nx::Int32 = 270
-    #Ny::Int32 = 230
-    Nx::Int32 = 4096
-    Ny::Int32 = 4096
+    Nx::Int32 = 270
+    Ny::Int32 = 230
+    #Nx::Int32 = 4096
+    #Ny::Int32 = 4096
     #N_tot = Nx * Ny
     dt::Float32 = 0.001
     g::Float32 = 9.81
@@ -375,18 +375,18 @@ if check_complete_kernel
 end
 
 function runme()
-check_julia_kernel = true
-if check_julia_kernel
-    num_iterations = 3
-    @time eta_cuda, hu_cuda, hv_cuda, data_shape = compare_julia_and_cuda(useJulia=false, number_of_timesteps=num_iterations)
-    @time eta_jl, hu_jl, hv_jl, data_shape = compare_julia_and_cuda(useJulia=true, number_of_timesteps=num_iterations)
-    @time eta_cuda, hu_cuda, hv_cuda, data_shape = compare_julia_and_cuda(useJulia=false, number_of_timesteps=num_iterations)
-    @time eta_jl, hu_jl, hv_jl, data_shape = compare_julia_and_cuda(useJulia=true, number_of_timesteps=num_iterations)
+    check_julia_kernel = true
+    if check_julia_kernel
+        num_iterations = 3000
+        @time eta_cuda, hu_cuda, hv_cuda, data_shape = compare_julia_and_cuda(useJulia=false, number_of_timesteps=num_iterations)
+        @time eta_jl, hu_jl, hv_jl, data_shape = compare_julia_and_cuda(useJulia=true, number_of_timesteps=num_iterations)
+        @time eta_cuda, hu_cuda, hv_cuda, data_shape = compare_julia_and_cuda(useJulia=false, number_of_timesteps=num_iterations)
+        @time eta_jl, hu_jl, hv_jl, data_shape = compare_julia_and_cuda(useJulia=true, number_of_timesteps=num_iterations)
 
-    compareArrays(eta_cuda, hu_cuda, hv_cuda, 
-                  eta_jl, hu_jl, hv_jl, data_shape, doPlot=false,
-                  forcePlot=false)
-end
+        compareArrays(eta_cuda, hu_cuda, hv_cuda, 
+                    eta_jl, hu_jl, hv_jl, data_shape, doPlot=false,
+                    forcePlot=false)
+    end
 
 end
 
