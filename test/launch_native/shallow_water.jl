@@ -72,6 +72,9 @@ function compare_julia_and_cuda(; useJulia::Bool, number_of_timesteps=1)
         Hi = CuArray(Hi_h)
         H  = CuArray(H_h)
 
+        
+        
+        
     else
         num_threads = (32, 16)
         # num_threads = (width, height)
@@ -124,14 +127,17 @@ function compare_julia_and_cuda(; useJulia::Bool, number_of_timesteps=1)
         end
 
         if useJulia
-
-            CUDA.@profile @cuda threads=num_threads blocks=num_blocks julia_kp07!(
+            open("mypx.ptx", "w") do io
+            CUDA.@device_code_ptx io CUDA.@profile @cuda threads=num_threads blocks=num_blocks julia_kp07!(
                 Nx, Ny, dx, dy, dt,
                 g, theta, step,
                 curr_eta0_dev, curr_hu0_dev, curr_hv0_dev,
                 curr_eta1_dev, curr_hu1_dev, curr_hv1_dev,
                 Hi, H,
                 bc)
+            
+            
+            end
 
         else
             CUDA.@profile cudacall(swe_2D, signature,
@@ -377,7 +383,7 @@ end
 function runme()
 check_julia_kernel = true
 if check_julia_kernel
-    num_iterations = 3
+    num_iterations = 1
     @time eta_cuda, hu_cuda, hv_cuda, data_shape = compare_julia_and_cuda(useJulia=false, number_of_timesteps=num_iterations)
     @time eta_jl, hu_jl, hv_jl, data_shape = compare_julia_and_cuda(useJulia=true, number_of_timesteps=num_iterations)
     @time eta_cuda, hu_cuda, hv_cuda, data_shape = compare_julia_and_cuda(useJulia=false, number_of_timesteps=num_iterations)
