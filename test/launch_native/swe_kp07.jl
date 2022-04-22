@@ -1,6 +1,6 @@
 
-const BLOCK_WIDTH = Int32(32)
-const BLOCK_HEIGHT = Int32(16)
+const BLOCK_WIDTH = Int32(16)
+const BLOCK_HEIGHT = Int32(8)
 
 @inline function clamp(i, low, high)
     return max(low, min(i, high))
