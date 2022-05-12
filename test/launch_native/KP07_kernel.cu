@@ -27,8 +27,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define block_height 16
 #define block_width 32
 #define KPSIMULATOR_DEPTH_CUTOFF 1e-5f
-#define KPSIMULATOR_FLUX_SLOPE_EPS 1e-4f
-#define KPSIMULATOR_FLUX_SLOPE_EPS_4 1e-4f
+#define KPSIMULATOR_FLUX_SLOPE_EPS 1e-2f
+#define KPSIMULATOR_FLUX_SLOPE_EPS_4 1e-8f
 
 #include "common.cu"
 
@@ -516,7 +516,7 @@ __global__ void swe_2D(
     __syncthreads();
 
     // Adjust the slopes to avoid negative values at integration points
-    //adjustSlopes_x(Qx, Hi, Q);
+    adjustSlopes_x(Qx, Hi, Q);
     __syncthreads();
     
     float R1 = 0.0f;
@@ -552,7 +552,7 @@ __global__ void swe_2D(
     __syncthreads();
 
     // Adjust the slopes to avoid negative values at integration points
-    //adjustSlopes_y(Qx, Hi, Q);
+    adjustSlopes_y(Qx, Hi, Q);
     __syncthreads();
       
     //Sum fluxes and advance in time for all internal cells

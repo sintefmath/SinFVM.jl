@@ -26,9 +26,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #define block_height 16
 #define block_width 32
-#define KPSIMULATOR_DEPTH_CUTOFF 1e-5f
-#define KPSIMULATOR_FLUX_SLOPE_EPS 1e-1f
-#define KPSIMULATOR_FLUX_SLOPE_EPS_4 1e-4f
+#define KPSIMULATOR_DEPTH_CUTOFF 1.0e-5f
+#define KPSIMULATOR_FLUX_SLOPE_EPS 7.5e-2f
+#define KPSIMULATOR_FLUX_SLOPE_EPS_4 3.1640625e-5f
+//#define KPSIMULATOR_FLUX_SLOPE_EPS 1.0e-1
+//#define KPSIMULATOR_FLUX_SLOPE_EPS_4 1.0e-4
+//#define KPSIMULATOR_FLUX_SLOPE_EPS 1.0e-2
+//#define KPSIMULATOR_FLUX_SLOPE_EPS_4 1.0e-8
 
 #include "common.cu"
 // Finds the coriolis term based on the linear Coriolis force
@@ -39,6 +43,13 @@ __device__ float linear_coriolis_term(const float f, const float beta,
     // y_0 is at the southern face of the row y_zero_reference_cell.
     float y = (tj-y_zero_reference_cell + 0.5f)*dy;
     return f + beta * y;
+}
+
+__device__ float desingularizeDepth(float h) {
+    return copysignf(fmaxf(fabsf(h), 
+                           fminf(h*h/(2.0f*KPSIMULATOR_FLUX_SLOPE_EPS) + KPSIMULATOR_FLUX_SLOPE_EPS/2.0f,
+                                 KPSIMULATOR_FLUX_SLOPE_EPS)), 
+                    h);
 }
 
 __device__ float reconstructHx(float Hi[block_height+4][block_width+4],
@@ -74,11 +85,17 @@ __device__ float3 CentralUpwindFluxBottom(float3 Qm, float3 Qp, const float RH, 
     if (hp > KPSIMULATOR_DEPTH_CUTOFF) {
         up = Qp.y / (float) hp; // hu/h
         // Check if almost dry
-        float hp4 = hp*hp; hp4 *= hp4;  // hp^4
+        //double hp4 = (double)hp*(double)hp; hp4 *= hp4;  // hp^4
         if (hp <= KPSIMULATOR_FLUX_SLOPE_EPS) {
-            // Desingularize u and v
-            up = SQRT_OF_TWO*hp*Qp.y/sqrt(hp4 + fmaxf(hp4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
-            const float vp = SQRT_OF_TWO*hp*Qp.z/sqrt(hp4 + fmaxf(hp4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+            // Desingularize u and v using KP07 approach
+            //up = (float)((double)(SQRT_OF_TWO*hp*Qp.y)/sqrt(hp4 + fmax(hp4, KPSIMULATOR_FLUX_SLOPE_EPS_4)));
+            //const float vp = (float)((double)(SQRT_OF_TWO*hp*Qp.z)/sqrt(hp4 + fmax(hp4, KPSIMULATOR_FLUX_SLOPE_EPS_4)));
+            
+            // Desingularize u and v using BH21 approach
+            const float hp_star = desingularizeDepth(hp);
+            up = Qp.y/hp_star;
+            const float vp = Qp.z/hp_star;
+            
             // Update hu and hv accordingly
             Qp.y = hp*up;
             Qp.z = hp*vp;
@@ -95,11 +112,17 @@ __device__ float3 CentralUpwindFluxBottom(float3 Qm, float3 Qp, const float RH, 
     if (hm > KPSIMULATOR_DEPTH_CUTOFF) {
         um = Qm.y / (float) hm;   // hu / h
         // Check if almost dry
-        float hm4 = hm*hm; hm4 *= hm4;   // hm^4
+        //double hm4 = (double)hm*(double)hm; hm4 *= hm4;   // hm^4
         if (hm <= KPSIMULATOR_FLUX_SLOPE_EPS) {
-            // Desingularize u and v
-            um = SQRT_OF_TWO*hm*Qm.y/sqrt(hm4 + fmaxf(hm4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
-            const float vm = SQRT_OF_TWO*hm*Qm.z/sqrt(hm4 + fmaxf(hm4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+            // Desingularize u and v using KP07 approach
+            //um = (float)((double)(SQRT_OF_TWO*hm*Qm.y)/sqrt(hm4 + fmax(hm4, KPSIMULATOR_FLUX_SLOPE_EPS_4)));
+            //const float vm = (float)((double)(SQRT_OF_TWO*hm*Qm.z)/sqrt(hm4 + fmax(hm4, KPSIMULATOR_FLUX_SLOPE_EPS_4)));
+
+            // Desingularize u and v using BH21 approach
+            const float hm_star = desingularizeDepth(hm);
+            um = Qm.y/hm_star;
+            const float vm = Qm.z/hm_star;
+            
             // Update hu and hv accordingly
             Qm.y = hm*um;
             Qm.z = hm*vm;
@@ -373,13 +396,16 @@ __device__ float bottomSourceTerm2_kp(float Q[3][block_height+4][block_width+4],
     // With eta: g (eta + H)*(-H_x)
     float H_x = RHx_p - RHx_m;
     const float h = Q[0][q][p] + (RHx_p + RHx_m)/2.0f;
-    float h4 = h*h; h4 *= h4;
+    double h4 = (double)(h*h); h4 *= h4;
     
     if (h > KPSIMULATOR_DEPTH_CUTOFF) {
         
         if (h4 <= KPSIMULATOR_FLUX_SLOPE_EPS) {
-            // Desingularize u and v
-            H_x = SQRT_OF_TWO*h*h*H_x/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+            // Desingularize according to KP07
+            //H_x = (SQRT_OF_TWO*h*h*H_x)/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+
+            // Desingularize according to BH21
+            H_x = h*H_x / desingularizeDepth(h);  
         }
     
         return -0.5f*g*H_x*(eta_p + RHx_p + eta_m + RHx_m);
@@ -404,14 +430,17 @@ __device__ float bottomSourceTerm3_kp(float Q[3][block_height+4][block_width+4],
     const float RHy_m = reconstructHy(Hi, p, q  );
     
     float H_y = RHy_p - RHy_m;
-    const float h = Q[0][q][p] + (RHy_p + RHy_m)/2.0f;
-    float h4 = h*h; h4 *= h4;
+    const double h = Q[0][q][p] + (RHy_p + RHy_m)/2.0f;
+    double h4 = h*h; h4 *= h4;
     
     if (h > KPSIMULATOR_DEPTH_CUTOFF) {
         
         if (h <= KPSIMULATOR_FLUX_SLOPE_EPS) {
-            // Desingularize u and v
-            H_y = SQRT_OF_TWO*h*h*H_y/sqrt(h4 + fmaxf(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4));
+            // Desingularize according to KP07
+            //H_y = (float)((double)(SQRT_OF_TWO*h*h*H_y)/sqrt(h4 + fmax(h4, KPSIMULATOR_FLUX_SLOPE_EPS_4)));
+            
+            // Desingularize according to BH21
+            H_y = h*H_y / desingularizeDepth(h);
         }
         
         return -0.5f*g*H_y*(eta_p + RHy_p + eta_m + RHy_m);

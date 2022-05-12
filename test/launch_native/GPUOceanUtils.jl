@@ -3,7 +3,7 @@
 
 using CUDA, Test, Plots
 
-function makeCentralBump!(eta, nx, ny, dx, dy; centerX=0.5, centerY=0.5, bumpheight=1.0)
+function makeCentralBump!(eta, nx, ny, dx, dy; centerX=0.5, centerY=0.5, bumpheight=1.0, offset=0.0)
     H0 = 60.0
     x_center = dx * nx * centerX
     y_center = dy * ny * centerY
@@ -13,17 +13,20 @@ function makeCentralBump!(eta, nx, ny, dx, dy; centerX=0.5, centerY=0.5, bumphei
             y = dy * j - y_center
             sizenx = (0.15 * min(nx, ny) * min(dx, dy))^2
             if (sqrt(x^2 + y^2) < sizenx)
-                eta[i+2+1, j+2+1] = bumpheight * exp(-(x^2 / sizenx + y^2 / sizenx))
+                eta[i+2+1, j+2+1] = bumpheight * exp(-(x^2 / sizenx + y^2 / sizenx)) + offset
             end
         end
     end
     nothing
 end
 
-function makeBathymetry!(H, Hi, nx, ny, dx, dy)
+function makeBathymetry!(H, Hi, nx, ny, dx, dy; amplitude=0.25, slope=[0.0, 0.0])
     length = dx*nx*1.0
     height = dy*ny*1.0
-    depth(x, y) = 1.0 - 0.25*((sin(π*(x/length)*4)^2 + sin(π*(y/height)*4)^2))
+    x0 = length/2.0
+    y0 = height/2.0
+    println("heisann")
+    depth(x, y) = 1.0 - amplitude*((sin(π*(x/length)*4)^2 + sin(π*(y/height)*4)^2)) + (x-x0)*slope[1] + (y-y0)*slope[2]
     for j in range(-2, ny + 2 - 1)
         for i in range(-2, nx + 2 -1)
             x = dx*i
@@ -40,6 +43,13 @@ function makeBathymetry!(H, Hi, nx, ny, dx, dy)
     end
     
 
+end
+
+function ensureNonnegativeDepth!(eta, H)
+    @assert(size(eta) == size(H))
+    
+    eta[:,:] = broadcast(max, eta, -H)
+    return nothing
 end
 
 function plotField(field; kwargs...)
