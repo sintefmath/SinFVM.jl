@@ -1,10 +1,21 @@
 include("../int32testing.jl")
 const BLOCK_WIDTH = Int32(32)
 const BLOCK_HEIGHT = Int32(16)
+const KP_DESINGULARIZE_DEPTH = Float32(7.5e-2)
+const KP_DEPTH_CUTOFF = Float32(1.0e-5)
 
 @inline @make_numeric_literals_32bits function clamp(i, low, high)
     return max(low, min(i, high))
 end
+
+@inline @make_numeric_literals_32bits function desingularize_depth(h)
+    return copysign(max(abs(h), 
+                        min(h*h/(2.0*KP_DESINGULARIZE_DEPTH) + KP_DESINGULARIZE_DEPTH/2.0,
+                            KP_DESINGULARIZE_DEPTH)
+                        ),
+                    h)
+end
+
 
 @inline @make_numeric_literals_32bits function minmodSlope(left, center, right, theta) 
     backward = (center - left) * theta
@@ -59,8 +70,15 @@ end
     end
     sync_threads()    
 
-    wall_bc_to_shmem!(Q, Nx, Ny, Int32(tx+2), Int32(ty+2), ti, tj)
-    sync_threads()
+    if bc == 1
+        wall_bc_to_shmem!(Q, Nx, Ny, Int32(tx+2), Int32(ty+2), ti, tj)
+        sync_threads()
+    end
+
+    
+    glob_j = clamp(tj, 1, Ny+4)
+    glob_i = clamp(ti, 1, Nx+4)
+    Hm = H[glob_i, glob_j]
 
     # Reconstruct Q in x-direction into Qx
     # 
@@ -71,7 +89,8 @@ end
 
     sync_threads()
 
-    # TODO: Skipping adjustSlope_x
+    # Adjusting slopes to avoid negative water depth 
+    adjust_slopes_x!(Qx, Hi, Q, tx, ty)
 
     R1 = R2 = R3 = 0.
     if (ti > 2 && tj > 2 && ti <= Nx + 2 && tj <= Ny + 2)
@@ -79,7 +98,6 @@ end
         j = ty + 2
 
         # Bottom topography source term along x 
-        # TODO Desingularize and ensure h >= 0
         ST2 = bottom_source_term_x(Q, Qx, Hi, g, i, j)
 
         # TODO: Not written for dry cells
@@ -101,13 +119,15 @@ end
     reconstruct_slope_y!(Q, Qx, theta, tx, ty)
     sync_threads()
 
+    # Adjusting slopes to avoid negative water depth
+    adjust_slopes_y!(Qx, Hi, Q, tx, ty) 
 
+    eta = hu = hv = 0.0
     if (ti > 2 && tj > 2 && ti <= (Nx + 2) && (tj <= Ny + 2))
         i = tx + 2
         j = ty + 2
         
         # Bottom topography source term along y 
-        # TODO Desingularize and ensure h >= 0
         ST3 = bottom_source_term_y(Q, Qx, Hi, g, i, j)
 
         # TODO: Not written for dry cells
@@ -119,15 +139,28 @@ end
         R3 += - (G_flux_p_z - G_flux_m_z) / dy + ( - ST3/dy );
 
         if step == 0
-             eta1[ti, tj] = Q[i, j, 1] + dt*R1
-             hu1[ti, tj] = Q[i, j, 2] + dt*R2
-              hv1[ti, tj] = Q[i, j, 3] + dt*R3
+            eta = Q[i, j, 1] + dt*R1
+            hu = Q[i, j, 2] + dt*R2
+            hv = Q[i, j, 3] + dt*R3
         elseif step == 1
             # RK2 ODE integrator
-              eta1[ti, tj] = 0.5*( eta1[ti, tj] +  (Q[i, j, 1] + dt*R1))
-              hu1[ti, tj] = 0.5*(  hu1[ti, tj] +  (Q[i, j, 2] + dt*R2))
-              hv1[ti, tj] = 0.5*(  hv1[ti, tj] +  (Q[i, j, 3] + dt*R3))
+            eta = 0.5*( eta1[ti, tj] +  (Q[i, j, 1] + dt*R1))
+            hu = 0.5*(  hu1[ti, tj] +  (Q[i, j, 2] + dt*R2))
+            hv = 0.5*(  hv1[ti, tj] +  (Q[i, j, 3] + dt*R3))
         end
+
+        # Ensure non-negative water depth
+        h = eta + Hm
+        if (h <= KP_DEPTH_CUTOFF)
+            eta = -Hm
+            hu = 0.0
+            hv = 0.0
+        end
+        
+        eta1[ti, tj] = eta
+        hu1[ti, tj] =  hu
+        hv1[ti, tj] =  hv
+
     end
 
     return nothing
@@ -225,34 +258,106 @@ end
     return nothing
 end
 
+@inline @make_numeric_literals_32bits function adjust_slopes_x!(Qx, Hi, Q, tx, ty)
+    p = tx + 2
+    q = ty + 2
+    adjust_slope_Ux!(Qx, Hi, Q, p, q)
+
+    # Use one warp to perform the extra adjustments
+    if (tx == 1)
+        adjust_slope_Ux!(Qx, Hi, Q, 2, q)
+        adjust_slope_Ux!(Qx, Hi, Q, BLOCK_WIDTH+3, q)
+    end
+end
+
+@inline @make_numeric_literals_32bits function adjust_slopes_y!(Qx, Hi, Q, tx, ty)
+    p = tx + 2
+    q = ty + 2
+    adjust_slope_Uy!(Qx, Hi, Q, p, q)
+
+    if (ty == 1)
+        adjust_slope_Uy!(Qx, Hi, Q, p, 2)
+        adjust_slope_Uy!(Qx, Hi, Q, p, BLOCK_HEIGHT+3)
+    end
+end
+
+@inline @make_numeric_literals_32bits function adjust_slope_Ux!(Qx, Hi, Q, p, q)
+    # Indices within Qx:
+    pQx = p - 1
+    qQx = q - 2
+
+    RHx_m = reconstruct_Hx(Hi, p, q)
+    RHx_p = reconstruct_Hx(Hi, p+1, q)
+
+    # Western face
+    Qx[pQx, qQx, 1] =  (Q[p, q, 1] - Qx[pQx, qQx, 1] < -RHx_m) ? (Q[p, q, 1] + RHx_m) : Qx[pQx, qQx, 1]
+    # Eastern face
+    Qx[pQx, qQx, 1] =  (Q[p, q, 1] + Qx[pQx, qQx, 1] < -RHx_p) ? (-RHx_p - Q[p, q, 1]) : Qx[pQx, qQx, 1]
+end
+
+@inline @make_numeric_literals_32bits function adjust_slope_Uy!(Qx, Hi, Q, p, q)
+    # Indices within Qy
+    pQx = p - 2
+    qQx = q - 1
+
+    RHy_m = reconstruct_Hy(Hi, p, q)
+    RHy_p = reconstruct_Hy(Hi, p, q+1)
+
+    # Southern face
+    Qx[pQx, qQx, 1] = (Q[p, q, 1] - Qx[pQx, qQx, 1] < - RHy_m) ? (Q[p, q, 1] + RHy_m) : Qx[pQx, qQx, 1]
+    # Northern face
+    Qx[pQx, qQx, 1] = (Q[p, q, 1] + Qx[pQx, qQx, 1] < - RHy_p) ? (- RHy_p - Q[p, q, 1]) : Qx[pQx, qQx, 1] 
+end
+
 @inline @make_numeric_literals_32bits function bottom_source_term_x(Q,
                               Qx,
                               Hi,
                               g, i, j)
-                               eta_p = Q[i, j, 1] + Qx[i-1, j-2, 1]
-                               eta_m = Q[i, j, 1] - Qx[i-1, j-2, 1]
+    eta_p = Q[i, j, 1] + Qx[i-1, j-2, 1]
+    eta_m = Q[i, j, 1] - Qx[i-1, j-2, 1]
     RHx_p = reconstruct_Hx(Hi, i+1, j)
-    RHx_m = reconstruct_Hx(Hi, i         , j)
+    RHx_m = reconstruct_Hx(Hi, i  , j)
     
     #RHx_p =  0.5*(Hi[i+1, j] + Hi[i+1, j+1])
     H_x = RHx_p - RHx_m
-    #h = Q[j,i,1] + (RHx_p + RHx_m)/2.0
-    # TODO Desingularize and ensure h >= 0
-    return -0.5*g*H_x *(eta_p + RHx_p + eta_m + RHx_m)
+    
+    # Desingularize similarly to the fluxes
+    h = Q[i, j, 1] + (RHx_p + RHx_m)/2
+    if (h > KP_DEPTH_CUTOFF)
+
+        if (h < KP_DESINGULARIZE_DEPTH)
+            H_x = h * H_x / desingularize_depth(h)
+        end
+        
+        return -0.5*g*H_x *(eta_p + RHx_p + eta_m + RHx_m)
+    end
+    
+    return 0.0
 end
 
 @inline @make_numeric_literals_32bits function bottom_source_term_y(Q,
                               Qx,
                               Hi,
                               g, i, j)
-                               eta_p = Q[i, j, 1] + Qx[i-2, j-1, 1]
-                               eta_m = Q[i, j, 1] - Qx[i-2, j-1, 1]
+    eta_p = Q[i, j, 1] + Qx[i-2, j-1, 1]
+    eta_m = Q[i, j, 1] - Qx[i-2, j-1, 1]
     RHy_p = reconstruct_Hy(Hi, i, j+1)
-    RHy_m = reconstruct_Hy(Hi, i, j         )
+    RHy_m = reconstruct_Hy(Hi, i, j  )
     
     H_y = RHy_p - RHy_m
-    # TODO Desingularize and ensure h >= 0
-    return -0.5*g*H_y *(eta_p + RHy_p + eta_m + RHy_m)
+    
+    # Desingularize similarly to the fluxes
+    h = Q[i, j, 1] + (RHy_p + RHy_m)/2
+    if (h > KP_DEPTH_CUTOFF)
+
+        if (h < KP_DESINGULARIZE_DEPTH)
+            H_y = h * H_y / desingularize_depth(h)
+        end
+        
+        return -0.5*g*H_y *(eta_p + RHy_p + eta_m + RHy_m)
+    end
+
+    return 0.0
 end
 
 @inline @make_numeric_literals_32bits function compute_single_flux_F(Q,
@@ -324,17 +429,50 @@ end
                                     RH, g)
     # TODO: Not specialized for dry cells!
     hp = Qpx + RH
-    up = Float32(Qpy / hp)
-    Fpx, Fpy, Fpz = F_func_bottom(Qpx, Qpy, Qpz, hp, up, g)
-    cp = sqrt(g*hp)
+    up = cp = Fpx = Fpy = Fpz = 0.0
+    if hp > KP_DEPTH_CUTOFF
+            
+        up = Float32(Qpy / hp)
+        if hp <= KP_DESINGULARIZE_DEPTH
+            # Desingularize u and v according to (Brodtkorb and Holm, 2021)
+            hp_star = desingularize_depth(hp)
+            up = Qpy / hp_star
+            vp = Qpz / hp_star
+
+            # Update hu and hv accordingly
+            Qpy = hp * up
+            Qpz = hp * vp
+        end
+
+        Fpx, Fpy, Fpz = F_func_bottom(Qpx, Qpy, Qpz, hp, up, g)
+        cp = sqrt(g*hp)
+    end
 
     hm = Qmx + RH
-    um = Float32(Qmy / hm)
-    Fmx, Fmy, Fmz = F_func_bottom(Qmx, Qmy, Qmz, hm, um, g)
-    cm = sqrt(g*hm)
-    
+    um = cm = Fmx = Fmy = Fmz = 0.0
+    if hm > KP_DEPTH_CUTOFF
+
+        um = Float32(Qmy / hm)
+        if hm <= KP_DESINGULARIZE_DEPTH
+            # Designularize u and v according to (Brodtkorb and Holm, 2021)
+            hm_star = desingularize_depth(hm)
+            um = Qmy / hm_star
+            vm = Qmz / hm_star
+
+            # update hu and hv accordingly
+            Qmy = hm * um
+            Qmz = hm * vm
+        end
+
+        Fmx, Fmy, Fmz = F_func_bottom(Qmx, Qmy, Qmz, hm, um, g)
+        cm = sqrt(g*hm)
+    end
+
     am = min(min(um-cm, up-cp), 0.0)
     ap = max(max(um+cm, up+cp), 0.0)
+    if (abs(ap - am) < KP_DESINGULARIZE_DEPTH) 
+        return 0.0, 0.0, 0.0
+    end
 
     Fx = ((ap*Fmx - am*Fpx) + ap*am*(Qpx-Qmx))/(ap-am);
     Fy = ((ap*Fmy - am*Fpy) + ap*am*(Qpy-Qmy))/(ap-am);

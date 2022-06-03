@@ -53,7 +53,7 @@ function ensureNonnegativeDepth!(eta, H)
 end
 
 function plotField(field; kwargs...)
-    heatmap(transpose(field), 
+    Plots.heatmap(transpose(field), 
         c=:viridis,
         aspect_ratio=1;
         kwargs...)
@@ -92,7 +92,7 @@ function compareArrays(eta1, hu1, hv1, eta2, hu2, hv2,
                       plotField(field_array[i], title=titles[i], 
                       titlefontsize=10))
             end
-            display(plot(plot_array..., layout=(3,3)))
+            display(Plots.plot(plot_array..., layout=(3,3)))
             display(plot_array[3])
             display(plot_array[6])
             display(plot_array[9])
@@ -105,6 +105,20 @@ function compareArrays(eta1, hu1, hv1, eta2, hu2, hv2,
     end
 
 end    
+
+function compareNpyFiles(filename1, filename2)
+    data1 = npzread(filename1)
+    data2 = npzread(filename2)
+    diff = data1 .- data2
+    if !all(diff .== 0) 
+        println("Results differ!")
+        println("Max difference: $(maximum(broadcast(abs, diff))) ")
+        display(plotField(diff))
+    else
+        println("Results are the same")
+    end
+    return nothing
+end
 
 function showMemoryStructureJl!(a, b, nx, ny)
     # Kernel to illustrate memory layout (row-major vs column major)
