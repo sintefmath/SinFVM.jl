@@ -3,8 +3,7 @@
 
 using CUDA, Test, Plots
 
-function makeCentralBump!(eta, nx, ny, dx, dy; centerX=0.5, centerY=0.5, bumpheight=1.0, offset=0.0)
-    H0 = 60.0
+function makeCentralBump!(w, nx, ny, dx, dy; centerX=0.5, centerY=0.5, bumpheight=1.0, offset=0.0)
     x_center = dx * nx * centerX
     y_center = dy * ny * centerY
     for j in range(-2, ny + 2 - 1)
@@ -13,42 +12,42 @@ function makeCentralBump!(eta, nx, ny, dx, dy; centerX=0.5, centerY=0.5, bumphei
             y = dy * j - y_center
             sizenx = (0.15 * min(nx, ny) * min(dx, dy))^2
             if (sqrt(x^2 + y^2) < sizenx)
-                eta[i+2+1, j+2+1] = bumpheight * exp(-(x^2 / sizenx + y^2 / sizenx)) + offset
+                w[i+2+1, j+2+1] = bumpheight * exp(-(x^2 / sizenx + y^2 / sizenx)) + offset
             end
         end
     end
     nothing
 end
 
-function makeBathymetry!(H, Hi, nx, ny, dx, dy; amplitude=0.25, slope=[0.0, 0.0])
+function makeBathymetry!(B, Bi, nx, ny, dx, dy; amplitude=0.25, slope=[0.0, 0.0], offset=0.0)
     length = dx*nx*1.0
     height = dy*ny*1.0
     x0 = length/2.0
     y0 = height/2.0
     println("heisann")
-    depth(x, y) = 1.0 - amplitude*((sin(π*(x/length)*4)^2 + sin(π*(y/height)*4)^2)) + (x-x0)*slope[1] + (y-y0)*slope[2]
+    depth(x, y) = offset + (amplitude*((sin(π*(x/length)*4)^2 + sin(π*(y/height)*4)^2)) - (x-x0)*slope[1] - (y-y0)*slope[2])
     for j in range(-2, ny + 2 - 1)
         for i in range(-2, nx + 2 -1)
             x = dx*i
             y = dy*j
-            H[i+2+1, j+2+1] = depth(x, y)
+            B[i+2+1, j+2+1] = depth(x, y)
         end
     end
     for j in range(-2, ny + 2)
         for i in range(-2, nx + 2)
             x = dx*(i-0.5)
             y = dy*(j-0.5)
-            Hi[i+2+1, j+2+1] = depth(x, y)
+            Bi[i+2+1, j+2+1] = depth(x, y)
         end
     end
     
 
 end
 
-function ensureNonnegativeDepth!(eta, H)
-    @assert(size(eta) == size(H))
+function ensureNonnegativeDepth!(w, B)
+    @assert(size(w) == size(B))
     
-    eta[:,:] = broadcast(max, eta, -H)
+    w[:,:] = broadcast(max, w, B)
     return nothing
 end
 
@@ -60,31 +59,31 @@ function plotField(field; kwargs...)
 end
 
 
-function compareArrays(eta1, hu1, hv1, eta2, hu2, hv2, 
+function compareArrays(w1, hu1, hv1, w2, hu2, hv2, 
         data_shape; doPlot=true, forcePlot=false)
-    eta1_h = reshape(collect(eta1), data_shape)
+    w1_h = reshape(collect(w1), data_shape)
     hu1_h = reshape(collect(hu1), data_shape)
     hv1_h = reshape(collect(hv1), data_shape)
-    eta2_h = reshape(collect(eta2), data_shape)
+    w2_h = reshape(collect(w2), data_shape)
     hu2_h = reshape(collect(hu2), data_shape)
     hv2_h = reshape(collect(hv2), data_shape)
     
-    eta_diff = eta1_h .- eta2_h
+    w_diff = w_h .- w_h
     hu_diff  = hu1_h .- hu2_h
     hv_diff  = hv1_h .- hv2_h
 
-    if !(all(eta_diff .== 0) && all(hu_diff .== 0) && all(hv_diff .== 0))
-        max_eta_diff = maximum(broadcast(abs, eta_diff))
+    if !(all(w_diff .== 0) && all(hu_diff .== 0) && all(hv_diff .== 0))
+        max_w_diff = maximum(broadcast(abs, w_diff))
         max_hu_diff = maximum(broadcast(abs, hu_diff))
         max_hv_diff = maximum(broadcast(abs, hv_diff))
-        if forcePlot || (doPlot && max(max_eta_diff, max(max_hu_diff, max_hv_diff)) > 1e-5)
+        if forcePlot || (doPlot && max(max_w_diff, max(max_hu_diff, max_hv_diff)) > 1e-5)
 
             plot_array = Any[]
 
-            field_array = [eta1_h, eta2_h, eta_diff ,
+            field_array = [w1_h, w2_h, w_diff ,
                         hu1_h, hu2_h, hu_diff, 
                         hv1_h, hv2_h, hv_diff]
-            titles = ["eta cuda", "eta julia", "eta diff",
+            titles = ["w cuda", "w julia", "w diff",
                     "hu cuda", "hu julia", "hu diff",
                     "hv cuda", "hv julia", "hv diff"]
             for i in 1:9
@@ -98,7 +97,7 @@ function compareArrays(eta1, hu1, hv1, eta2, hu2, hv2,
             display(plot_array[9])
         end
         print("Results differ!\n")
-        print("norms: eta = $(max_eta_diff), hu = $(max_hu_diff), hv = $(max_hv_diff): " )
+        print("norms: w = $(max_w_diff), hu = $(max_hu_diff), hv = $(max_hv_diff): " )
         
     else
         print("Results are the same!\n")

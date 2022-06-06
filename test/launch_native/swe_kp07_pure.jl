@@ -35,9 +35,9 @@ end
 @make_numeric_literals_32bits function julia_kp07!(
     Nx, Ny, dx, dy, dt,
     g, theta, step,
-    eta0, hu0, hv0,
-    eta1, hu1, hv1,
-    Hi_glob, H,
+    w0, hu0, hv0,
+    w1, hu1, hv1,
+    Bi_glob, B,
     bc)
 
     tx = threadIdx().x
@@ -52,20 +52,20 @@ end
 
     # Q = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+4), (BLOCK_HEIGHT+4), 3))
     # Qx = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+2),(BLOCK_HEIGHT+2), 3))
-    # Hi = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+4),(BLOCK_HEIGHT+4)))
+    # Bi = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+4),(BLOCK_HEIGHT+4)))
     
     Q = CuStaticSharedArray(Float32, (36, 20, 3))
     Qx = CuStaticSharedArray(Float32, (34, 18, 3))
-    Hi = CuStaticSharedArray(Float32, (36, 20))
-    # Read eta0, hu0, hv0 and Hi into shmem:
+    Bi = CuStaticSharedArray(Float32, (36, 20))
+    # Read w0, hu0, hv0 and Hi into shmem:
     for j = ty:BLOCK_HEIGHT:BLOCK_HEIGHT+4
         for i = tx:BLOCK_WIDTH:BLOCK_WIDTH+4
             glob_j = clamp(blockStart_j + j, 1, Ny+4)
             glob_i = clamp(blockStart_i + i, 1, Nx+4)
-             Q[i, j, 1] = eta0[glob_i, glob_j]
+             Q[i, j, 1] = w0[glob_i, glob_j]
              Q[i, j, 2] = hu0[glob_i, glob_j]
              Q[i, j, 3] = hv0[glob_i, glob_j]
-             Hi[i, j] = Hi_glob[glob_i, glob_j]
+             Bi[i, j] = Bi_glob[glob_i, glob_j]
         end
     end
     sync_threads()    
@@ -78,19 +78,19 @@ end
     
     glob_j = clamp(tj, 1, Ny+4)
     glob_i = clamp(ti, 1, Nx+4)
-    Hm = H[glob_i, glob_j]
+    Bm = B[glob_i, glob_j]
 
     # Reconstruct Q in x-direction into Qx
     # 
     # Reconstruct slopes along x axis
     # Qx is here dQ/dx*0.5*dx
-    # and represents [eta_x, hu_x, hv_x]
+    # and represents [w_x, hu_x, hv_x]
     reconstruct_slope_x!(Q, Qx, theta, tx, ty)
 
     sync_threads()
 
     # Adjusting slopes to avoid negative water depth 
-    adjust_slopes_x!(Qx, Hi, Q, tx, ty)
+    adjust_slopes_x!(Qx, Bi, Q, tx, ty)
 
     R1 = R2 = R3 = 0.
     if (ti > 2 && tj > 2 && ti <= Nx + 2 && tj <= Ny + 2)
@@ -98,14 +98,13 @@ end
         j = ty + 2
 
         # Bottom topography source term along x 
-        ST2 = bottom_source_term_x(Q, Qx, Hi, g, i, j)
+        ST2 = bottom_source_term_x(Q, Qx, Bi, g, i, j)
 
-        # TODO: Not written for dry cells
-        F_flux_p_x, F_flux_p_y, F_flux_p_z = compute_single_flux_F(Q, Qx, Hi, g, tx+1, ty)
-        F_flux_m_x, F_flux_m_y, F_flux_m_z = compute_single_flux_F(Q, Qx, Hi, g, tx         , ty)
+        F_flux_p_x, F_flux_p_y, F_flux_p_z = compute_single_flux_F(Q, Qx, Bi, g, tx+1, ty)
+        F_flux_m_x, F_flux_m_y, F_flux_m_z = compute_single_flux_F(Q, Qx, Bi, g, tx  , ty)
         
         R1 = - (F_flux_p_x - F_flux_m_x) / dx
-        R2 = - (F_flux_p_y - F_flux_m_y) / dx + ( - ST2/dx)
+        R2 = - (F_flux_p_y - F_flux_m_y) / dx + (ST2/dx)
         R3 = - (F_flux_p_z - F_flux_m_z) / dx
  
     end
@@ -115,51 +114,50 @@ end
     # 
     # Reconstruct slopes along y axis
     # Qx is here dQ/dy*0.5*dy
-    # and represents [eta_y, hu_y, hv_y]
+    # and represents [w_y, hu_y, hv_y]
     reconstruct_slope_y!(Q, Qx, theta, tx, ty)
     sync_threads()
 
     # Adjusting slopes to avoid negative water depth
-    adjust_slopes_y!(Qx, Hi, Q, tx, ty) 
+    adjust_slopes_y!(Qx, Bi, Q, tx, ty) 
 
     eta = hu = hv = 0.0
     if (ti > 2 && tj > 2 && ti <= (Nx + 2) && (tj <= Ny + 2))
         i = tx + 2
         j = ty + 2
-        
+    
         # Bottom topography source term along y 
-        ST3 = bottom_source_term_y(Q, Qx, Hi, g, i, j)
-
-        # TODO: Not written for dry cells
-        G_flux_p_x, G_flux_p_y, G_flux_p_z = compute_single_flux_G(Q, Qx, Hi, g, tx, ty+1)
-        G_flux_m_x, G_flux_m_y, G_flux_m_z = compute_single_flux_G(Q, Qx, Hi, g, tx         , ty)
+        ST3 = bottom_source_term_y(Q, Qx, Bi, g, i, j)
+        
+        G_flux_p_x, G_flux_p_y, G_flux_p_z = compute_single_flux_G(Q, Qx, Bi, g, tx, ty+1)
+        G_flux_m_x, G_flux_m_y, G_flux_m_z = compute_single_flux_G(Q, Qx, Bi, g, tx, ty  )
         
         R1 += - (G_flux_p_x - G_flux_m_x) / dy
         R2 += - (G_flux_p_y - G_flux_m_y) / dy
-        R3 += - (G_flux_p_z - G_flux_m_z) / dy + ( - ST3/dy );
-
+        R3 += - (G_flux_p_z - G_flux_m_z) / dy + (ST3/dy );
+        
         if step == 0
-            eta = Q[i, j, 1] + dt*R1
+            w =  Q[i, j, 1] + dt*R1
             hu = Q[i, j, 2] + dt*R2
             hv = Q[i, j, 3] + dt*R3
         elseif step == 1
             # RK2 ODE integrator
-            eta = 0.5*( eta1[ti, tj] +  (Q[i, j, 1] + dt*R1))
-            hu = 0.5*(  hu1[ti, tj] +  (Q[i, j, 2] + dt*R2))
-            hv = 0.5*(  hv1[ti, tj] +  (Q[i, j, 3] + dt*R3))
+            w  = 0.5*(  w1[ti, tj] +  (Q[i, j, 1] + dt*R1))
+            hu = 0.5*( hu1[ti, tj] +  (Q[i, j, 2] + dt*R2))
+            hv = 0.5*( hv1[ti, tj] +  (Q[i, j, 3] + dt*R3))
         end
 
         # Ensure non-negative water depth
-        h = eta + Hm
+        h = w - Bm
         if (h <= KP_DEPTH_CUTOFF)
-            eta = -Hm
+            w  = Bm
             hu = 0.0
             hv = 0.0
         end
         
-        eta1[ti, tj] = eta
-        hu1[ti, tj] =  hu
-        hv1[ti, tj] =  hv
+        w1[ti, tj]  = w
+        hu1[ti, tj] = hu
+        hv1[ti, tj] = hv
 
     end
 
@@ -221,11 +219,11 @@ end
     return nothing
 end
 
-@inline @make_numeric_literals_32bits function reconstruct_Hx(Hi, i  , j)
-    return 0.5*(Hi[i  , j] + Hi[i  , j+1])
+@inline @make_numeric_literals_32bits function reconstruct_Bx(Bi, i, j)
+    return 0.5*(Bi[i, j] + Bi[i  , j+1])
 end
-@inline @make_numeric_literals_32bits function reconstruct_Hy(Hi, i  , j)
-    return 0.5*(Hi[i  , j] + Hi[i+1, j  ])
+@inline @make_numeric_literals_32bits function reconstruct_By(Bi, i, j)
+    return 0.5*(Bi[i, j] + Bi[i+1, j  ])
 end
 
 @inline @make_numeric_literals_32bits function reconstruct_slope_x!(Q,
@@ -258,78 +256,78 @@ end
     return nothing
 end
 
-@inline @make_numeric_literals_32bits function adjust_slopes_x!(Qx, Hi, Q, tx, ty)
+@inline @make_numeric_literals_32bits function adjust_slopes_x!(Qx, Bi, Q, tx, ty)
     p = tx + 2
     q = ty + 2
-    adjust_slope_Ux!(Qx, Hi, Q, p, q)
+    adjust_slope_Ux!(Qx, Bi, Q, p, q)
 
     # Use one warp to perform the extra adjustments
     if (tx == 1)
-        adjust_slope_Ux!(Qx, Hi, Q, 2, q)
-        adjust_slope_Ux!(Qx, Hi, Q, BLOCK_WIDTH+3, q)
+        adjust_slope_Ux!(Qx, Bi, Q, 2, q)
+        adjust_slope_Ux!(Qx, Bi, Q, BLOCK_WIDTH+3, q)
     end
 end
 
-@inline @make_numeric_literals_32bits function adjust_slopes_y!(Qx, Hi, Q, tx, ty)
+@inline @make_numeric_literals_32bits function adjust_slopes_y!(Qx, Bi, Q, tx, ty)
     p = tx + 2
     q = ty + 2
-    adjust_slope_Uy!(Qx, Hi, Q, p, q)
+    adjust_slope_Uy!(Qx, Bi, Q, p, q)
 
     if (ty == 1)
-        adjust_slope_Uy!(Qx, Hi, Q, p, 2)
-        adjust_slope_Uy!(Qx, Hi, Q, p, BLOCK_HEIGHT+3)
+        adjust_slope_Uy!(Qx, Bi, Q, p, 2)
+        adjust_slope_Uy!(Qx, Bi, Q, p, BLOCK_HEIGHT+3)
     end
 end
 
-@inline @make_numeric_literals_32bits function adjust_slope_Ux!(Qx, Hi, Q, p, q)
+@inline @make_numeric_literals_32bits function adjust_slope_Ux!(Qx, Bi, Q, p, q)
     # Indices within Qx:
     pQx = p - 1
     qQx = q - 2
 
-    RHx_m = reconstruct_Hx(Hi, p, q)
-    RHx_p = reconstruct_Hx(Hi, p+1, q)
+    RBx_m = reconstruct_Bx(Bi, p, q)
+    RBx_p = reconstruct_Bx(Bi, p+1, q)
 
     # Western face
-    Qx[pQx, qQx, 1] =  (Q[p, q, 1] - Qx[pQx, qQx, 1] < -RHx_m) ? (Q[p, q, 1] + RHx_m) : Qx[pQx, qQx, 1]
+    Qx[pQx, qQx, 1] =  (Q[p, q, 1] - Qx[pQx, qQx, 1] < RBx_m) ? (Q[p, q, 1] - RBx_m) : Qx[pQx, qQx, 1]
     # Eastern face
-    Qx[pQx, qQx, 1] =  (Q[p, q, 1] + Qx[pQx, qQx, 1] < -RHx_p) ? (-RHx_p - Q[p, q, 1]) : Qx[pQx, qQx, 1]
+    Qx[pQx, qQx, 1] =  (Q[p, q, 1] + Qx[pQx, qQx, 1] < RBx_p) ? (RBx_p - Q[p, q, 1]) : Qx[pQx, qQx, 1]
 end
 
-@inline @make_numeric_literals_32bits function adjust_slope_Uy!(Qx, Hi, Q, p, q)
+@inline @make_numeric_literals_32bits function adjust_slope_Uy!(Qx, Bi, Q, p, q)
     # Indices within Qy
     pQx = p - 2
     qQx = q - 1
 
-    RHy_m = reconstruct_Hy(Hi, p, q)
-    RHy_p = reconstruct_Hy(Hi, p, q+1)
+    RBy_m = reconstruct_By(Bi, p, q)
+    RBy_p = reconstruct_By(Bi, p, q+1)
 
     # Southern face
-    Qx[pQx, qQx, 1] = (Q[p, q, 1] - Qx[pQx, qQx, 1] < - RHy_m) ? (Q[p, q, 1] + RHy_m) : Qx[pQx, qQx, 1]
+    Qx[pQx, qQx, 1] = (Q[p, q, 1] - Qx[pQx, qQx, 1] < RBy_m) ? (Q[p, q, 1] - RBy_m) : Qx[pQx, qQx, 1]
     # Northern face
-    Qx[pQx, qQx, 1] = (Q[p, q, 1] + Qx[pQx, qQx, 1] < - RHy_p) ? (- RHy_p - Q[p, q, 1]) : Qx[pQx, qQx, 1] 
+    Qx[pQx, qQx, 1] = (Q[p, q, 1] + Qx[pQx, qQx, 1] < RBy_p) ? (RBy_p - Q[p, q, 1]) : Qx[pQx, qQx, 1] 
 end
 
 @inline @make_numeric_literals_32bits function bottom_source_term_x(Q,
                               Qx,
-                              Hi,
+                              Bi,
                               g, i, j)
-    eta_p = Q[i, j, 1] + Qx[i-1, j-2, 1]
-    eta_m = Q[i, j, 1] - Qx[i-1, j-2, 1]
-    RHx_p = reconstruct_Hx(Hi, i+1, j)
-    RHx_m = reconstruct_Hx(Hi, i  , j)
+    w_p = Q[i, j, 1] + Qx[i-1, j-2, 1]
+    w_m = Q[i, j, 1] - Qx[i-1, j-2, 1]
+    RBx_p = reconstruct_Bx(Bi, i+1, j)
+    RBx_m = reconstruct_Bx(Bi, i  , j)
     
-    #RHx_p =  0.5*(Hi[i+1, j] + Hi[i+1, j+1])
-    H_x = RHx_p - RHx_m
+    B_x = RBx_p - RBx_m
     
     # Desingularize similarly to the fluxes
-    h = Q[i, j, 1] + (RHx_p + RHx_m)/2
+    # h = w - B
+    h = Q[i, j, 1] - (RBx_p + RBx_m)/2
     if (h > KP_DEPTH_CUTOFF)
 
         if (h < KP_DESINGULARIZE_DEPTH)
-            H_x = h * H_x / desingularize_depth(h)
+            B_x = h * B_x / desingularize_depth(h)
         end
         
-        return -0.5*g*H_x *(eta_p + RHx_p + eta_m + RHx_m)
+        return -0.5*g*B_x *(w_p - RBx_p + w_m - RBx_m)
     end
     
     return 0.0
@@ -337,24 +335,25 @@ end
 
 @inline @make_numeric_literals_32bits function bottom_source_term_y(Q,
                               Qx,
-                              Hi,
+                              Bi,
                               g, i, j)
-    eta_p = Q[i, j, 1] + Qx[i-2, j-1, 1]
-    eta_m = Q[i, j, 1] - Qx[i-2, j-1, 1]
-    RHy_p = reconstruct_Hy(Hi, i, j+1)
-    RHy_m = reconstruct_Hy(Hi, i, j  )
+    w_p = Q[i, j, 1] + Qx[i-2, j-1, 1]
+    w_m = Q[i, j, 1] - Qx[i-2, j-1, 1]
+    RBy_p = reconstruct_By(Bi, i, j+1)
+    RBy_m = reconstruct_By(Bi, i, j  )
     
-    H_y = RHy_p - RHy_m
+    B_y = RBy_p - RBy_m
     
     # Desingularize similarly to the fluxes
-    h = Q[i, j, 1] + (RHy_p + RHy_m)/2
+    # h = w - B
+    h = Q[i, j, 1] - (RBy_p + RBy_m)/2
     if (h > KP_DEPTH_CUTOFF)
 
         if (h < KP_DESINGULARIZE_DEPTH)
-            H_y = h * H_y / desingularize_depth(h)
+            B_y = h * B_y / desingularize_depth(h)
         end
         
-        return -0.5*g*H_y *(eta_p + RHy_p + eta_m + RHy_m)
+        return -0.5*g*B_y *(w_p - RBy_p + w_m - RBy_m)
     end
 
     return 0.0
@@ -362,7 +361,7 @@ end
 
 @inline @make_numeric_literals_32bits function compute_single_flux_F(Q,
                                Qx,
-                               Hi,
+                               Bi,
                                g, qxi, qxj)
     # Indices into Q with input being indices into Qx
     qj = qxj + 2
@@ -385,7 +384,7 @@ end
     #                        Q[2][l][k  ] + Qx[2][j][i  ]);
                                 
     # Computed flux with respect to the reconstructed bottom elevation at the interface
-    RHx = reconstruct_Hx(Hi, qi+1, qj);
+    RHx = reconstruct_Bx(Bi, qi+1, qj);
     F1, F2, F3 = central_upwind_flux_bottom(Qmx, Qmy, Qmz, Qpx, Qpy, Qpz, RHx, g);
 
     return F1, F2, F3 
@@ -393,7 +392,7 @@ end
 
 @inline @make_numeric_literals_32bits function compute_single_flux_G(Q,
                                Qx,
-                               Hi,
+                               Bi,
                                g, qxi, qxj)
     # Indices into Q with input being indices into Qx
     qj = qxj + 1
@@ -417,8 +416,8 @@ end
     #                        Q[2][l][k  ] + Qx[2][j][i  ]);
                                 
     # Computed flux with respect to the reconstructed bottom elevation at the interface
-    RHy = reconstruct_Hy(Hi, qi, qj+1);
-    G1, G2, G3 = central_upwind_flux_bottom(Qmx, Qmy, Qmz, Qpx, Qpy, Qpz, RHy, g);
+    RBy = reconstruct_By(Bi, qi, qj+1);
+    G1, G2, G3 = central_upwind_flux_bottom(Qmx, Qmy, Qmz, Qpx, Qpy, Qpz, RBy, g);
 
     # Swap fluxes back
     return G1, G3, G2 
@@ -426,9 +425,8 @@ end
 
 @inline @make_numeric_literals_32bits function central_upwind_flux_bottom(Qmx, Qmy, Qmz, 
                                     Qpx, Qpy, Qpz, 
-                                    RH, g)
-    # TODO: Not specialized for dry cells!
-    hp = Qpx + RH
+                                    RB, g)
+    hp = Qpx - RB
     up = cp = Fpx = Fpy = Fpz = 0.0
     if hp > KP_DEPTH_CUTOFF
             
@@ -448,7 +446,7 @@ end
         cp = sqrt(g*hp)
     end
 
-    hm = Qmx + RH
+    hm = Qmx - RB
     um = cm = Fmx = Fmy = Fmz = 0.0
     if hm > KP_DEPTH_CUTOFF
 
