@@ -3,16 +3,20 @@ GLMakie.activate!()
 
 
 function plotSurf(w, B, dx, dy, nx, ny; show_ground=true, 
-    depth_cutoff=1e-5, zlim_max=1.2, zlim_min=-1.0, plot_title="")
+    depth_cutoff=1e-5, zlim_max=1.2, zlim_min=-1.0, plot_title="", km=true)
     @assert(size(w) == size(B))
     #println(size(w))
     gcx::Int = (size(w, 1) - nx) / 2
     gcy::Int = (size(w, 2) - ny) / 2
     gc = (gcx, gcy)
     #println(gc, (nx, ny))
-    x = range(dx/2, (nx-0.5)*dx, nx)/1000
-    y = range(dy/2, (ny-0.5)*dy, ny)/1000
-    
+    x = range(dx/2, (nx-0.5)*dx, nx)
+    y = range(dy/2, (ny-0.5)*dy, ny)
+    if km
+        x = range(dx/2, (nx-0.5)*dx, nx)/1000
+        y = range(dy/2, (ny-0.5)*dy, ny)/1000
+    end
+
     fig = Figure(resolution=(700, 700), fontsize=14)
     axs = [Axis3(fig[1, 1]; aspect=(1, 1, 0.2), title=plot_title)]
 
