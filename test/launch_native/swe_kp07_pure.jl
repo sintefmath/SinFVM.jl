@@ -2,6 +2,7 @@ include("../int32testing.jl")
 const BLOCK_WIDTH = Int32(32)
 const BLOCK_HEIGHT = Int32(16)
 const KP_DESINGULARIZE_DEPTH = Float32(7.5e-2)
+#const KP_DESINGULARIZE_DEPTH = Float32(1e-3)
 const KP_DEPTH_CUTOFF = Float32(1.0e-5)
 
 @inline @make_numeric_literals_32bits function clamp(i, low, high)
@@ -10,8 +11,8 @@ end
 
 @inline @make_numeric_literals_32bits function desingularize_depth(h)
     return copysign(max(abs(h), 
-                        min(h*h/(2.0*KP_DESINGULARIZE_DEPTH) + KP_DESINGULARIZE_DEPTH/2.0,
-                            KP_DESINGULARIZE_DEPTH)
+                        min(h*h/(2.0*(KP_DESINGULARIZE_DEPTH/10)) + (KP_DESINGULARIZE_DEPTH/10)/2.0,
+                            (KP_DESINGULARIZE_DEPTH/10))
                         ),
                     h)
 end
@@ -38,7 +39,8 @@ end
     w0, hu0, hv0,
     w1, hu1, hv1,
     Bi_glob, B,
-    bc)
+    bc, 
+    friction_function, friction_constant)
 
     tx = threadIdx().x
     ty = threadIdx().y
@@ -136,15 +138,29 @@ end
         R2 += - (G_flux_p_y - G_flux_m_y) / dy
         R3 += - (G_flux_p_z - G_flux_m_z) / dy + (ST3/dy );
         
+        # Friction source term
+        # Note that s_f is non-positive
+        s_f = 0.0
+        h = Q[i, j, 1] - Bm
+        if (friction_constant > 0.0) &&  (h > KP_DEPTH_CUTOFF)
+            h_star = h
+            if (h < KP_DESINGULARIZE_DEPTH)
+                h_star = desingularize_depth(h)
+            end
+            u = Q[i, j, 2] / h_star
+            v = Q[i, j, 3] / h_star
+            s_f = friction_function(friction_constant, h, u, v)
+        end
+
         if step == 0
-            w =  Q[i, j, 1] + dt*R1
-            hu = Q[i, j, 2] + dt*R2
-            hv = Q[i, j, 3] + dt*R3
+            w =   Q[i, j, 1] + dt*R1
+            hu = (Q[i, j, 2] + dt*R2)  / (1.0 - dt*s_f)
+            hv = (Q[i, j, 3] + dt*R3)  / (1.0 - dt*s_f)
         elseif step == 1
             # RK2 ODE integrator
-            w  = 0.5*(  w1[ti, tj] +  (Q[i, j, 1] + dt*R1))
-            hu = 0.5*( hu1[ti, tj] +  (Q[i, j, 2] + dt*R2))
-            hv = 0.5*( hv1[ti, tj] +  (Q[i, j, 3] + dt*R3))
+            w  =  0.5*(  w1[ti, tj] +  (Q[i, j, 1] + dt*R1))
+            hu = (0.5*( hu1[ti, tj] +  (Q[i, j, 2] + dt*R2))) / (1.0 - 0.5*dt*s_f)
+            hv = (0.5*( hv1[ti, tj] +  (Q[i, j, 3] + dt*R3))) / (1.0 - 0.5*dt*s_f)
         end
 
         # Ensure non-negative water depth

@@ -2,6 +2,8 @@
 #export makeCentralBump
 
 using CUDA, Test, Plots
+include("swe_kp07_pure.jl")
+
 
 function makeCentralBump!(w, nx, ny, dx, dy; centerX=0.5, centerY=0.5, bumpheight=1.0, offset=0.0)
     x_center = dx * nx * centerX
@@ -193,7 +195,52 @@ function testMemoryLayout(;doPlot=true)
     return nothing
 end
 
+function plot_cross_section_file(folder, wfile; x=nothing, y=nothing)
+    w = npzread("$(folder)/$(wfile).npy")
+    B = npzread("$(folder)/B.npy")
+    plot_cross_section(w, B, x=x, y=y)
+end
+
+function plot_cross_section(w, B; x=nothing, y=nothing)
+    @assert (!isnothing(x) || !isnothing(y))
+    xaxis = nothing
+    title = nothing
+    if x == nothing
+        @assert(isa(y, Integer))
+        x = range(3,size(B,1)-2)
+        xaxis = x
+        title = "Cross section at y = $(y)"
+    else
+        @assert(isa(x, Integer))
+        y = range(3, size(B,2)-2)
+        xaxis = y
+        title = "Cross section at x = $(x)"
+    end
+    Plots.plot(xaxis, [w[x, y], B[x, y]], title=title, label=["w", "B"])
+end
+
 #testMemoryLayout(doPlot=false)
+
+function compute_max_timestep_from_files(folder, timestep, dx, dy; g=9.81)
+    w  = npzread("$(folder)/w_$(timestep).npy");
+    hu = npzread("$(folder)/hu_$(timestep).npy");
+    hv = npzread("$(folder)/hv_$(timestep).npy");
+    B = npzread("$(folder)/B.npy");
+    return compute_max_timestep(w, B, hu, hv, dx, dy, g=g)
+end
+
+function compute_max_timestep(w, B, hu, hv, dx, dy; g=9.81, eps=10e-5)
+    h = w - B
+    h = desingularize_depth.(h)
+    u = hu./h
+    v = hv./h
+    #u[h .< eps] .= 0.0
+    #v[h .< eps] .= 0.0
+
+    dt = 0.25*min(dx/maximum(abs.(u)+sqrt.(g*h)), 
+                  dy/maximum(abs.(v)+sqrt.(g*h)))
+    return dt
+end
 
 
 
