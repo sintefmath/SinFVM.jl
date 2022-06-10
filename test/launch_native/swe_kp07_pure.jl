@@ -34,13 +34,14 @@ end
 
 
 @make_numeric_literals_32bits function julia_kp07!(
-    Nx, Ny, dx, dy, dt,
+    Nx, Ny, dx, dy, dt, t,
     g, theta, step,
     w0, hu0, hv0,
     w1, hu1, hv1,
     Bi_glob, B,
     bc, 
-    friction_function, friction_constant)
+    friction_function, friction_constant,
+    rain_handle, infiltration_handle, infiltration_rates)
 
     tx = threadIdx().x
     ty = threadIdx().y
@@ -123,7 +124,7 @@ end
     # Adjusting slopes to avoid negative water depth
     adjust_slopes_y!(Qx, Bi, Q, tx, ty) 
 
-    eta = hu = hv = 0.0
+    w = hu = hv = 0.0
     if (ti > 2 && tj > 2 && ti <= (Nx + 2) && (tj <= Ny + 2))
         i = tx + 2
         j = ty + 2
@@ -152,13 +153,29 @@ end
             s_f = friction_function(friction_constant, h, u, v)
         end
 
+        # Rain and infiltration source terms
+        # Both given as positive values
+        rain, infiltration = get_rain_infiltration(rain_handle, infiltration_handle, ti, tj, dx, dy, t)
+
+        if (h + dt*rain < dt*infiltration)
+            infiltration = (h/dt) + rain
+        end
+        if (!isnothing(infiltration_rates))
+            if step == 0
+                #infiltration_rates[ti, tj] = infiltration
+                infiltration_rates[ti, tj] = 0.5*infiltration
+            else
+                infiltration_rates[ti, tj] += 0.5*infiltration
+            end
+        end
+
         if step == 0
-            w =   Q[i, j, 1] + dt*R1
+            w =   Q[i, j, 1] + dt*(R1 + (rain - infiltration))
             hu = (Q[i, j, 2] + dt*R2)  / (1.0 - dt*s_f)
             hv = (Q[i, j, 3] + dt*R3)  / (1.0 - dt*s_f)
         elseif step == 1
             # RK2 ODE integrator
-            w  =  0.5*(  w1[ti, tj] +  (Q[i, j, 1] + dt*R1))
+            w  =  0.5*(  w1[ti, tj] +  (Q[i, j, 1] + dt*(R1 + (rain - infiltration))))
             hu = (0.5*( hu1[ti, tj] +  (Q[i, j, 2] + dt*R2))) / (1.0 - 0.5*dt*s_f)
             hv = (0.5*( hv1[ti, tj] +  (Q[i, j, 3] + dt*R3))) / (1.0 - 0.5*dt*s_f)
         end
@@ -166,11 +183,12 @@ end
         # Ensure non-negative water depth
         h = w - Bm
         if (h <= KP_DEPTH_CUTOFF)
-            w  = Bm
+            w  = max(Bm, w)
             hu = 0.0
             hv = 0.0
         end
-        
+            
+
         w1[ti, tj]  = w
         hu1[ti, tj] = hu
         hv1[ti, tj] = hv
@@ -505,4 +523,21 @@ end
 
 @make_numeric_literals_32bits function compute_flux(numflux, reconstruct, u, cellindex)
     return numflux(reconstruct_right(u, cellindex)) - numflux(reconstruct_left(u, cellindex+1, +1))
+end
+
+@make_numeric_literals_32bits function get_rain_infiltration(rain_handle, infiltration_handle,
+            ti, tj, dx, dy, t)
+
+    rain = 0.0
+    infiltration = 0.0
+    x = (ti - 2.0 - 0.5)*dx
+    y = (tj - 2.0 - 0.5)*dy
+    if !isnothing(rain_handle)
+        rain = rain_handle(x, y, t)
+    end
+    if !isnothing(infiltration_handle)
+        infiltration = infiltration_handle(x, y, t)
+    end
+
+    return rain, infiltration
 end

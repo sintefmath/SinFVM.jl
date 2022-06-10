@@ -19,32 +19,32 @@ include("swe_kp07_pure.jl")
 # Journal of Hydrology, 536, 496-513. https://doi.org/10.1016/j.jhydrol.2016.03.021
 
 
-function run_stuff(subpath)
+function run_stuff(subpath, rain_function)
     flattenarr(x) = collect(Iterators.flatten(x))
     MyType = Float32
     Lx = 2000*2
     Ly = 20
-    dx::Float32 = dy::Float32 = 2.0
+    dx::Float32 = dy::Float32 = 4.0
 
-    Nx = Integer(Lx/dx)
-    Ny = Integer(Ly/dy)
+    Nx = Int32(Lx/dx)
+    Ny = Int32(Ly/dy)
     println("Setting up grid ($(Nx), $(Ny)) with (dx, dy) = ($(dx), $(dy))")
     
-    dt::Float32 = 0.01
+    dt::Float32 = 0.02
     g::Float32 = 9.81
     ngc = 2
 
-    #friction_function = friction_fcg2016
-    #friction_constant = 0.03f0^2 # As used by Fernandez-Paro et al (2016)
+    friction_function = friction_fcg2016
+    friction_constant = 0.03f0^2 # As used by Fernandez-Paro et al (2016)
     
-    friction_function = friction_bsa2012
+    #friction_function = friction_bsa2012
     #friction_constant = g* 0.033f0^2 # As used by Brodtkorb et al (2012)
     #friction_constant = 0.033f0^2 # As Brodtkorb et al (2012) but without g
-    friction_constant = 0.0033f0^2 # As Brodtkorb et al (2012) but without g and /100
+    #friction_constant = 0.0033f0^2 # As Brodtkorb et al (2012) but without g and /100
     
     #friction_constant = 0.01f0^2
 
-    friction_constant = 0.0f0
+    #friction_constant = 0.0f0
 
     data_shape = (Nx + 2 * ngc, Ny + 2 * ngc)
     B = ones(MyType, data_shape) 
@@ -57,8 +57,12 @@ function run_stuff(subpath)
     hu1 = zeros(MyType, data_shape)
     hv1 = zeros(MyType, data_shape)
 
+    infiltration_rates = zeros(MyType, data_shape)
+
     make_case_1_bathymetry!(B, Bi, dx)
-    make_init_w_dummy_case_1!(w0, dx)
+    #make_init_w_dummy_case_1!(w0, dx)
+
+    w0[:, :] = B[:, :]
 
     #println(size(H))
     #display(plotSurf(w0, B, dx, dy, Nx, Ny, show_ground=true, km=false, depth_cutoff=1e-4))
@@ -69,8 +73,9 @@ function run_stuff(subpath)
     
     #return nothing
 
-
-
+    #rain_function = rain_fcg_1_1
+    infiltration_function = infiltration_horton_fcg
+    #infiltration_function = nothing
 
     theta::Float32 = 1.3
 
@@ -94,17 +99,31 @@ function run_stuff(subpath)
 
     Bi_dev = CuArray(Bi)
     B_dev  = CuArray(B)
+    infiltration_rates_dev = CuArray(infiltration_rates)
 
 
     #npzwrite("runoff/data/eta_init.npy", eta0)
 
     #number_of_timesteps = 1
-    number_of_timesteps = Integer(100000*2)
-    number_of_plots = 10
-    save_every = Integer(floor(number_of_timesteps/number_of_plots))
+    #number_of_timesteps = Integer(100000*2)
+    #number_of_timesteps = Integer(10000*2)
+    number_of_timesteps = 350*60*Integer(1/dt)*2
+    #umber_of_plots = 10
+    #save_every = Integer(floor(number_of_timesteps/number_of_plots))
+    save_every = 60*Integer(1/dt)*2
+    plot_every = 5*60*Integer(1/dt)*2
     fig = nothing
-    w1_copied = nothing
-    lowest_w = zeros(number_of_plots+1)
+    
+
+    t = 0.0f0
+    Q_infiltrated =  zeros(0)
+    save_t =  zeros(0)
+    runoff =  zeros(0)
+    print_and_plot_swe!(subpath, 0, w0_dev, hu0_dev, hv0_dev,
+                        infiltration_rates_dev, B, dx, dy, Nx, Ny, t, data_shape, 
+                        Q_infiltrated, save_t, runoff)
+    num_saves = 1
+                   
 
     @showprogress for i in 1:number_of_timesteps
         step::Int32 = (i + 1) % 2
@@ -125,50 +144,61 @@ function run_stuff(subpath)
         end
 
 
-        #CUDA.@profile 
-        #@cuda threads=num_threads blocks=num_blocks julia_kp07!(
-        #    Nx, Ny, dx, dy, dt,
-        #    g, theta, step,
-        #    curr_w0_dev, curr_hu0_dev, curr_hv0_dev,
-        #    curr_w1_dev, curr_hu1_dev, curr_hv1_dev,
-        #    Bi_dev, B_dev,
-        #    bc)
         call_kp07!(num_threads, num_blocks,
-            Nx, Ny, dx, dy, dt,
+            Nx, Ny, dx, dy, dt, t,
             g, theta, step,
             curr_w0_dev, curr_hu0_dev, curr_hv0_dev,
             curr_w1_dev, curr_hu1_dev, curr_hv1_dev,
             Bi_dev, B_dev,
             bc;
-            friction_handle=friction_function, friction_constant=friction_constant)
+            friction_handle=friction_function, friction_constant=friction_constant,
+            rain_handle = rain_function, infiltration_handle = infiltration_function,
+            infiltration_rates_dev = infiltration_rates_dev)
     
-        
+        if (i % 2 == 0)
+            t = dt*(i/2.0f0)
+        end
+
         if step == 1
-            if save_every > 0 && i % save_every == 2
-                w1_copied = reshape(collect(curr_w1_dev), data_shape)
-                npzwrite("runoff/data/$(subpath)/w_$(div(i, save_every)).npy", w1_copied)
-                hu1_copied = reshape(collect(curr_hu1_dev), data_shape)
-                npzwrite("runoff/data/$(subpath)/hu_$(div(i, save_every)).npy", hu1_copied)
-                hv1_copied = reshape(collect(curr_hv1_dev), data_shape)
-                npzwrite("runoff/data/$(subpath)/hv_$(div(i, save_every)).npy", hv1_copied)
-                
-                fig = plotSurf(hu1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
-                             plot_title="hu i=$i")
-                save("runoff/plots/$(subpath)/hu_$(div(i, save_every)).png", fig) 
-                fig = plotSurf(hv1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
-                             plot_title="hv i=$i")
-                save("runoff/plots/$(subpath)/hv_$(div(i, save_every)).png", fig) 
-                fig = plotSurf(w1_copied, B, dx, dy, Nx, Ny, show_ground=true, 
-                             plot_title="w i=$i")
-                save("runoff/plots/$(subpath)/w_$(div(i, save_every)).png", fig) 
-                lowest_w[(div(i, save_every))+1] = w1_copied[Nx+2, 3]
+            if (save_every > 0 && i % save_every == 0) || (i == number_of_timesteps)
+
+                doPlot = (i % plot_every == 0) || (i == number_of_timesteps)
+                fig = print_and_plot_swe!(subpath, num_saves, 
+                                          curr_w1_dev, curr_hu1_dev, curr_hv1_dev,
+                                          infiltration_rates_dev, B, dx, dy, Nx, Ny, t, data_shape, 
+                                          Q_infiltrated, save_t, runoff, doPlot=doPlot)
+                num_saves += 1
+                #append!(save_t, t)
+
+                #function print_and_plot_swe(subpath, index, w_dev, hu_dev, hv_dev, infiltration_dev, B, dx, dy, Nx, Ny)
+                #println("saving $(div(i, save_every)) at t=$(t)")
+                #w1_copied = reshape(collect(curr_w1_dev), data_shape)
+                #npzwrite("runoff/data/$(subpath)/w_$(div(i, save_every)).npy", w1_copied)
+                #hu1_copied = reshape(collect(curr_hu1_dev), data_shape)
+                #npzwrite("runoff/data/$(subpath)/hu_$(div(i, save_every)).npy", hu1_copied)
+                #hv1_copied = reshape(collect(curr_hv1_dev), data_shape)
+                #npzwrite("runoff/data/$(subpath)/hv_$(div(i, save_every)).npy", hv1_copied)
+                #infiltration_copied = reshape(collect(infiltration_rates_dev), data_shape)
+                #npzwrite("runoff/data/$(subpath)/infiltration_$(div(i, save_every)).npy", infiltration_copied)
+                #
+
+                #fig = plotSurf(hu1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
+                #             plot_title="hu i=$i, t=$(t/60) min")
+                #save("runoff/plots/$(subpath)/hu_$(div(i, save_every)).png", fig) 
+                #fig = plotSurf(hv1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
+                #             plot_title="hv i=$i, t=$(t/60) min")
+                #save("runoff/plots/$(subpath)/hv_$(div(i, save_every)).png", fig) 
+                #fig = plotSurf(w1_copied, B, dx, dy, Nx, Ny, show_ground=true, 
+                #             plot_title="w i=$i, t=$(t/60) min")
+                #save("runoff/plots/$(subpath)/w_$(div(i, save_every)).png", fig) 
+                #lowest_w[(div(i, save_every))+1] = w1_copied[Nx+2, 3]
             end
         end
 
         if number_of_timesteps < 3
             hu1_copied = reshape(collect(curr_hu1_dev), data_shape)
             fig = plotSurf(hu1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
-                plot_title="hu i=$i")
+                plot_title="hu i=$i, t=$(t) s")
             #w1_copied = reshape(collect(curr_w1_dev), data_shape)
             #fig = plotSurf(w1_copied, B, dx, dy, Nx, Ny, show_ground=true, 
             #    plot_title="w i=$i")
@@ -176,20 +206,96 @@ function run_stuff(subpath)
 
     end
 
-
-
-    display(fig)
-    #println("hei")
-    #println(typeof(w1_copied))
-    #println(maximum(w1_copied))
-    println(lowest_w)
-    #println(maximum(-B))
-    println(maximum(w1_copied) - maximum(-B))
     
+
+
+    npzwrite("runoff/data/$(subpath)/t.npy", save_t)
+    npzwrite("runoff/data/$(subpath)/Q_infiltration.npy", Q_infiltrated)
+    npzwrite("runoff/data/$(subpath)/runoff.npy", runoff)
+    #println(save_t)
+    #println(Q_infiltrated)
+    #println(runoff)
+
+    fcg_fig = make_fcg_plot(subpath, rain_function)
+    save("runoff/plots/$(subpath)/fcg_hyd_outlet_fig.png", fcg_fig) 
+
+    hyd_fig = plot_hydrographs_at_location(subpath, rain_function, dx, dy)
+    save("runoff/plots/$(subpath)/fcg_hyd_1000_fig.png", hyd_fig) 
+
+    display(fig)    
+    return nothing
 end
+
+function make_fcg_plot(subpath, rain_function)
+    t = npzread("runoff/data/$(subpath)/t.npy")
+    Q_infiltrated = npzread("runoff/data/$(subpath)/Q_infiltration.npy")
+    runoff = npzread("runoff/data/$(subpath)/runoff.npy")
+    rain_Q = rain_function.(10,10, t)*2000*20
+    outlet_Q = zeros(size(runoff))
+    num_t = size(t,1)
+    outlet_Q[2:num_t] = (runoff[2:num_t] - runoff[1:num_t-1])./(t[2:num_t] - t[1:num_t-1])
+    #print(runoff)
+
+    yaxis2lim = 75000
+    if rain_function == rain_fcg_1_3
+        yaxis2lim = 50000
+    elseif rain_function == rain_fcg_1_4
+        yaxis2lim = 15000
+    elseif rain_function == rain_fcg_1_5
+        yaxis2lim = 30000
+    end
+
+    fig = Plots.plot(t/60.0, [rain_Q Q_infiltrated outlet_Q], label=["rain Q" "infiltration Q" "runoff Q"], 
+                     legend=:topleft, ylims=[0,10], title=subpath, ylabel="Discharge Q [m^3/s]", xlabel="minutes",
+                     right_margin=20Plots.mm)
+    Plots.plot!(twinx(), t/60.0, runoff, color=:red, label="runoff", ylims=[0,yaxis2lim], ylabel="Runoff volume [m^3]")
+    display(fig)
+    return fig
+end
+    
+
+
+
+
+function print_and_plot_swe!(subpath, index, w_dev, hu_dev, hv_dev, infiltration_dev, B, dx, dy, Nx, Ny, t, data_shape, 
+                             Q_infiltrated, save_t, runoff; doPlot = true)
+    #println("saving $(index) at t=$(t)")
+    if (index isa Number)
+        index = lpad(index, 3, "0")
+    end
+    w1_copied = reshape(collect(w_dev), data_shape)
+    npzwrite("runoff/data/$(subpath)/w_$(index).npy", w1_copied)
+    hu1_copied = reshape(collect(hu_dev), data_shape)
+    npzwrite("runoff/data/$(subpath)/hu_$(index).npy", hu1_copied)
+    hv1_copied = reshape(collect(hv_dev), data_shape)
+    npzwrite("runoff/data/$(subpath)/hv_$(index).npy", hv1_copied)
+    infiltration_copied = reshape(collect(infiltration_dev), data_shape)
+    npzwrite("runoff/data/$(subpath)/infiltration_$(index).npy", infiltration_copied)
+    
+    append!(save_t, t)
+    append!(Q_infiltrated, get_Q_infiltrated(infiltration_copied, dx, dy))
+    append!(runoff, compute_runoff(subpath, "w_$(index)", dx, dy))
+    
+    fig = nothing
+    if doPlot
+        fig = plotSurf(hu1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
+                    plot_title="hu t=$(t/60) min")
+        save("runoff/plots/$(subpath)/hu_$(index).png", fig) 
+        fig = plotSurf(hv1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
+                    plot_title="hv t=$(t/60) min")
+        save("runoff/plots/$(subpath)/hv_$(index).png", fig) 
+        fig = plotSurf(w1_copied, B, dx, dy, Nx, Ny, show_ground=true, 
+                    plot_title="w  t=$(t/60) min")
+        save("runoff/plots/$(subpath)/w_$(index).png", fig) 
+    end
+    return fig
+end
+
 # Make output folders.
-subpath = "case1_1"
-#subpath = "noOcean"
+#subpath = "conservation_of_rain_1_1"
+#subpath = "fcg_case_1_1_bsafric"
+#subpath = "fcg_case_1_2"; rain_function = rain_fcg_1_2;
+subpath = "fcg_case_1_5"; rain_function = rain_fcg_1_5;
 mkpath("runoff/plots/$(subpath)/")
 mkpath("runoff/data/$(subpath)/")
-@time run_stuff(subpath)
+@time run_stuff(subpath, rain_function)
