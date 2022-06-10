@@ -229,7 +229,7 @@ function compute_max_timestep_from_files(folder, timestep, dx, dy; g=9.81)
     return compute_max_timestep(w, B, hu, hv, dx, dy, g=g)
 end
 
-function compute_max_timestep(w, B, hu, hv, dx, dy; g=9.81, eps=10e-5)
+function compute_max_timestep(w, B, hu, hv, dx, dy; g=9.81)
     h = w - B
     h = desingularize_depth.(h)
     u = hu./h
@@ -241,6 +241,24 @@ function compute_max_timestep(w, B, hu, hv, dx, dy; g=9.81, eps=10e-5)
                   dy/maximum(abs.(v)+sqrt.(g*h)))
     return dt
 end
+
+function compute_max_timesteps(folder, dx, dy; g=9.81)
+    B = npzread("$(folder)/B.npy")
+    num_w_files = size(filter(x->contains(x, "w_"), readdir(folder)), 1)
+    max_dts = zeros(num_w_files)
+
+    pad = size(filter(x->contains(x, "w_00"), readdir(folder)), 1) > 0
+
+    for i in 1:num_w_files
+        index = pad ? lpad(i - 1, 3, "0") : i - 1
+        w  = npzread("$(folder)/w_$(index).npy")
+        hu = npzread("$(folder)/hu_$(index).npy")
+        hv = npzread("$(folder)/hv_$(index).npy")
+        max_dts[i] = compute_max_timestep(w, B, hu, hv, dx, dy, g=g)
+    end
+    return max_dts
+end
+
 
 
 function total_mass(folder)
