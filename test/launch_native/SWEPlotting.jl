@@ -1,6 +1,4 @@
-using CUDA, Test, GLMakie 
-GLMakie.activate!()
-
+using CUDA, Test, GLMakie
 
 function plotSurf(w, B, dx, dy, nx, ny; show_ground=true, 
     depth_cutoff=1e-5, zlim_max=1.2, zlim_min=-1.0, plot_title="", km=true)
@@ -34,4 +32,9 @@ function plotSurf(w, B, dx, dy, nx, ny; show_ground=true,
     end
     #GLMakie.zlims!(axs[1], (zlim_min, zlim_max))
     fig
+end
+
+function swim_save(filename, fig)
+    save(filename, fig)
+    return nothing
 end

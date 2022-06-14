@@ -23,6 +23,51 @@ function make_case_1_bathymetry!(B, Bi, dx)
     end
 end
 
+function _B_case_2(x, x0)
+    B = _B_case_1(x)
+    if x >= x0 && x <= x0 + 5
+        B = B - (x - x0)
+    elseif x >= x0 + 5 && x <= x0 + 15
+        B = B - 5
+    elseif x >= x0 + 15 && x <= x0 + 20
+        B = B - (x0 + 20 - x)
+    end
+    return B
+end
+
+function make_case_2_bathymetry!(B, Bi, dx, x0)
+    for i = 1:size(B,1)
+        x = (i-0.5-2)*dx
+        B[i, :] .= _B_case_2(x, x0)
+    end
+    for i = 1:size(Bi,1)
+        xi = (i-1-2)*dx
+        Bi[i,:] .= _B_case_2(xi, x0)
+    end
+end
+
+@make_numeric_literals_32bits function _B_case_3(x)
+    x0 = 200
+    if x <= x0
+        return 21.0 - 1.0*sin(Float32(π)*x/10.0) - 0.005*x
+    else
+        b0 = 21.0 - 1.0*sin(Float32(π)*x0/10.0) - 0.005*x0
+        return b0 - 0.02*(x - x0)
+    end
+end
+
+function make_case_3_bathymetry!(B, Bi, dx)
+    for i = 1:size(B,1)
+        x = (i-0.5-2)*dx
+        B[i, :] .= _B_case_3(x)
+    end
+    for i = 1:size(Bi,1)
+        xi = (i-1-2)*dx
+        Bi[i,:] .= _B_case_3(xi)
+    end
+end
+
+
 function make_init_w_dummy_case_1!(w, dx)
     for i = 3:size(w,1)-2
         x = (i-0.5-2)*dx
@@ -46,6 +91,19 @@ end
     end
     return 0.0
 end
+
+
+@inline @make_numeric_literals_32bits function 
+    infiltration_horton_fcg_3(x, y, t)
+    if x < 200
+        fc = 3.272e-5
+        f0 = 1.977e-4
+        k  = 2.43e-3 
+        return fc + (f0 - fc)*exp(-k*t)
+    end
+    return 0.0
+end
+
 
 
 # Rain source terms
@@ -104,7 +162,8 @@ end
     rain_fcg_1_4(x, y, t)
     
     if x < 2000 && t < 50.0*60.0
-        return 0.000291667
+        #return 0.000291667
+        return 0.000125
     end
     return 0.0
 end
@@ -132,7 +191,14 @@ end
 end
 
 
-
+@inline @make_numeric_literals_32bits function 
+    rain_fcg_3(x, y, t)
+    
+    if x < 200 && t < 125.0*60.0
+        return 0.000025
+    end
+    return 0.0
+end
 
 
 

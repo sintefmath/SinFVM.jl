@@ -8,7 +8,7 @@ using PyCall
 
 #using .GPUOceanUtils
 include("RunoffUtils.jl")
-include("SWEPlotting.jl")
+include("SWEPlottingNoMakie.jl")
 
 include("SWEUtils.jl")
 include("swe_kp07_pure.jl")
@@ -19,12 +19,15 @@ include("swe_kp07_pure.jl")
 # Journal of Hydrology, 536, 496-513. https://doi.org/10.1016/j.jhydrol.2016.03.021
 
 
-function run_stuff(subpath, rain_function)
+function run_stuff(subpath, rain_function; topography=1, x0 = nothing)
     flattenarr(x) = collect(Iterators.flatten(x))
     MyType = Float32
     Lx = 2000*2
+    if topography == 3
+        Lx = 200*2
+    end
     Ly = 20
-    dx::Float32 = dy::Float32 = 4.0
+    dx::Float32 = dy::Float32 = 1.0
 
     Nx = Int32(Lx/dx)
     Ny = Int32(Ly/dy)
@@ -59,8 +62,17 @@ function run_stuff(subpath, rain_function)
 
     infiltration_rates = zeros(MyType, data_shape)
 
-    make_case_1_bathymetry!(B, Bi, dx)
-    #make_init_w_dummy_case_1!(w0, dx)
+    if topography == 1
+        make_case_1_bathymetry!(B, Bi, dx)
+        #make_init_w_dummy_case_1!(w0, dx)
+    elseif topography == 2
+        @assert(!isnothing(x0))
+        make_case_2_bathymetry!(B, Bi, dx, x0)
+    elseif topography == 3
+        make_case_3_bathymetry!(B, Bi, dx)
+    else
+        @assert(false)
+    end
 
     w0[:, :] = B[:, :]
 
@@ -74,7 +86,9 @@ function run_stuff(subpath, rain_function)
     #return nothing
 
     #rain_function = rain_fcg_1_1
-    infiltration_function = infiltration_horton_fcg
+    #infiltration_function = infiltration_horton_fcg
+    infiltration_function = infiltration_horton_fcg_3
+    
     #infiltration_function = nothing
 
     theta::Float32 = 1.3
@@ -111,7 +125,7 @@ function run_stuff(subpath, rain_function)
     #umber_of_plots = 10
     #save_every = Integer(floor(number_of_timesteps/number_of_plots))
     save_every = 60*Integer(1/dt)*2
-    plot_every = 5*60*Integer(1/dt)*2
+    plot_every = 10*60*Integer(1/dt)*2
     fig = nothing
     
 
@@ -184,13 +198,13 @@ function run_stuff(subpath, rain_function)
 
                 #fig = plotSurf(hu1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
                 #             plot_title="hu i=$i, t=$(t/60) min")
-                #save("runoff/plots/$(subpath)/hu_$(div(i, save_every)).png", fig) 
+                #swim_save("runoff/plots/$(subpath)/hu_$(div(i, save_every)).png", fig) 
                 #fig = plotSurf(hv1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
                 #             plot_title="hv i=$i, t=$(t/60) min")
-                #save("runoff/plots/$(subpath)/hv_$(div(i, save_every)).png", fig) 
+                #swim_save("runoff/plots/$(subpath)/hv_$(div(i, save_every)).png", fig) 
                 #fig = plotSurf(w1_copied, B, dx, dy, Nx, Ny, show_ground=true, 
                 #             plot_title="w i=$i, t=$(t/60) min")
-                #save("runoff/plots/$(subpath)/w_$(div(i, save_every)).png", fig) 
+                #swim_save("runoff/plots/$(subpath)/w_$(div(i, save_every)).png", fig) 
                 #lowest_w[(div(i, save_every))+1] = w1_copied[Nx+2, 3]
             end
         end
@@ -217,16 +231,19 @@ function run_stuff(subpath, rain_function)
     #println(runoff)
 
     fcg_fig = make_fcg_plot(subpath, rain_function)
-    save("runoff/plots/$(subpath)/fcg_hyd_outlet_fig.png", fcg_fig) 
+    swim_save("runoff/plots/$(subpath)/fcg_hyd_outlet_infiltration_fig.png", fcg_fig) 
+
+    fcg_fig = make_fcg_plot(subpath, rain_function, with_infiltration=false)
+    swim_save("runoff/plots/$(subpath)/fcg_hyd_outlet_fig.png", fcg_fig) 
 
     hyd_fig = plot_hydrographs_at_location(subpath, rain_function, dx, dy)
-    save("runoff/plots/$(subpath)/fcg_hyd_1000_fig.png", hyd_fig) 
+    swim_save("runoff/plots/$(subpath)/fcg_hyd_1000_fig.png", hyd_fig) 
 
     display(fig)    
     return nothing
 end
 
-function make_fcg_plot(subpath, rain_function)
+function make_fcg_plot(subpath, rain_function; with_infiltration=true)
     t = npzread("runoff/data/$(subpath)/t.npy")
     Q_infiltrated = npzread("runoff/data/$(subpath)/Q_infiltration.npy")
     runoff = npzread("runoff/data/$(subpath)/runoff.npy")
@@ -245,9 +262,12 @@ function make_fcg_plot(subpath, rain_function)
         yaxis2lim = 30000
     end
 
-    fig = Plots.plot(t/60.0, [rain_Q Q_infiltrated outlet_Q], label=["rain Q" "infiltration Q" "runoff Q"], 
+    fig = Plots.plot(t/60.0, [rain_Q outlet_Q], label=["rain Q" "runoff Q"], 
                      legend=:topleft, ylims=[0,10], title=subpath, ylabel="Discharge Q [m^3/s]", xlabel="minutes",
                      right_margin=20Plots.mm)
+    if with_infiltration
+        Plots.plot!(t/60, Q_infiltrated, label="infiltration Q")
+    end                     
     Plots.plot!(twinx(), t/60.0, runoff, color=:red, label="runoff", ylims=[0,yaxis2lim], ylabel="Runoff volume [m^3]")
     display(fig)
     return fig
@@ -280,13 +300,13 @@ function print_and_plot_swe!(subpath, index, w_dev, hu_dev, hv_dev, infiltration
     if doPlot
         fig = plotSurf(hu1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
                     plot_title="hu t=$(t/60) min")
-        save("runoff/plots/$(subpath)/hu_$(index).png", fig) 
+        swim_save("runoff/plots/$(subpath)/hu_$(index).png", fig) 
         fig = plotSurf(hv1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
                     plot_title="hv t=$(t/60) min")
-        save("runoff/plots/$(subpath)/hv_$(index).png", fig) 
+        swim_save("runoff/plots/$(subpath)/hv_$(index).png", fig) 
         fig = plotSurf(w1_copied, B, dx, dy, Nx, Ny, show_ground=true, 
                     plot_title="w  t=$(t/60) min")
-        save("runoff/plots/$(subpath)/w_$(index).png", fig) 
+        swim_save("runoff/plots/$(subpath)/w_$(index).png", fig) 
     end
     return fig
 end
@@ -294,8 +314,20 @@ end
 # Make output folders.
 #subpath = "conservation_of_rain_1_1"
 #subpath = "fcg_case_1_1_bsafric"
+#subpath = "fcg_case_1_1"; rain_function = rain_fcg_1_1;
 #subpath = "fcg_case_1_2"; rain_function = rain_fcg_1_2;
-subpath = "fcg_case_1_5"; rain_function = rain_fcg_1_5;
+#subpath = "fcg_case_1_3"; rain_function = rain_fcg_1_3;
+#subpath = "fcg_case_1_4"; rain_function = rain_fcg_1_4;
+#subpath = "fcg_case_1_5"; rain_function = rain_fcg_1_5;
+
+#subpath = "fcg_case_2_100"; rain_function = rain_fcg_1_1; x0 = 100
+#subpath = "fcg_case_2_1900"; rain_function = rain_fcg_1_1; x0 = 1900
+
+subpath = "fcg_case_3"; rain_function = rain_fcg_3; x0 = 200
+
 mkpath("runoff/plots/$(subpath)/")
 mkpath("runoff/data/$(subpath)/")
-@time run_stuff(subpath, rain_function)
+
+#@time run_stuff(subpath, rain_function)
+#@time run_stuff(subpath, rain_function, topography=2, x0 = x0)
+@time run_stuff(subpath, rain_function, topography=3)
