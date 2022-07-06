@@ -7,9 +7,15 @@ include("../int32testing.jl")
 
 function _B_case_1(x)
     if x < 2000
-        return 10 - (10.0/2000.0)*x
+        return 10 - (10.0/2000.0)*abs(x)
     end
-    return -(20/2000.0)*(x-2000)
+    if x > 4000
+        x = 4000 - (x - 4000)
+        #return -(20/2000.0)*(x - 2000)
+        return -(10/2000.0)*(x - 2000)
+    end
+    #return -(20/2000.0)*(x-2000)
+    return -(10/2000.0)*(x-2000)
 end
 
 function make_case_1_bathymetry!(B, Bi, dx)
@@ -49,10 +55,13 @@ end
 @make_numeric_literals_32bits function _B_case_3(x)
     x0 = 200
     if x <= x0
-        return 21.0 - 1.0*sin(Float32(π)*x/10.0) - 0.005*x
+        return 21.0 - 1.0*sin(Float32(π)*abs(x)/10.0) - 0.005*abs(x)
     else
         b0 = 21.0 - 1.0*sin(Float32(π)*x0/10.0) - 0.005*x0
-        return b0 - 0.02*(x - x0)
+        if x > x0*2
+            x = x0*2 - (x - x0*2)
+        end
+        return b0 - 0.02*(x - x0)    
     end
 end
 
