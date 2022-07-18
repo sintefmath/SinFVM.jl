@@ -315,8 +315,11 @@ function plot_hydrographs_at_location(subpath, rain_function, dx, dy)
 
     infiltration = zeros(num_w_files)
     water_height = zeros(num_w_files)
+    rain = zeros(num_w_files)
 
-    rain = rain_function.(x, y, t)
+    if !isnothing(rain_function)
+        rain = rain_function.(x, y, t)
+    end
 
     for i in 1:num_w_files
         w = npzread("$(folder)/w_$(lpad(i-1, 3, "0")).npy")
@@ -336,4 +339,48 @@ function plot_hydrographs_at_location(subpath, rain_function, dx, dy)
                  ylims=[0,0.00025], ylabel="f [m/s], r [m/s]")
     display(fig)
     return fig
+end
+
+function check_friction_terms(friction_function, friction_constant, folder::String, timestep::Integer)
+
+    w = npzread("$(folder)/w_$(lpad(timestep, 3, "0")).npy")[3:end-2, 3:end-2];
+    hu = npzread("$(folder)/hu_$(lpad(timestep, 3, "0")).npy")[3:end-2, 3:end-2];
+    hv = npzread("$(folder)/hv_$(lpad(timestep, 3, "0")).npy")[3:end-2, 3:end-2];
+    B = npzread("$(folder)/B.npy")[3:end-2, 3:end-2];
+    
+    return check_friction_terms(friction_function, friction_constant, w, B, hu, hv)
+end
+
+
+function check_friction_terms(friction_function, friction_constant, w, B, hu, hv)
+
+    nx, ny = size(w)
+    sf = zeros((nx, ny))
+    for i = 1:nx
+        for j = 1:ny
+            h = w[i,j] - B[i,j]
+            h_star = h
+            if (h < KP_DESINGULARIZE_DEPTH)
+                h_star = desingularize_depth(h)
+            end
+            u = hu[i,j]/h_star
+            v = hv[i,j]/h_star
+            sf[i,j] = friction_function(friction_constant, h_star, u, v)
+        end
+    end
+    
+    return sf
+end
+
+
+function total_mass(folder; trailing_zeros=0)
+    B = npzread("$(folder)/B.npy")
+    num_w_files = size(filter(x->contains(x, "w_"), readdir(folder)), 1)
+    mass = zeros(num_w_files)
+
+    for i in 1:num_w_files
+        w = npzread("$(folder)/w_$(lpad(i-1, trailing_zeros, "0")).npy")
+        mass[i] = sum(w-B)
+    end
+    return mass
 end

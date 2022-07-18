@@ -11,7 +11,7 @@ include("RunoffUtils.jl")
 include("SWEPlottingNoMakie.jl")
 
 include("SWEUtils.jl")
-include("swe_kp07_pure.jl")
+include("double_swe_kp07_pure.jl")
 
 ## This script aims to reproduce simulations from
 # Fernandez-Pato, Caviedes-Voullieme, Garcia-Navarro (2016) 
@@ -21,24 +21,24 @@ include("swe_kp07_pure.jl")
 
 function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_dambreak=false)
     flattenarr(x) = collect(Iterators.flatten(x))
-    MyType = Float32
+    MyType = Float64
     Lx = 2000*2
     if topography == 3
         Lx = 200*2
     end
     Ly = 20
-    dx::Float32 = dy::Float32 = 1.0
+    dx = dy = 1.0
 
     Nx = Int32(Lx/dx)
     Ny = Int32(Ly/dy)
     println("Setting up grid ($(Nx), $(Ny)) with (dx, dy) = ($(dx), $(dy))")
     
-    dt::Float32 = 0.02
-    g::Float32 = 9.81
+    dt = 0.02
+    g = 9.81
     ngc = 2
 
     friction_function = friction_fcg2016
-    friction_constant = 0.03f0^2 # As used by Fernandez-Paro et al (2016)
+    friction_constant = 0.03^2 # As used by Fernandez-Paro et al (2016)
     
     #friction_function = friction_bsa2012
     #friction_constant = g* 0.033f0^2 # As used by Brodtkorb et al (2012)
@@ -267,6 +267,7 @@ function make_fcg_plot(subpath, rain_function; with_infiltration=true)
     outlet_Q[2:num_t] = (runoff[2:num_t] - runoff[1:num_t-1])./(t[2:num_t] - t[1:num_t-1])
     #print(runoff)
 
+
     yaxis2lim = 75000
     if rain_function == rain_fcg_1_3
         yaxis2lim = 50000
@@ -287,7 +288,6 @@ function make_fcg_plot(subpath, rain_function; with_infiltration=true)
     return fig
 end
     
-
 function plot_conservation_of_mass(subpath)
     t = npzread("runoff/data/$(subpath)/t.npy")
     mass = total_mass("runoff/data/$(subpath)", trailing_zeros=3)
@@ -332,19 +332,19 @@ function print_and_plot_swe!(subpath, index, w_dev, hu_dev, hv_dev, infiltration
 end
 
 # Make output folders.
-subpath = "dambreak_float"; rain_function = nothing
-#subpath = "conservation_of_rain_1_1"; rain_function = rain_fcg_1_4;
-#subpath = "fcg_case_1_1_bsafric"
-#subpath = "fcg_case_1_1"; rain_function = rain_fcg_1_1;
-#subpath = "fcg_case_1_2"; rain_function = rain_fcg_1_2;
-#subpath = "fcg_case_1_3"; rain_function = rain_fcg_1_3;
-#subpath = "fcg_case_1_4"; rain_function = rain_fcg_1_4;
-#subpath = "fcg_case_1_5"; rain_function = rain_fcg_1_5;
+subpath = "dambreak_double"; rain_function = nothing
+#subpath = "d_conservation_of_rain_1_1"; rain_function = rain_fcg_1_4;
+#subpath = "d_fcg_case_1_1_bsafric"
+#subpath = "d_fcg_case_1_1"; rain_function = rain_fcg_1_1;
+#subpath = "d_fcg_case_1_2"; rain_function = rain_fcg_1_2;
+#subpath = "d_fcg_case_1_3"; rain_function = rain_fcg_1_3;
+#subpath = "d_fcg_case_1_4"; rain_function = rain_fcg_1_4;
+#subpath = "d_fcg_case_1_5"; rain_function = rain_fcg_1_5;
 
-#subpath = "fcg_case_2_100"; rain_function = rain_fcg_1_1; x0 = 100
-#subpath = "fcg_case_2_1900"; rain_function = rain_fcg_1_1; x0 = 1900
+#subpath = "d_fcg_case_2_100"; rain_function = rain_fcg_1_1; x0 = 100
+#subpath = "d_fcg_case_2_1900"; rain_function = rain_fcg_1_1; x0 = 1900
 
-#subpath = "fcg_case_3"; rain_function = rain_fcg_3; x0 = 200
+#subpath = "d_fcg_case_3"; rain_function = rain_fcg_3; x0 = 200
 
 mkpath("runoff/plots/$(subpath)/")
 mkpath("runoff/data/$(subpath)/")

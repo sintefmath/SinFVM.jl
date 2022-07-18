@@ -1,15 +1,16 @@
 include("../int32testing.jl")
 const BLOCK_WIDTH = Int32(32)
 const BLOCK_HEIGHT = Int32(16)
-const KP_DESINGULARIZE_DEPTH = Float32(7.5e-2)
+#const KP_DESINGULARIZE_DEPTH = 5.0e-3
+const KP_DESINGULARIZE_DEPTH = 7.5e-2
 #const KP_DESINGULARIZE_DEPTH = Float32(1e-3)
-const KP_DEPTH_CUTOFF = Float32(1.0e-5)
+const KP_DEPTH_CUTOFF = 1.0e-5
 
-@inline @make_numeric_literals_32bits function clamp(i, low, high)
+@inline function clamp(i, low, high)
     return max(low, min(i, high))
 end
 
-@inline @make_numeric_literals_32bits function desingularize_depth(h)
+@inline function desingularize_depth(h)
     return copysign(max(abs(h), 
                         min(h*h/(2.0*(KP_DESINGULARIZE_DEPTH)) + (KP_DESINGULARIZE_DEPTH)/2.0,
                             (KP_DESINGULARIZE_DEPTH))
@@ -18,7 +19,7 @@ end
 end
 
 
-@inline @make_numeric_literals_32bits function minmodSlope(left, center, right, theta) 
+@inline function minmodSlope(left, center, right, theta) 
     backward = (center - left) * theta
     central = (right - left) * 0.5
     forward = (right - center) * theta
@@ -33,7 +34,7 @@ end
 
 
 
-@make_numeric_literals_32bits function julia_kp07!(
+function julia_kp07!(
     Nx, Ny, dx, dy, dt, t,
     g, theta, step,
     w0, hu0, hv0,
@@ -57,9 +58,9 @@ end
     # Qx = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+2),(BLOCK_HEIGHT+2), 3))
     # Bi = CuStaticSharedArray(Float32, ((BLOCK_WIDTH+4),(BLOCK_HEIGHT+4)))
     
-    Q = CuStaticSharedArray(Float32, (36, 20, 3))
-    Qx = CuStaticSharedArray(Float32, (34, 18, 3))
-    Bi = CuStaticSharedArray(Float32, (36, 20))
+    Q = CuStaticSharedArray(Float64, (36, 20, 3))
+    Qx = CuStaticSharedArray(Float64, (34, 18, 3))
+    Bi = CuStaticSharedArray(Float64, (36, 20))
     # Read w0, hu0, hv0 and Hi into shmem:
     for j = ty:BLOCK_HEIGHT:BLOCK_HEIGHT+4
         for i = tx:BLOCK_WIDTH:BLOCK_WIDTH+4
@@ -199,13 +200,13 @@ end
     return nothing
 end
 
-@inline @make_numeric_literals_32bits function fillWithCrap!(Q, i, j)
+@inline function fillWithCrap!(Q, i, j)
     Q[i, j, 2] = i+j
     return nothing
 end
 
 
-@inline @make_numeric_literals_32bits function wall_bc_to_shmem!(Q, 
+@inline function wall_bc_to_shmem!(Q, 
                            Nx, Ny, 
                            i, j,
                            ti, tj)
@@ -254,14 +255,14 @@ end
     return nothing
 end
 
-@inline @make_numeric_literals_32bits function reconstruct_Bx(Bi, i, j)
+@inline function reconstruct_Bx(Bi, i, j)
     return 0.5*(Bi[i, j] + Bi[i  , j+1])
 end
-@inline @make_numeric_literals_32bits function reconstruct_By(Bi, i, j)
+@inline function reconstruct_By(Bi, i, j)
     return 0.5*(Bi[i, j] + Bi[i+1, j  ])
 end
 
-@inline @make_numeric_literals_32bits function reconstruct_slope_x!(Q,
+@inline function reconstruct_slope_x!(Q,
                                Qx, 
                                theta, tx, ty)
     for j = ty:BLOCK_HEIGHT:BLOCK_HEIGHT
@@ -276,7 +277,7 @@ end
     return nothing
 end
 
-@inline @make_numeric_literals_32bits function reconstruct_slope_y!(Q,
+@inline function reconstruct_slope_y!(Q,
                               Qx, 
                               theta, tx, ty)
     for j = ty:BLOCK_HEIGHT:BLOCK_HEIGHT+2
@@ -291,7 +292,7 @@ end
     return nothing
 end
 
-@inline @make_numeric_literals_32bits function adjust_slopes_x!(Qx, Bi, Q, tx, ty)
+@inline function adjust_slopes_x!(Qx, Bi, Q, tx, ty)
     p = tx + 2
     q = ty + 2
     adjust_slope_Ux!(Qx, Bi, Q, p, q)
@@ -303,7 +304,7 @@ end
     end
 end
 
-@inline @make_numeric_literals_32bits function adjust_slopes_y!(Qx, Bi, Q, tx, ty)
+@inline function adjust_slopes_y!(Qx, Bi, Q, tx, ty)
     p = tx + 2
     q = ty + 2
     adjust_slope_Uy!(Qx, Bi, Q, p, q)
@@ -314,7 +315,7 @@ end
     end
 end
 
-@inline @make_numeric_literals_32bits function adjust_slope_Ux!(Qx, Bi, Q, p, q)
+@inline function adjust_slope_Ux!(Qx, Bi, Q, p, q)
     # Indices within Qx:
     pQx = p - 1
     qQx = q - 2
@@ -328,7 +329,7 @@ end
     Qx[pQx, qQx, 1] =  (Q[p, q, 1] + Qx[pQx, qQx, 1] < RBx_p) ? (RBx_p - Q[p, q, 1]) : Qx[pQx, qQx, 1]
 end
 
-@inline @make_numeric_literals_32bits function adjust_slope_Uy!(Qx, Bi, Q, p, q)
+@inline function adjust_slope_Uy!(Qx, Bi, Q, p, q)
     # Indices within Qy
     pQx = p - 2
     qQx = q - 1
@@ -342,7 +343,7 @@ end
     Qx[pQx, qQx, 1] = (Q[p, q, 1] + Qx[pQx, qQx, 1] < RBy_p) ? (RBy_p - Q[p, q, 1]) : Qx[pQx, qQx, 1] 
 end
 
-@inline @make_numeric_literals_32bits function bottom_source_term_x(Q,
+@inline function bottom_source_term_x(Q,
                               Qx,
                               Bi,
                               g, i, j)
@@ -368,7 +369,7 @@ end
     return 0.0
 end
 
-@inline @make_numeric_literals_32bits function bottom_source_term_y(Q,
+@inline function bottom_source_term_y(Q,
                               Qx,
                               Bi,
                               g, i, j)
@@ -394,7 +395,7 @@ end
     return 0.0
 end
 
-@inline @make_numeric_literals_32bits function compute_single_flux_F(Q,
+@inline function compute_single_flux_F(Q,
                                Qx,
                                Bi,
                                g, qxi, qxj)
@@ -425,7 +426,7 @@ end
     return F1, F2, F3 
 end
 
-@inline @make_numeric_literals_32bits function compute_single_flux_G(Q,
+@inline function compute_single_flux_G(Q,
                                Qx,
                                Bi,
                                g, qxi, qxj)
@@ -458,7 +459,7 @@ end
     return G1, G3, G2 
 end
 
-@inline @make_numeric_literals_32bits function central_upwind_flux_bottom(Qmx, Qmy, Qmz, 
+@inline function central_upwind_flux_bottom(Qmx, Qmy, Qmz, 
                                     Qpx, Qpy, Qpz, 
                                     RB, g)
     hp = Qpx - RB
@@ -514,7 +515,7 @@ end
     return Fx, Fy, Fz
 end
 
-@inline @make_numeric_literals_32bits function F_func_bottom(qx, qy, qz, h, u, g) 
+@inline function F_func_bottom(qx, qy, qz, h, u, g) 
     Fx = qy;                       
     Fy = qy*u + 0.5*g*(h*h);      
     Fz = qz*u;                     
@@ -522,11 +523,11 @@ end
 end
 
 
-@make_numeric_literals_32bits function compute_flux(numflux, reconstruct, u, cellindex)
+function compute_flux(numflux, reconstruct, u, cellindex)
     return numflux(reconstruct_right(u, cellindex)) - numflux(reconstruct_left(u, cellindex+1, +1))
 end
 
-@make_numeric_literals_32bits function get_rain_infiltration(rain_handle, infiltration_handle,
+function get_rain_infiltration(rain_handle, infiltration_handle,
             ti, tj, dx, dy, t)
 
     rain = 0.0

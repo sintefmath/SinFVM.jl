@@ -260,15 +260,3 @@ function compute_max_timesteps(folder, dx, dy; g=9.81)
 end
 
 
-
-function total_mass(folder)
-    B = npzread("$(folder)/B.npy")
-    num_w_files = size(filter(x->contains(x, "w_"), readdir(folder)), 1)
-    mass = zeros(num_w_files)
-
-    for i in 1:num_w_files
-        w = npzread("$(folder)/w_$(i-1).npy")
-        mass[i] = sum(w-B)
-    end
-    return mass
-end
