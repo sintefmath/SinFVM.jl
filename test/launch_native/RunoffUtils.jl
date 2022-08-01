@@ -52,16 +52,29 @@ function make_case_2_bathymetry!(B, Bi, dx, x0)
     end
 end
 
-@make_numeric_literals_32bits function _B_case_3(x)
+function _B_case_3(x)
     x0 = 200
     if x <= x0
-        return 21.0 - 1.0*sin(Float32(π)*abs(x)/10.0) - 0.005*abs(x)
+        return 21.0 - 1.0*sin(Float32(π)*abs(x)/10.0) - 0.005*abs(x) - 20.0
     else
         b0 = 21.0 - 1.0*sin(Float32(π)*x0/10.0) - 0.005*x0
         if x > x0*2
             x = x0*2 - (x - x0*2)
         end
-        return b0 - 0.02*(x - x0)    
+        return b0 - 0.02*(x - x0) - 20.0
+    end
+end
+
+function _B_case_widebump(x)
+    x0 = 200
+    if x <= x0
+        return 21.0 - 1.0*sin(Float32(π)*abs(x)/100.0) - 0.005*abs(x) - 20.0
+    else
+        b0 = 21.0 - 1.0*sin(Float32(π)*x0/100.0) - 0.005*x0
+        if x > x0*2
+            x = x0*2 - (x - x0*2)
+        end
+        return b0 - 0.02*(x - x0) - 20.0
     end
 end
 
@@ -73,6 +86,17 @@ function make_case_3_bathymetry!(B, Bi, dx)
     for i = 1:size(Bi,1)
         xi = (i-1-2)*dx
         Bi[i,:] .= _B_case_3(xi)
+    end
+end
+
+function make_case_widebump_bathymetry!(B, Bi, dx)
+    for i = 1:size(B,1)
+        x = (i-0.5-2)*dx
+        B[i, :] .= _B_case_widebump(x)
+    end
+    for i = 1:size(Bi,1)
+        xi = (i-1-2)*dx
+        Bi[i,:] .= _B_case_widebump(xi)
     end
 end
 
@@ -102,7 +126,8 @@ end
 end
 
 
-@inline @make_numeric_literals_32bits function 
+#@inline @make_numeric_literals_32bits 
+@inline function 
     infiltration_horton_fcg_3(x, y, t)
     if x < 200
         fc = 3.272e-5
@@ -116,6 +141,11 @@ end
 
 
 # Rain source terms
+@inline @make_numeric_literals_32bits function 
+    zero_rain(x, y, t)
+    return 0.0
+end
+
 @inline @make_numeric_literals_32bits function 
     rain_fcg_1_1(x, y, t)
     
@@ -204,7 +234,8 @@ end
     rain_fcg_3(x, y, t)
     
     if x < 200 && t < 125.0*60.0
-        return 0.000025
+        # 0.25 mm/s
+        return 0.00025
     end
     return 0.0
 end
@@ -383,4 +414,17 @@ function total_mass(folder; trailing_zeros=0)
         mass[i] = sum(w-B)
     end
     return mass
+end
+
+function acummulated_infiltration(folder; trailing_zeros=0)
+    num_w_files = size(filter(x->contains(x, "infiltration_"), readdir(folder)), 1)
+    t = npzread("$(folder)/t.npy")
+    @assert(size(ttmp,1) == num_w_files)
+    f_tmp = npzread("$(folder)/infiltration_$(lpad(0, trailing_zeros, "0")).npy")
+    f = f_tmp[3:end-2, 10]*t[1]
+    for i in 2:num_w_files
+        f_tmp = npzread("$(folder)/infiltration_$(lpad(i-1, trailing_zeros, "0")).npy")
+        f += f_tmp[3:end-2, 10]*(t[i] - t[i-1])
+    end
+    return f
 end

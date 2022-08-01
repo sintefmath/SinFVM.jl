@@ -23,15 +23,18 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
     flattenarr(x) = collect(Iterators.flatten(x))
     MyType = Float64
     Lx = 2000*2
-    if topography == 3
+    if topography > 2
         Lx = 200*2
     end
     Ly = 20
-    dx = dy = 1.0
+    dx = dy = 2.0
+    if topography > 1
+        dx = dy = 1.0
+    end
 
     Nx = Int32(Lx/dx)
     Ny = Int32(Ly/dy)
-    println("Setting up grid ($(Nx), $(Ny)) with (dx, dy) = ($(dx), $(dy))")
+    println("Setting up grid ($(Nx), $(Ny)) with (dx, dy) = ($(dx), $(dy)) for $(subpath)")
     
     dt = 0.02
     g = 9.81
@@ -47,7 +50,7 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
     
     #friction_constant = 0.01f0^2
 
-    friction_constant = 0.0f0
+    #friction_constant = 0.0f0
 
     data_shape = (Nx + 2 * ngc, Ny + 2 * ngc)
     B = ones(MyType, data_shape) 
@@ -70,14 +73,22 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
         make_case_2_bathymetry!(B, Bi, dx, x0)
     elseif topography == 3
         make_case_3_bathymetry!(B, Bi, dx)
+    elseif topography == 4
+        make_case_widebump_bathymetry!(B, Bi, dx)
     else
         @assert(false)
     end
 
+    bathymetry_at_cell_centers!(B, Bi)
+
     w0[:, :] = B[:, :]
 
     if init_dambreak
-        w0[1:500, :] .+= 1
+        if topography > 2 
+            w0[1:200, :] .+= 0.1
+        else
+            w0[1:500, :] .+= 1
+        end
     end
 
     #println(size(H))
@@ -91,11 +102,11 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
 
     #rain_function = rain_fcg_1_1
     infiltration_function = infiltration_horton_fcg
-    if topography == 3
+    if topography > 2
         infiltration_function = infiltration_horton_fcg_3
     end
 
-    infiltration_function = nothing
+    #infiltration_function = nothing
 
     theta::Float32 = 1.3
 
@@ -127,14 +138,14 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
     #number_of_timesteps = 1
     #number_of_timesteps = Integer(100000*2)
     #number_of_timesteps = Integer(10000*2)
-    number_of_timesteps = 350*60*Integer(1/dt)*2
-    #umber_of_plots = 10
+    number_of_timesteps = 350*60*Integer(1/dt) *2
+    #number_of_plots = 10
     #save_every = Integer(floor(number_of_timesteps/number_of_plots))
     save_every = 60*Integer(1/dt)*2
     plot_every = 10*60*Integer(1/dt)*2
     fig = nothing
 
-    number_of_timesteps = number_of_timesteps*100/350
+    #number_of_timesteps = number_of_timesteps*100/350
     
 
     t = 0.0f0
@@ -241,10 +252,10 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
     cons_mass_fig = plot_conservation_of_mass(subpath)
     swim_save("runoff/plots/$(subpath)/conservation_of_mass_fig.png", cons_mass_fig)
 
-    fcg_fig = make_fcg_plot(subpath, rain_function)
+    fcg_fig = make_fcg_plot(subpath, rain_function, topography=topography)
     swim_save("runoff/plots/$(subpath)/fcg_hyd_outlet_infiltration_fig.png", fcg_fig) 
 
-    fcg_fig = make_fcg_plot(subpath, rain_function, with_infiltration=false)
+    fcg_fig = make_fcg_plot(subpath, rain_function, topography=topography, with_infiltration=false)
     swim_save("runoff/plots/$(subpath)/fcg_hyd_outlet_fig.png", fcg_fig) 
 
     hyd_fig = plot_hydrographs_at_location(subpath, rain_function, dx, dy)
@@ -254,7 +265,7 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
     return nothing
 end
 
-function make_fcg_plot(subpath, rain_function; with_infiltration=true)
+function make_fcg_plot(subpath, rain_function; topography=1, with_infiltration=true)
     t = npzread("runoff/data/$(subpath)/t.npy")
     Q_infiltrated = npzread("runoff/data/$(subpath)/Q_infiltration.npy")
     runoff = npzread("runoff/data/$(subpath)/runoff.npy")
@@ -276,9 +287,15 @@ function make_fcg_plot(subpath, rain_function; with_infiltration=true)
     elseif rain_function == rain_fcg_1_5
         yaxis2lim = 30000
     end
+    
+    yaxis1lim = 10
+    if topography == 3
+        yaxis2lim = 5000
+        yaxis1lim = 1.5
+    end
 
     fig = Plots.plot(t/60.0, [rain_Q outlet_Q], label=["rain Q" "runoff Q"], 
-                     legend=:topleft, ylims=[0,10], title=subpath, ylabel="Discharge Q [m^3/s]", xlabel="minutes",
+                     legend=:topleft, ylims=[0, yaxis1lim], title=subpath, ylabel="Discharge Q [m^3/s]", xlabel="minutes",
                      right_margin=20Plots.mm)
     if with_infiltration
         Plots.plot!(t/60, Q_infiltrated, label="infiltration Q")
@@ -332,7 +349,8 @@ function print_and_plot_swe!(subpath, index, w_dev, hu_dev, hv_dev, infiltration
 end
 
 # Make output folders.
-subpath = "dambreak_double"; rain_function = nothing
+init_dambreak = false
+#subpath = "dambreak_double"; rain_function = nothing; init_dambreak = true
 #subpath = "d_conservation_of_rain_1_1"; rain_function = rain_fcg_1_4;
 #subpath = "d_fcg_case_1_1_bsafric"
 #subpath = "d_fcg_case_1_1"; rain_function = rain_fcg_1_1;
@@ -344,13 +362,15 @@ subpath = "dambreak_double"; rain_function = nothing
 #subpath = "d_fcg_case_2_100"; rain_function = rain_fcg_1_1; x0 = 100
 #subpath = "d_fcg_case_2_1900"; rain_function = rain_fcg_1_1; x0 = 1900
 
-#subpath = "d_fcg_case_3"; rain_function = rain_fcg_3; x0 = 200
+subpath = "d_fcg_case_3"; rain_function = rain_fcg_3; x0 = 200
+#subpath = "d_fcg_case_3"; rain_function = zero_rain; x0 = 200
 
 mkpath("runoff/plots/$(subpath)/")
 mkpath("runoff/data/$(subpath)/")
 
-
+init_dambreak = false
 #@time run_stuff(subpath, rain_function)
 #@time run_stuff(subpath, rain_function, topography=2, x0 = x0)
 #@time run_stuff(subpath, rain_function, topography=3)
-@time run_stuff(subpath, rain_function, init_dambreak=true)
+@time run_stuff(subpath, rain_function, topography=3, init_dambreak=init_dambreak)
+#@time run_stuff(subpath, rain_function, init_dambreak=init_dambreak)

@@ -150,7 +150,6 @@ end
             u = Q[i, j, 2] / h_star
             v = Q[i, j, 3] / h_star
             s_f = friction_function(friction_constant, h_star, u, v) #*0.01
-            s_f = 0.0
         end
 
         # Rain and infiltration source terms

@@ -39,6 +39,16 @@ function call_kp07!(num_threads, num_blocks,
     return nothing
 end
 
+
+## -------------------------------
+## Bathymetry: From cell intersections to cell centers via bilinear interpolation
+## -------------------------------
+function bathymetry_at_cell_centers!(B, Bi)
+    @assert(size(B).+1 == size(Bi))
+    B[:,:] = (Bi[1:end-1, 1:end-1] + Bi[1:end-1, 2:end] + Bi[2:end, 1:end-1] + Bi[2:end, 2:end])/4 
+end
+
+
 ## -------------------------------
 ## FRICTION FUNCTIONS
 ## -------------------------------
