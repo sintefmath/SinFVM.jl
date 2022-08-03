@@ -1,5 +1,9 @@
 using Test, Plots
 include("SwimTypeMacros.jl")
+include("SWEPlottingNoMakie.jl")
+include("SWEUtils.jl")
+include("double_swe_kp07_pure.jl")
+include("Friction.jl")
 
 ###
 # This file contains functions that defines topographies, rain functions, infiltration functions, 
@@ -311,8 +315,8 @@ end
 
 
 function get_runoff_h(subfolder, wfilename)
-    B = npzread("runoff/data/$(subfolder)/B.npy")
-    w = npzread("runoff/data/$(subfolder)/$(wfilename).npy")
+    B = npzread("runoff_validation/data/$(subfolder)/B.npy")
+    w = npzread("runoff_validation/data/$(subfolder)/$(wfilename).npy")
     shape = size(w)
     h = w[3:shape[1]-2, 3:shape[2]-2] - B[3:shape[1]-2, 3:shape[2]-2]
     return h
@@ -349,7 +353,7 @@ end
 
 function plot_hydrographs_at_location(subpath, rain_function, dx, dy)
 
-    folder = "runoff/data/$(subpath)"
+    folder = "runoff_validation/data/$(subpath)"
     B = npzread("$(folder)/B.npy")
     t = npzread("$(folder)/t.npy")
     shape = size(B)
@@ -448,4 +452,296 @@ function acummulated_infiltration(folder; trailing_zeros=0)
         f += f_tmp[3:end-2, 10]*(t[i] - t[i-1])
     end
     return f
+end
+
+
+function run_validation_cases(subpath, rain_function; topography=1, x0 = nothing, init_dambreak=false)
+    
+    mkpath("runoff_validation/plots/$(subpath)/")
+    mkpath("runoff_validation/data/$(subpath)/")
+
+    flattenarr(x) = collect(Iterators.flatten(x))
+    MyType = Float64
+    Lx = 2000*2
+    if topography > 2
+        Lx = 200*2
+    end
+    Ly = 20
+    dx = dy = 2.0
+    if topography > 1
+        dx = dy = 1.0
+    end
+
+    Nx = Int32(Lx/dx)
+    Ny = Int32(Ly/dy)
+    println("Setting up grid ($(Nx), $(Ny)) with (dx, dy) = ($(dx), $(dy)) for $(subpath)")
+    
+    dt = 0.02
+    g = 9.81
+    ngc = 2
+
+    friction_function = friction_fcg2016
+    friction_constant = 0.03^2 # As used by Fernandez-Paro et al (2016)
+    
+    #friction_function = friction_bsa2012
+    #friction_constant = g* 0.033f0^2 # As used by Brodtkorb et al (2012)
+    #friction_constant = 0.033f0^2 # As Brodtkorb et al (2012) but without g
+    #friction_constant = 0.0033f0^2 # As Brodtkorb et al (2012) but without g and /100
+    
+    data_shape = (Nx + 2 * ngc, Ny + 2 * ngc)
+    B = ones(MyType, data_shape) 
+    Bi = ones(MyType, data_shape .+ 1)
+    w0 = zeros(MyType, data_shape)
+    hu0 = zeros(MyType, data_shape)
+    hv0 = zeros(MyType, data_shape)
+
+    w1 = zeros(MyType, data_shape)
+    hu1 = zeros(MyType, data_shape)
+    hv1 = zeros(MyType, data_shape)
+
+    infiltration_rates = zeros(MyType, data_shape)
+
+    if topography == 1
+        make_case_1_bathymetry!(B, Bi, dx)
+    elseif topography == 2
+        @assert(!isnothing(x0))
+        make_case_2_bathymetry!(B, Bi, dx, x0)
+    elseif topography == 3
+        make_case_3_bathymetry!(B, Bi, dx)
+    elseif topography == 4
+        make_case_widebump_bathymetry!(B, Bi, dx)
+    else
+        @assert(false)
+    end
+
+    bathymetry_at_cell_centers!(B, Bi)
+
+    w0[:, :] = B[:, :]
+
+    if init_dambreak
+        if topography > 2 
+            w0[1:200, :] .+= 0.1
+        else
+            w0[1:500, :] .+= 1
+        end
+    end
+
+    npzwrite("runoff_validation/data/$(subpath)/B.npy", B)
+    npzwrite("runoff_validation/data/$(subpath)/Bi.npy", Bi)
+    
+    infiltration_function = infiltration_horton_fcg
+    if topography > 2
+        infiltration_function = infiltration_horton_fcg_3
+    end
+
+    theta::Float32 = 1.3
+
+    bc::Int32 = 1
+
+    num_threads = num_blocks = nothing
+
+    w0_dev = hu0_dev = hv0_dev = w1_dev = hu1_dev = hv1_dev = nothing
+    B_dev = Bi_dev = nothing
+
+    num_threads = (BLOCK_WIDTH, BLOCK_HEIGHT)
+    num_blocks = Tuple(cld.([Nx, Ny], num_threads))
+
+    w0_dev = CuArray(w0)
+    hu0_dev = CuArray(hu0)
+    hv0_dev = CuArray(hv0)
+
+    w1_dev = CuArray(w1)
+    hu1_dev = CuArray(hu1)
+    hv1_dev = CuArray(hv1)
+
+    Bi_dev = CuArray(Bi)
+    B_dev  = CuArray(B)
+    infiltration_rates_dev = CuArray(infiltration_rates)
+
+
+    #npzwrite("runoff_validation/data/eta_init.npy", eta0)
+
+    number_of_timesteps = 350*60*Integer(1/dt) *2
+    
+    save_every = 60*Integer(1/dt)*2
+    plot_every = 10*60*Integer(1/dt)*2
+    fig = nothing
+
+    #number_of_timesteps = number_of_timesteps*100/350
+    
+
+    t = 0.0f0
+    Q_infiltrated =  zeros(0)
+    save_t =  zeros(0)
+    runoff =  zeros(0)
+    print_and_plot_swe!(subpath, 0, w0_dev, hu0_dev, hv0_dev,
+                        infiltration_rates_dev, B, dx, dy, Nx, Ny, t, data_shape, 
+                        Q_infiltrated, save_t, runoff)
+    num_saves = 1
+                   
+
+    @showprogress for i in 1:number_of_timesteps
+        step::Int32 = (i + 1) % 2
+        if i % 2 == 1
+            curr_w0_dev = w0_dev
+            curr_hu0_dev = hu0_dev
+            curr_hv0_dev = hv0_dev
+            curr_w1_dev = w1_dev
+            curr_hu1_dev = hu1_dev
+            curr_hv1_dev = hv1_dev
+        else
+            curr_w0_dev = w1_dev
+            curr_hu0_dev = hu1_dev
+            curr_hv0_dev = hv1_dev
+            curr_w1_dev = w0_dev
+            curr_hu1_dev = hu0_dev
+            curr_hv1_dev = hv0_dev
+        end
+
+
+        call_kp07!(num_threads, num_blocks,
+            Nx, Ny, dx, dy, dt, t,
+            g, theta, step,
+            curr_w0_dev, curr_hu0_dev, curr_hv0_dev,
+            curr_w1_dev, curr_hu1_dev, curr_hv1_dev,
+            Bi_dev, B_dev,
+            bc;
+            friction_handle=friction_function, friction_constant=friction_constant,
+            rain_handle = rain_function, infiltration_handle = infiltration_function,
+            infiltration_rates_dev = infiltration_rates_dev)
+    
+        if (i % 2 == 0)
+            t = dt*(i/2.0f0)
+        end
+
+        if step == 1
+            if (save_every > 0 && i % save_every == 0) || (i == number_of_timesteps)
+
+                doPlot = (i % plot_every == 0) || (i == number_of_timesteps)
+                fig = print_and_plot_swe!(subpath, num_saves, 
+                                          curr_w1_dev, curr_hu1_dev, curr_hv1_dev,
+                                          infiltration_rates_dev, B, dx, dy, Nx, Ny, t, data_shape, 
+                                          Q_infiltrated, save_t, runoff, doPlot=doPlot)
+                num_saves += 1
+            end
+        end
+
+        if number_of_timesteps < 3
+            hu1_copied = reshape(collect(curr_hu1_dev), data_shape)
+            fig = plotSurf(hu1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
+                plot_title="hu i=$i, t=$(t) s")
+            w1_copied = reshape(collect(curr_w1_dev), data_shape)
+            fig = plotSurf(w1_copied, B, dx, dy, Nx, Ny, show_ground=true, 
+                plot_title="w i=$i")
+        end        
+
+    end
+
+    
+
+
+    npzwrite("runoff_validation/data/$(subpath)/t.npy", save_t)
+    npzwrite("runoff_validation/data/$(subpath)/Q_infiltration.npy", Q_infiltrated)
+    npzwrite("runoff_validation/data/$(subpath)/runoff.npy", runoff)
+    #println(save_t)
+    #println(Q_infiltrated)
+    #println(runoff)
+
+    cons_mass_fig = plot_conservation_of_mass(subpath)
+    swim_save("runoff_validation/plots/$(subpath)/conservation_of_mass_fig.png", cons_mass_fig)
+
+    fcg_fig = make_fcg_plot(subpath, rain_function, topography=topography)
+    swim_save("runoff_validation/plots/$(subpath)/fcg_hyd_outlet_infiltration_fig.png", fcg_fig) 
+
+    fcg_fig = make_fcg_plot(subpath, rain_function, topography=topography, with_infiltration=false)
+    swim_save("runoff_validation/plots/$(subpath)/fcg_hyd_outlet_fig.png", fcg_fig) 
+
+    hyd_fig = plot_hydrographs_at_location(subpath, rain_function, dx, dy)
+    swim_save("runoff_validation/plots/$(subpath)/fcg_hyd_1000_fig.png", hyd_fig) 
+
+    display(fig)    
+    return nothing
+end
+
+function make_fcg_plot(subpath, rain_function; topography=1, with_infiltration=true)
+    t = npzread("runoff_validation/data/$(subpath)/t.npy")
+    Q_infiltrated = npzread("runoff_validation/data/$(subpath)/Q_infiltration.npy")
+    runoff = npzread("runoff_validation/data/$(subpath)/runoff.npy")
+    rain_Q = zeros(size(runoff))
+    if !isnothing(rain_function)
+        rain_Q = rain_function.(10,10, t)*2000*20
+    end
+    outlet_Q = zeros(size(runoff))
+    num_t = size(t,1)
+    outlet_Q[2:num_t] = (runoff[2:num_t] - runoff[1:num_t-1])./(t[2:num_t] - t[1:num_t-1])
+    #print(runoff)
+
+
+    yaxis2lim = 75000
+    if rain_function == rain_fcg_1_3
+        yaxis2lim = 50000
+    elseif rain_function == rain_fcg_1_4
+        yaxis2lim = 15000
+    elseif rain_function == rain_fcg_1_5
+        yaxis2lim = 30000
+    end
+    
+    yaxis1lim = 10
+    if topography == 3
+        yaxis2lim = 5000
+        yaxis1lim = 1.5
+    end
+
+    fig = Plots.plot(t/60.0, [rain_Q outlet_Q], label=["rain Q" "runoff Q"], 
+                     legend=:topleft, ylims=[0, yaxis1lim], title=subpath, ylabel="Discharge Q [m^3/s]", xlabel="minutes",
+                     right_margin=20Plots.mm)
+    if with_infiltration
+        Plots.plot!(t/60, Q_infiltrated, label="infiltration Q")
+    end                     
+    Plots.plot!(twinx(), t/60.0, runoff, color=:red, label="runoff", ylims=[0,yaxis2lim], ylabel="Runoff volume [m^3]")
+    display(fig)
+    return fig
+end
+    
+function plot_conservation_of_mass(subpath)
+    t = npzread("runoff_validation/data/$(subpath)/t.npy")
+    mass = total_mass("runoff_validation/data/$(subpath)", trailing_zeros=3)
+    fig = Plots.plot(t/60.0, mass, title="Conservation of mass - $(subpath)", ylabel="total mass", xlabel="time [minutes]")
+    display(fig)
+    return fig
+end
+
+
+function print_and_plot_swe!(subpath, index, w_dev, hu_dev, hv_dev, infiltration_dev, B, dx, dy, Nx, Ny, t, data_shape, 
+                             Q_infiltrated, save_t, runoff; doPlot = true)
+    #println("saving $(index) at t=$(t)")
+    if (index isa Number)
+        index = lpad(index, 3, "0")
+    end
+    w1_copied = reshape(collect(w_dev), data_shape)
+    npzwrite("runoff_validation/data/$(subpath)/w_$(index).npy", w1_copied)
+    hu1_copied = reshape(collect(hu_dev), data_shape)
+    npzwrite("runoff_validation/data/$(subpath)/hu_$(index).npy", hu1_copied)
+    hv1_copied = reshape(collect(hv_dev), data_shape)
+    npzwrite("runoff_validation/data/$(subpath)/hv_$(index).npy", hv1_copied)
+    infiltration_copied = reshape(collect(infiltration_dev), data_shape)
+    npzwrite("runoff_validation/data/$(subpath)/infiltration_$(index).npy", infiltration_copied)
+    
+    append!(save_t, t)
+    append!(Q_infiltrated, get_Q_infiltrated(infiltration_copied, dx, dy))
+    append!(runoff, compute_runoff(subpath, "w_$(index)", dx, dy))
+    
+    fig = nothing
+    if doPlot
+        fig = plotSurf(hu1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
+                    plot_title="hu t=$(t/60) min")
+        swim_save("runoff_validation/plots/$(subpath)/hu_$(index).png", fig) 
+        #fig = plotSurf(hv1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
+        #            plot_title="hv t=$(t/60) min")
+        #swim_save("runoff_validation/plots/$(subpath)/hv_$(index).png", fig) 
+        fig = plotSurf(w1_copied, B, dx, dy, Nx, Ny, show_ground=true, 
+                    plot_title="w  t=$(t/60) min")
+        swim_save("runoff_validation/plots/$(subpath)/w_$(index).png", fig) 
+    end
+    return fig
 end
