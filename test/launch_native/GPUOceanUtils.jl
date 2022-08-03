@@ -42,8 +42,6 @@ function makeBathymetry!(B, Bi, nx, ny, dx, dy; amplitude=0.25, slope=[0.0, 0.0]
             Bi[i+2+1, j+2+1] = depth(x, y)
         end
     end
-    
-
 end
 
 function ensureNonnegativeDepth!(w, B)

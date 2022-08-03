@@ -1,4 +1,4 @@
-include("../int32testing.jl")
+include("SwimTypeMacros.jl")
 using CUDA
 
 
@@ -46,34 +46,5 @@ end
 function bathymetry_at_cell_centers!(B, Bi)
     @assert(size(B).+1 == size(Bi))
     B[:,:] = (Bi[1:end-1, 1:end-1] + Bi[1:end-1, 2:end] + Bi[2:end, 1:end-1] + Bi[2:end, 2:end])/4 
-end
-
-
-## -------------------------------
-## FRICTION FUNCTIONS
-## -------------------------------
-
-@inline @make_numeric_literals_32bits function 
-    friction_bsa2012(c, h, u, v)
-
-    velocity = sqrt(u*u + v*v)
-    denom = cbrt(h)*h
-    return -c*velocity/denom
-end
-
-@inline @make_numeric_literals_32bits function 
-    friction_fcg2016(c, h, u, v)
-    
-    velocity = sqrt(u*u + v*v)
-    denom = cbrt(h)*h*h
-    return -c*velocity/denom
-end
-
-@inline @make_numeric_literals_32bits function 
-    friction_bh2021(c, h, u, v)
-    
-    velocity = sqrt(u*u + v*v)
-    denom = h*h
-    return -c*velocity/denom
 end
 

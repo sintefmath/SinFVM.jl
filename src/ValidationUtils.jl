@@ -1,10 +1,23 @@
 using Test, Plots
+include("SwimTypeMacros.jl")
 
-include("../int32testing.jl")
+###
+# This file contains functions that defines topographies, rain functions, infiltration functions, 
+# and some specific analysis functions that helps us reproduce results from 
+#  Fernandez-Pato, Caviedes-Voullieme, Garcia-Navarro (2016), "Rainfall/runoff simulation with 
+# 2D full shallow water equations: Sensitivity analysis and calibration of infiltration parameters".
+# Journal of Hydrology, 536, 496-513 (https://doi.org/10.1016/j.jhydrol.2016.03.021).
+
+# This file contains the following sets of functions:
+# - Topographies, functions that create the topographies used in the validations cases
+# - Rain source terms, functions that define rain
+# - Infiltration source terms, functions that define infiltration
+# - Misc utilities specific to the validation cases, but which also might have value in other contexts.
 
 
-# Bathymetries
-
+#############################################
+# Topographies
+#############################################
 function _B_case_1(x)
     if x < 2000
         return 10 - (10.0/2000.0)*abs(x)
@@ -112,35 +125,9 @@ function make_init_w_dummy_case_1!(w, dx)
     end
 end
 
-# Infiltration source term
-
-@inline @make_numeric_literals_32bits function 
-    infiltration_horton_fcg(x, y, t)
-    if x < 2000
-        fc = 3.272e-5
-        f0 = 1.977e-4
-        k  = 2.43e-3 
-        return fc + (f0 - fc)*exp(-k*t)
-    end
-    return 0.0
-end
-
-
-#@inline @make_numeric_literals_32bits 
-@inline function 
-    infiltration_horton_fcg_3(x, y, t)
-    if x < 200
-        fc = 3.272e-5
-        f0 = 1.977e-4
-        k  = 2.43e-3 
-        return fc + (f0 - fc)*exp(-k*t)
-    end
-    return 0.0
-end
-
-
-
+#############################################
 # Rain source terms
+#############################################
 @inline @make_numeric_literals_32bits function 
     zero_rain(x, y, t)
     return 0.0
@@ -287,7 +274,41 @@ function _get_rates_1_5()
     return _get_rates_1_x(rain_volume, ratios)
 end
 
+#############################################
+# Infiltration source term
+#############################################
+
+@inline @make_numeric_literals_32bits function 
+    infiltration_horton_fcg(x, y, t)
+    if x < 2000
+        fc = 3.272e-5
+        f0 = 1.977e-4
+        k  = 2.43e-3 
+        return fc + (f0 - fc)*exp(-k*t)
+    end
+    return 0.0
+end
+
+
+#@inline @make_numeric_literals_32bits 
+@inline function 
+    infiltration_horton_fcg_3(x, y, t)
+    if x < 200
+        fc = 3.272e-5
+        f0 = 1.977e-4
+        k  = 2.43e-3 
+        return fc + (f0 - fc)*exp(-k*t)
+    end
+    return 0.0
+end
+
+
+
+#############################################
 ### Misc utilities
+#############################################
+
+
 
 function get_runoff_h(subfolder, wfilename)
     B = npzread("runoff/data/$(subfolder)/B.npy")

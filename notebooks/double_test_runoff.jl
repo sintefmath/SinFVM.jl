@@ -4,14 +4,14 @@ using CUDA
 using Plots
 using ProgressMeter
 using NPZ
-using PyCall
 
 #using .GPUOceanUtils
-include("RunoffUtils.jl")
-include("SWEPlottingNoMakie.jl")
+include("../src/ValidationUtils.jl")
+include("../src/SWEPlottingNoMakie.jl")
 
-include("SWEUtils.jl")
-include("double_swe_kp07_pure.jl")
+include("../src/SWEUtils.jl")
+include("../src/double_swe_kp07_pure.jl")
+include("../src/Friction.jl")
 
 ## This script aims to reproduce simulations from
 # Fernandez-Pato, Caviedes-Voullieme, Garcia-Navarro (2016) 
@@ -359,10 +359,10 @@ init_dambreak = false
 #subpath = "d_fcg_case_1_4"; rain_function = rain_fcg_1_4;
 #subpath = "d_fcg_case_1_5"; rain_function = rain_fcg_1_5;
 
-#subpath = "d_fcg_case_2_100"; rain_function = rain_fcg_1_1; x0 = 100
+subpath = "d_fcg_case_2_100"; rain_function = rain_fcg_1_1; x0 = 100
 #subpath = "d_fcg_case_2_1900"; rain_function = rain_fcg_1_1; x0 = 1900
 
-subpath = "d_fcg_case_3"; rain_function = rain_fcg_3; x0 = 200
+#subpath = "d_fcg_case_3"; rain_function = rain_fcg_3; x0 = 200
 #subpath = "d_fcg_case_3"; rain_function = zero_rain; x0 = 200
 
 mkpath("runoff/plots/$(subpath)/")
@@ -370,7 +370,7 @@ mkpath("runoff/data/$(subpath)/")
 
 init_dambreak = false
 #@time run_stuff(subpath, rain_function)
-#@time run_stuff(subpath, rain_function, topography=2, x0 = x0)
+@time run_stuff(subpath, rain_function, topography=2, x0 = x0)
 #@time run_stuff(subpath, rain_function, topography=3)
-@time run_stuff(subpath, rain_function, topography=3, init_dambreak=init_dambreak)
+#@time run_stuff(subpath, rain_function, topography=3, init_dambreak=init_dambreak)
 #@time run_stuff(subpath, rain_function, init_dambreak=init_dambreak)
