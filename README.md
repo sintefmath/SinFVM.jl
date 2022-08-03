@@ -22,7 +22,8 @@ From the file via Julia REPL in VSCode:
 `ctrl+shift+p Julia: Execute file in REPL`
 or in Julia:
 `julia> include("<path to your file")`
-
+or from command line (standing in Rumpetroll.jl):
+`julia --project=. <path to file>`
 
 # If missing packages
 If the environment definition has been updated by someone else:
@@ -33,3 +34,16 @@ If the environment definition has been updated by someone else:
 
 # Conditional CUDA programming:
 See here: https://cuda.juliagpu.org/stable/installation/conditional/
+
+# Misc
+## Memory layout and indexing conventions
+Multidimensional ´Array´s (and thereby also ´CuArray´s) in Julia are column major - same as Fortran, Matlab and R, but unlike C and Python (numpy).
+This means that for a 2-dimensional we should use the following indexing:
+`A = randn(Nx, Ny)`, which means that the most efficiently iteration would be
+´´´
+for j=1:Ny
+    for i=1:Nx
+        A[i, j]
+    end
+end
+´´´
