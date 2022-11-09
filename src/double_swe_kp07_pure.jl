@@ -1,4 +1,4 @@
-include("SwimTypeMacros.jl")
+
 const BLOCK_WIDTH = Int32(32)
 const BLOCK_HEIGHT = Int32(16)
 #const KP_DESINGULARIZE_DEPTH = 5.0e-3
