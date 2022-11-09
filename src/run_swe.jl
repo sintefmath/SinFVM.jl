@@ -13,7 +13,6 @@ function run_swe(
     theta::MyType = 1.3,
 ) where {MyType <: Real}
     flattenarr(x) = collect(Iterators.flatten(x))
-    (Lx, Ly) = maximum(grid) - minimum(grid)
     (dx, dy) = Meshes.spacing(grid)
 
     (Nx, Ny) = size(grid)
@@ -47,7 +46,7 @@ function run_swe(
 
     bathymetry_at_cell_centers!(B, Bi)
 
-    w0[:, :] = B[:, :] .+ initialvalue.h
+    w0[:, :] .= B[:, :] .+ initialvalue.h
 
 
 
@@ -61,8 +60,8 @@ function run_swe(
 
     num_threads = (BLOCK_WIDTH, BLOCK_HEIGHT)
     num_blocks = Tuple(cld.([Nx, Ny], num_threads))
-
     w0_dev = CuArray(w0)
+
     hu0_dev = CuArray(hu0)
     hv0_dev = CuArray(hv0)
 
@@ -74,22 +73,26 @@ function run_swe(
     B_dev = CuArray(B)
     infiltration_rates_dev = CuArray(infiltration_rates)
 
-    number_of_timesteps = 350 * 60 * Integer(1 / dt) * 2
-
-    save_every = 60 * Integer(1 / dt) * 2
-    plot_every = 10 * 60 * Integer(1 / dt) * 2
-    fig = nothing
-
-    #number_of_timesteps = number_of_timesteps*100/350
-
 
     t = 0.0f0
     Q_infiltrated = zeros(0)
-    save_t = zeros(0)
+  
     runoff = zeros(0)
-
-    num_saves = 1
-
+    callback(
+                    w0_dev,
+                    hu0_dev,
+                    hv0_dev,
+                    infiltration_rates_dev,
+                    B,
+                    dx,
+                    dy,
+                    Nx,
+                    Ny,
+                    t,
+                    Q_infiltrated,
+                    runoff,
+                )
+    
     
     while t < final_time
         curr_w0_dev = nothing
@@ -98,8 +101,8 @@ function run_swe(
         curr_w1_dev = nothing
         curr_hu1_dev = nothing
         curr_hv1_dev = nothing
-        for step::Int32 in Int32(1):Int32(2)
-            if step == 1
+        for step::Int32 in Int32(0):Int32(1)
+            if step == 0
                 curr_w0_dev = w0_dev
                 curr_hu0_dev = hu0_dev
                 curr_hv0_dev = hv0_dev
@@ -161,6 +164,18 @@ function run_swe(
                     Q_infiltrated,
                     runoff,
                 )
+        v1 = maximum(abs.(curr_hu1_dev./curr_w1_dev))
+        v2 = maximum(abs.(curr_hv1_dev./curr_w1_dev))
+        v3 = maximum(abs.(curr_hv1_dev./curr_w1_dev .+ sqrt.(g.*curr_hv1_dev)))
+        v4 = maximum(abs.(curr_hu1_dev./curr_w1_dev .+ sqrt.(g.*curr_hu1_dev)))
+        v5 = maximum(abs.(curr_hv1_dev./curr_w1_dev .- sqrt.(g.*curr_hv1_dev)))
+        v6 = maximum(abs.(curr_hu1_dev./curr_w1_dev .- sqrt.(g.*curr_hu1_dev)))
+        cfl = max(v1, v2, v3, v4, v5, v6)
+
+        if isinf(cfl)
+            cfl = 1e-7
+        end
+        dt = 0.5 * min(dx, dy) / cfl
     end
     return nothing
 end

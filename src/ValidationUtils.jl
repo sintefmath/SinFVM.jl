@@ -132,7 +132,7 @@ end
     return 0.0
 end
 
-lots_of_rain(x, y, t) = 100.0
+lots_of_rain(x, y, t) = 10000000.0
 
 @inline @make_numeric_literals_32bits function 
     rain_fcg_1_1(x, y, t)
