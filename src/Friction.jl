@@ -1,5 +1,3 @@
-include("SwimTypeMacros.jl")
-
 ## -------------------------------
 ## FRICTION FUNCTIONS
 ## -------------------------------

@@ -1,25 +1,20 @@
+import Meshes
 
-"""
-
-"""
-function run_swe{MyType}(
-    grid,
-    final_time,
-    rain_function, 
-    callback;
+function run_swe(
+    grid::Meshes.CartesianGrid,
+    initialvalue::ConservedVariables,
+    bathymetry::Bathymetry,
+    final_time::MyType,
+    rain_function::Function, 
+    callback::Function;
     friction_function = friction_fcg2016,
     infiltration_function = infiltration_horton_fcg,
     friction_constant = 0.03^2,
-    topography = 1,
-    theta::Float32 = 1.3,
-
-    x0 = nothing,
-    init_dambreak = false,
-) where {MyType<:Real}
-
+    theta::MyType = 1.3,
+) where {MyType <: Real}
     flattenarr(x) = collect(Iterators.flatten(x))
     (Lx, Ly) = maximum(grid) - minimum(grid)
-    (dx, dy) = spacing(grid)
+    (dx, dy) = Meshes.spacing(grid)
 
     (Nx, Ny) = size(grid)
 
@@ -29,7 +24,7 @@ function run_swe{MyType}(
 
 
 
-    data_shape = (Nx + 2 * ngc, Ny + 2 * ngc)
+    data_shape = size(initialvalue)
     B = ones(MyType, data_shape)
     Bi = ones(MyType, data_shape .+ 1)
     w0 = zeros(MyType, data_shape)
@@ -42,22 +37,17 @@ function run_swe{MyType}(
 
     infiltration_rates = zeros(MyType, data_shape)
 
-    if topography == 1
-        make_case_1_bathymetry!(B, Bi, dx)
-    elseif topography == 2
-        @assert(!isnothing(x0))
-        make_case_2_bathymetry!(B, Bi, dx, x0)
-    elseif topography == 3
-        make_case_3_bathymetry!(B, Bi, dx)
-    elseif topography == 4
-        make_case_widebump_bathymetry!(B, Bi, dx)
-    else
-        @assert(false)
-    end
+    B .= bathymetry.B
+    Bi .= bathymetry.Bi
+
+    hu0 .= initialvalue.hu
+    hv0 .= initialvalue.hv
+
+    
 
     bathymetry_at_cell_centers!(B, Bi)
 
-    w0[:, :] = B[:, :]
+    w0[:, :] = B[:, :] .+ initialvalue.h
 
 
 
@@ -101,56 +91,61 @@ function run_swe{MyType}(
     num_saves = 1
 
     
-    while t < T
-        step::Int32 = (i + 1) % 2
-        if i % 2 == 1
-            curr_w0_dev = w0_dev
-            curr_hu0_dev = hu0_dev
-            curr_hv0_dev = hv0_dev
-            curr_w1_dev = w1_dev
-            curr_hu1_dev = hu1_dev
-            curr_hv1_dev = hv1_dev
-        else
-            curr_w0_dev = w1_dev
-            curr_hu0_dev = hu1_dev
-            curr_hv0_dev = hv1_dev
-            curr_w1_dev = w0_dev
-            curr_hu1_dev = hu0_dev
-            curr_hv1_dev = hv0_dev
+    while t < final_time
+        curr_w0_dev = nothing
+        curr_hu0_dev = nothing
+        curr_hv0_dev = nothing
+        curr_w1_dev = nothing
+        curr_hu1_dev = nothing
+        curr_hv1_dev = nothing
+        for step::Int32 in Int32(1):Int32(2)
+            if step == 1
+                curr_w0_dev = w0_dev
+                curr_hu0_dev = hu0_dev
+                curr_hv0_dev = hv0_dev
+                curr_w1_dev = w1_dev
+                curr_hu1_dev = hu1_dev
+                curr_hv1_dev = hv1_dev
+            else
+                curr_w0_dev = w1_dev
+                curr_hu0_dev = hu1_dev
+                curr_hv0_dev = hv1_dev
+                curr_w1_dev = w0_dev
+                curr_hu1_dev = hu0_dev
+                curr_hv1_dev = hv0_dev
+            end
+
+
+            call_kp07!(
+                num_threads,
+                num_blocks,
+                Nx,
+                Ny,
+                dx,
+                dy,
+                dt,
+                t,
+                g,
+                theta,
+                step,
+                curr_w0_dev,
+                curr_hu0_dev,
+                curr_hv0_dev,
+                curr_w1_dev,
+                curr_hu1_dev,
+                curr_hv1_dev,
+                Bi_dev,
+                B_dev,
+                bc;
+                friction_handle = friction_function,
+                friction_constant = friction_constant,
+                rain_handle = rain_function,
+                infiltration_handle = infiltration_function,
+                infiltration_rates_dev = infiltration_rates_dev,
+            )
         end
 
-
-        call_kp07!(
-            num_threads,
-            num_blocks,
-            Nx,
-            Ny,
-            dx,
-            dy,
-            dt,
-            t,
-            g,
-            theta,
-            step,
-            curr_w0_dev,
-            curr_hu0_dev,
-            curr_hv0_dev,
-            curr_w1_dev,
-            curr_hu1_dev,
-            curr_hv1_dev,
-            Bi_dev,
-            B_dev,
-            bc;
-            friction_handle = friction_function,
-            friction_constant = friction_constant,
-            rain_handle = rain_function,
-            infiltration_handle = infiltration_function,
-            infiltration_rates_dev = infiltration_rates_dev,
-        )
-
-        if (i % 2 == 0)
-            t = dt * (i / 2.0f0)
-        end
+        t += dt
 
         callback(
                     curr_w1_dev,

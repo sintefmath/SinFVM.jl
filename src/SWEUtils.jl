@@ -1,4 +1,3 @@
-include("SwimTypeMacros.jl")
 using CUDA
 
 

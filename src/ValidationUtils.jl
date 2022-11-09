@@ -1,10 +1,5 @@
 using Test, Plots
-include("SwimTypeMacros.jl")
-include("SWEPlottingNoMakie.jl")
-include("SWEUtils.jl")
-include("double_swe_kp07_pure.jl")
-include("Friction.jl")
-
+using ProgressMeter
 ###
 # This file contains functions that defines topographies, rain functions, infiltration functions, 
 # and some specific analysis functions that helps us reproduce results from 
@@ -136,6 +131,8 @@ end
     zero_rain(x, y, t)
     return 0.0
 end
+
+lots_of_rain(x, y, t) = 100.0
 
 @inline @make_numeric_literals_32bits function 
     rain_fcg_1_1(x, y, t)
