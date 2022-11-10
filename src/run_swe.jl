@@ -19,9 +19,6 @@ function run_swe(
 
     dt = 0.02
     g = 9.81
-    ngc = 2
-
-
 
     data_shape = size(initialvalue)
     B = ones(MyType, data_shape)
@@ -158,6 +155,7 @@ function run_swe(
                     B,
                     dx,
                     dy,
+                    dt,
                     Nx,
                     Ny,
                     t,
@@ -176,6 +174,8 @@ function run_swe(
             cfl = 1e-7
         end
         dt = 0.5 * min(dx, dy) / cfl
+
+        dt = min(dt, 0.002)
     end
     return nothing
 end
