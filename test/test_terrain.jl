@@ -1,9 +1,16 @@
-using Vannlinje
+import DelimitedFiles
+using NPZ
+
 using Rumpetroll
 import Meshes
 using Plots
+pyplot()
 using Printf
 using Parameters
+
+function loadgrid(filename::String; delim=',')
+    return DelimitedFiles.readdlm(filename, delim)
+end
 
 terrain = loadgrid("testdata/bay.txt")
 grid = Meshes.CartesianGrid(size(terrain) .- 1 .- 2*2)
@@ -22,6 +29,7 @@ bathymetry.Bi .= terrain
     writer::WriterType
 end
 
+
 function (writer::IntervalWriter)(wdev,
     hudev,
     vdev,
@@ -36,8 +44,10 @@ function (writer::IntervalWriter)(wdev,
     Q_infiltrated,
     runoff,)
 
-    if t + dt >= current_t
-        writer( hudev,
+    if t + dt >= writer.current_t
+        writer.writer(
+        wdev,    
+        hudev,
         vdev,
         infiltration_rates_dev,
         B,
@@ -46,14 +56,15 @@ function (writer::IntervalWriter)(wdev,
         dt,
         Nx,
         Ny,
-        t,
+        round(writer.current_t/writer.step)*writer.step,
         Q_infiltrated,
         runoff,)
-        current_t += step
+        writer.current_t += writer.step
     end
 
-
-
+end
+mkpath("figs")
+mkpath("data")
 function callback(
     wdev,
     hudev,
@@ -78,8 +89,18 @@ function callback(
     p2 = heatmap(collect(hudev), title="hu($(tstr))")
     p3 = heatmap(collect(vdev), title="hv($(tstr))")
 
-    display(plot!(p0, p1, p2,  p3; layout=l, size=(1600, 1200)))
+    p = plot(p0, p1, p2,  p3; layout=l, size=(1600, 1200))
+    tstr_print = @sprintf "%0.10f" t
 
+    savefig(p, "figs/plot_$(tstr_print).png")
+
+    closeall()
+    npzwrite("data/w_$(tstr_print).npz", collect(wdev))
+    npzwrite("data/hu_$(tstr_print).npz", collect(hudev))
+    npzwrite("data/hv_$(tstr_print).npz", collect(vdev))
+
+    println("Current t=$(tstr), dt=$(dt).")
+    
 end
 
 T = 1000.
@@ -90,6 +111,6 @@ function infiltration(x, y, t)
     return fc + (f0 - fc)*exp(-k*t)
 end 
 rainy_day(x,y, t) = 0.000125
-run_swe(grid, initialdata, bathymetry, T, rainy_day, callback; 
+run_swe(grid, initialdata, bathymetry, T, rainy_day, IntervalWriter(step=1.0, writer=callback); 
     infiltration_function =infiltration)
 # display(heatmap(bathymetry.Bi, title="Bathymetry"))

@@ -6,7 +6,7 @@ function run_swe(
     bathymetry::Bathymetry,
     final_time::MyType,
     rain_function::Function, 
-    callback::Function;
+    callback;
     friction_function = friction_fcg2016,
     infiltration_function = infiltration_horton_fcg,
     friction_constant = 0.03^2,
@@ -83,6 +83,7 @@ function run_swe(
                     B,
                     dx,
                     dy,
+                    dt,
                     Nx,
                     Ny,
                     t,
@@ -162,12 +163,15 @@ function run_swe(
                     Q_infiltrated,
                     runoff,
                 )
-        v1 = maximum(abs.(curr_hu1_dev./curr_w1_dev))
-        v2 = maximum(abs.(curr_hv1_dev./curr_w1_dev))
-        v3 = maximum(abs.(curr_hv1_dev./curr_w1_dev .+ sqrt.(g.*curr_hv1_dev)))
-        v4 = maximum(abs.(curr_hu1_dev./curr_w1_dev .+ sqrt.(g.*curr_hu1_dev)))
-        v5 = maximum(abs.(curr_hv1_dev./curr_w1_dev .- sqrt.(g.*curr_hv1_dev)))
-        v6 = maximum(abs.(curr_hu1_dev./curr_w1_dev .- sqrt.(g.*curr_hu1_dev)))
+        h = curr_w1_dev .- B_dev
+        udev = curr_hu1_dev./h
+        vdev = curr_hv1_dev./h
+        v1 = maximum(abs.(udev))
+        v2 = maximum(abs.(vdev))
+        v3 = maximum(abs.(vdev .+ sqrt.(g.*curr_hv1_dev)))
+        v4 = maximum(abs.(udev .+ sqrt.(g.*curr_hu1_dev)))
+        v5 = maximum(abs.(vdev .- sqrt.(g.*curr_hv1_dev)))
+        v6 = maximum(abs.(udev .- sqrt.(g.*curr_hu1_dev)))
         cfl = max(v1, v2, v3, v4, v5, v6)
 
         if isinf(cfl)
