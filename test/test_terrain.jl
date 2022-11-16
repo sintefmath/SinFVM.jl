@@ -90,7 +90,7 @@ function callback(
     p3 = heatmap(collect(vdev), title="hv($(tstr))")
 
     p = plot(p0, p1, p2,  p3; layout=l, size=(1600, 1200))
-    tstr_print = @sprintf "%0.10f" t
+    tstr_print = @sprintf "%d" floor(Int64, t)
 
     savefig(p, "figs/plot_$(tstr_print).png")
 
