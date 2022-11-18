@@ -103,7 +103,7 @@ function callback(
     
 end
 
-T = 1000.
+T = 1000000.
 function infiltration(x, y, t)
     fc = 3.272e-5
     f0 = 1.977e-4
@@ -111,6 +111,6 @@ function infiltration(x, y, t)
     return fc + (f0 - fc)*exp(-k*t)
 end 
 rainy_day(x,y, t) = 0.000125
-run_swe(grid, initialdata, bathymetry, T, rainy_day, IntervalWriter(step=1.0, writer=callback); 
+run_swe(grid, initialdata, bathymetry, T, rainy_day, IntervalWriter(step=100.0, writer=callback); 
     infiltration_function =infiltration)
 # display(heatmap(bathymetry.Bi, title="Bathymetry"))

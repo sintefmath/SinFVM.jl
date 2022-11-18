@@ -163,23 +163,26 @@ function run_swe(
                     Q_infiltrated,
                     runoff,
                 )
-        h = curr_w1_dev .- B_dev
+        h = curr_w1_dev# .- B_dev
         udev = curr_hu1_dev./h
         vdev = curr_hv1_dev./h
         v1 = maximum(abs.(udev))
         v2 = maximum(abs.(vdev))
-        v3 = maximum(abs.(vdev .+ sqrt.(g.*curr_hv1_dev)))
-        v4 = maximum(abs.(udev .+ sqrt.(g.*curr_hu1_dev)))
-        v5 = maximum(abs.(vdev .- sqrt.(g.*curr_hv1_dev)))
-        v6 = maximum(abs.(udev .- sqrt.(g.*curr_hu1_dev)))
+        v3 = maximum(abs.(vdev .+ sqrt.(g.*h)))
+        v4 = maximum(abs.(udev .+ sqrt.(g.*h)))
+        v5 = maximum(abs.(vdev .- sqrt.(g.*h)))
+        v6 = maximum(abs.(udev .- sqrt.(g.*h)))
         cfl = max(v1, v2, v3, v4, v5, v6)
 
+        #@show cfl v1 v2 v3 v4 v5 v6
         if isinf(cfl)
             cfl = 1e-7
         end
+        
         dt = 0.5 * min(dx, dy) / cfl
 
-        dt = min(dt, 0.002)
+        # dt = min(dt, 0.002)
+        dt = min(dt, 0.02)
     end
     return nothing
 end
