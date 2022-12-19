@@ -8,12 +8,42 @@ pyplot()
 using Printf
 using Parameters
 
+
 function loadgrid(filename::String; delim=',')
     return DelimitedFiles.readdlm(filename, delim)
 end
 
 terrain = loadgrid("testdata/bay.txt")
-grid = Meshes.CartesianGrid(size(terrain) .- 1 .- 2*2)
+upper_corner = Float64.(size(terrain))
+
+coarsen_times  = 2
+
+function coarsen(data, times)
+    for c in 1:times
+        old_size = size(data)
+        newsize = floor.(Int64, old_size./2)
+        data_new = zeros(newsize)
+
+        for i in CartesianIndices(data_new)
+            for j in max(1, 2*(i[1]-1)):min(old_size[1], 2*(i[1]-1)+1)
+                for k in max(1, 2*(i[2]-1)):min(old_size[2], 2*(i[2]-1)+1)
+                    data_new[i] += data[CartesianIndex((j, k))] / 4
+                end
+            end
+        end
+        data = data_new
+    end
+    return data
+end
+p1 = heatmap(terrain, title="original")
+terrain = coarsen(terrain, coarsen_times)
+p2 = heatmap(terrain, title="Coarsened")
+
+
+l = @layout [a b]
+display(plot(p1, p2, layout=l, size=(1200,400)))
+grid = Meshes.CartesianGrid(size(terrain) .- 1 .- 2*2, (0.0,0.0), upper_corner)
+@show grid
 
 
 

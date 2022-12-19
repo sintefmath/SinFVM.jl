@@ -1,5 +1,31 @@
 import Meshes
+"""   
+    run_swe(
+        grid::Meshes.CartesianGrid,
+        initialvalue::ConservedVariables,
+        bathymetry::Bathymetry,
+        final_time::MyType,
+        rain_function::Function, 
+        callback;
+        friction_function = friction_fcg2016,
+        infiltration_function = infiltration_horton_fcg,
+        friction_constant = 0.03^2,
+        theta::MyType = 1.3,
+    )
 
+
+...
+# Arguments
+- `grid::CartesianGrid{2, Float64}`: A `CartesianGrid` (from the `Meshes` package) describing the simulation domain
+- `initialvalue::ConservedVariables`: Initial value of the conserved variables. Should have the same dimension as `grid`
+- final_time: The simulation will run up and to `final_time`.
+- rain_function: The rain function should be callable with parameters `(x, y, t)`
+- callback: Use this to generate plots per timestep. A callable function taking as parameters `(h, hu, hv, infiltration_rates, B, dx, dy, dt, Nx, Ny, t, Q_infiltrated, runoff)` as parameters. This callback will be called for every timestep. It is up the user to filter out relevant timesteps.
+- friction_function::Callable = friction_fcg2016: A callable function with parameters `(x, y, t)`
+- infiltration_function::Callable = infiltration_horton_fcg: A callable function with parameters `(x, y, t)`
+- friction_constant::Callable = 0.03^2: The friction constant to use together with the friction function
+- theta::Float64 = 1.3: is the difference between the soil porosity and the initial volumetric water content
+"""
 function run_swe(
     grid::Meshes.CartesianGrid,
     initialvalue::ConservedVariables,
@@ -163,15 +189,16 @@ function run_swe(
                     Q_infiltrated,
                     runoff,
                 )
-        h = curr_w1_dev# .- B_dev
+        h = curr_w1_dev .- B_dev
+        hp = h#clamp.(curr_w1_dev .- B_dev, 0.0, Inf)
         udev = curr_hu1_dev./h
         vdev = curr_hv1_dev./h
         v1 = maximum(abs.(udev))
         v2 = maximum(abs.(vdev))
-        v3 = maximum(abs.(vdev .+ sqrt.(g.*h)))
-        v4 = maximum(abs.(udev .+ sqrt.(g.*h)))
-        v5 = maximum(abs.(vdev .- sqrt.(g.*h)))
-        v6 = maximum(abs.(udev .- sqrt.(g.*h)))
+        v3 = maximum(abs.(vdev .+ sqrt.(g.*hp)))
+        v4 = maximum(abs.(udev .+ sqrt.(g.*hp)))
+        v5 = maximum(abs.(vdev .- sqrt.(g.*hp)))
+        v6 = maximum(abs.(udev .- sqrt.(g.*hp)))
         cfl = max(v1, v2, v3, v4, v5, v6)
 
         #@show cfl v1 v2 v3 v4 v5 v6
@@ -179,10 +206,10 @@ function run_swe(
             cfl = 1e-7
         end
         
-        dt = 0.5 * min(dx, dy) / cfl
+        dt = 0.1 * min(dx, dy) / cfl
 
         # dt = min(dt, 0.002)
-        dt = min(dt, 0.02)
+        dt = min(dt, min(dx, dy))
     end
     return nothing
 end
