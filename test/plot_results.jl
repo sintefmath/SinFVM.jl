@@ -31,7 +31,7 @@ end
 terrain = loadgrid("testdata/bay.txt")
 upper_corner = Float64.(size(terrain))
 
-coarsen_times  = 2
+coarsen_times  = 3
 
 function coarsen(data, times)
     for c in 1:times

@@ -74,7 +74,7 @@ function run_swe(
 
 
 
-    bc::Int32 = 1
+    bc::Int32 = 0#1
 
     num_threads = num_blocks = nothing
 

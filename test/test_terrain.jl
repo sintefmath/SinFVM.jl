@@ -1,4 +1,4 @@
-import DelimitedFiles
+import Vannlinje
 using NPZ
 
 using Rumpetroll
@@ -9,14 +9,10 @@ using Printf
 using Parameters
 
 
-function loadgrid(filename::String; delim=',')
-    return DelimitedFiles.readdlm(filename, delim)
-end
-
-terrain = loadgrid("testdata/bay.txt")
+terrain = Vannlinje.loadgrid("testdata/bay.txt")
 upper_corner = Float64.(size(terrain))
 
-coarsen_times  = 2
+coarsen_times  = 3
 
 function coarsen(data, times)
     for c in 1:times
@@ -134,6 +130,10 @@ function callback(
 end
 
 T = 1000000.
+
+# @Odd: cut down on time to limit runtime for testing
+T = T/5    
+    
 function infiltration(x, y, t)
     fc = 3.272e-5
     f0 = 1.977e-4
