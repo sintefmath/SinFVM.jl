@@ -1,4 +1,4 @@
-include("SwimTypeMacros.jl")
+
 const BLOCK_WIDTH = Int32(32)
 const BLOCK_HEIGHT = Int32(16)
 #const KP_DESINGULARIZE_DEPTH = 5.0e-3
@@ -176,7 +176,7 @@ function julia_kp07!(
             hv = (Q[i, j, 3] + dt*R3)  / (1.0 - dt*s_f)
         elseif step == 1
             # RK2 ODE integrator
-            w  =  0.5*(  w1[ti, tj] +  (Q[i, j, 1] + dt*(R1 + (rain - infiltration))))
+            w  =  0.5*(  w1[ti, tj] +  (Q[i, j, 1] + dt*(R1 +(rain - infiltration))))
             hu = (0.5*( hu1[ti, tj] +  (Q[i, j, 2] + dt*R2))) / (1.0 - 0.5*dt*s_f)
             hv = (0.5*( hv1[ti, tj] +  (Q[i, j, 3] + dt*R3))) / (1.0 - 0.5*dt*s_f)
         end

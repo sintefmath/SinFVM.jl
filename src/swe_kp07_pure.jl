@@ -1,4 +1,4 @@
-include("SwimTypeMacros")
+
 const BLOCK_WIDTH = Int32(32)
 const BLOCK_HEIGHT = Int32(16)
 const KP_DESINGULARIZE_DEPTH = Float32(7.5e-2)
