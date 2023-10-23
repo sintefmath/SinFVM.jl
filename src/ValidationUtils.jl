@@ -1,5 +1,6 @@
 using Test, Plots
 using ProgressMeter
+using NPZ
 ###
 # This file contains functions that defines topographies, rain functions, infiltration functions, 
 # and some specific analysis functions that helps us reproduce results from 

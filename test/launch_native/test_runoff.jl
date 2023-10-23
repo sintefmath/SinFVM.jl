@@ -4,14 +4,14 @@ using CUDA
 using Plots
 using ProgressMeter
 using NPZ
-using PyCall
+#using PyCall
 
-#using .GPUOceanUtils
-include("RunoffUtils.jl")
-include("SWEPlottingNoMakie.jl")
+using Rumpetroll
+#include("ValidationUtils.jl")
+#include("SWEPlottingNoMakie.jl")
 
-include("SWEUtils.jl")
-include("swe_kp07_pure.jl")
+#include("SWEUtils.jl")
+#include("swe_kp07_pure.jl")
 
 ## This script aims to reproduce simulations from
 # Fernandez-Pato, Caviedes-Voullieme, Garcia-Navarro (2016) 
@@ -37,7 +37,7 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
     g::Float32 = 9.81
     ngc = 2
 
-    friction_function = friction_fcg2016
+    friction_function = Rumpetroll.friction_fcg2016
     friction_constant = 0.03f0^2 # As used by Fernandez-Paro et al (2016)
     
     #friction_function = friction_bsa2012
@@ -49,6 +49,7 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
 
     friction_constant = 0.0f0
 
+    # Initialize data
     data_shape = (Nx + 2 * ngc, Ny + 2 * ngc)
     B = ones(MyType, data_shape) 
     Bi = ones(MyType, data_shape .+ 1)
@@ -63,13 +64,13 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
     infiltration_rates = zeros(MyType, data_shape)
 
     if topography == 1
-        make_case_1_bathymetry!(B, Bi, dx)
+        Rumpetroll.make_case_1_bathymetry!(B, Bi, dx)
         #make_init_w_dummy_case_1!(w0, dx)
     elseif topography == 2
         @assert(!isnothing(x0))
-        make_case_2_bathymetry!(B, Bi, dx, x0)
+        Rumpetroll.make_case_2_bathymetry!(B, Bi, dx, x0)
     elseif topography == 3
-        make_case_3_bathymetry!(B, Bi, dx)
+        Rumpetroll.make_case_3_bathymetry!(B, Bi, dx)
     else
         @assert(false)
     end
@@ -84,15 +85,14 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
     #display(plotSurf(w0, B, dx, dy, Nx, Ny, show_ground=true, km=false, depth_cutoff=1e-4))
     #fig = plotSurf(eta0, H, dx, dy, Nx, Ny)
     #display(fig)    
-    npzwrite("runoff/data/$(subpath)/B.npy", B)
-    npzwrite("runoff/data/$(subpath)/Bi.npy", Bi)
+    npzwrite("runoff_validation/data/$(subpath)/B.npy", B)
+    npzwrite("runoff_validation/data/$(subpath)/Bi.npy", Bi)
     
-    #return nothing
 
     #rain_function = rain_fcg_1_1
-    infiltration_function = infiltration_horton_fcg
+    infiltration_function = Rumpetroll.infiltration_horton_fcg
     if topography == 3
-        infiltration_function = infiltration_horton_fcg_3
+        infiltration_function = Rumpetroll.infiltration_horton_fcg_3
     end
 
     infiltration_function = nothing
@@ -101,12 +101,13 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
 
     bc::Int32 = 1
 
+    # Initialize GPU memory and GPU-related parameters
     num_threads = num_blocks = nothing
 
     w0_dev = hu0_dev = hv0_dev = w1_dev = hu1_dev = hv1_dev = nothing
     B_dev = Bi_dev = nothing
 
-    num_threads = (BLOCK_WIDTH, BLOCK_HEIGHT)
+    num_threads = (Rumpetroll.BLOCK_WIDTH, Rumpetroll.BLOCK_HEIGHT)
     num_blocks = Tuple(cld.([Nx, Ny], num_threads))
 
     w0_dev = CuArray(w0)
@@ -122,7 +123,7 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
     infiltration_rates_dev = CuArray(infiltration_rates)
 
 
-    #npzwrite("runoff/data/eta_init.npy", eta0)
+    #npzwrite("runoff_validation/data/eta_init.npy", eta0)
 
     #number_of_timesteps = 1
     #number_of_timesteps = Integer(100000*2)
@@ -146,7 +147,7 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
                         Q_infiltrated, save_t, runoff)
     num_saves = 1
                    
-
+    # Simulation loop
     @showprogress for i in 1:number_of_timesteps
         step::Int32 = (i + 1) % 2
         if i % 2 == 1
@@ -166,7 +167,7 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
         end
 
 
-        call_kp07!(num_threads, num_blocks,
+        Rumpetroll.call_kp07!(num_threads, num_blocks,
             Nx, Ny, dx, dy, dt, t,
             g, theta, step,
             curr_w0_dev, curr_hu0_dev, curr_hv0_dev,
@@ -195,31 +196,31 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
                 #function print_and_plot_swe(subpath, index, w_dev, hu_dev, hv_dev, infiltration_dev, B, dx, dy, Nx, Ny)
                 #println("saving $(div(i, save_every)) at t=$(t)")
                 #w1_copied = reshape(collect(curr_w1_dev), data_shape)
-                #npzwrite("runoff/data/$(subpath)/w_$(div(i, save_every)).npy", w1_copied)
+                #npzwrite("runoff_validation/data/$(subpath)/w_$(div(i, save_every)).npy", w1_copied)
                 #hu1_copied = reshape(collect(curr_hu1_dev), data_shape)
-                #npzwrite("runoff/data/$(subpath)/hu_$(div(i, save_every)).npy", hu1_copied)
+                #npzwrite("runoff_validation/data/$(subpath)/hu_$(div(i, save_every)).npy", hu1_copied)
                 #hv1_copied = reshape(collect(curr_hv1_dev), data_shape)
-                #npzwrite("runoff/data/$(subpath)/hv_$(div(i, save_every)).npy", hv1_copied)
+                #npzwrite("runoff_validation/data/$(subpath)/hv_$(div(i, save_every)).npy", hv1_copied)
                 #infiltration_copied = reshape(collect(infiltration_rates_dev), data_shape)
-                #npzwrite("runoff/data/$(subpath)/infiltration_$(div(i, save_every)).npy", infiltration_copied)
+                #npzwrite("runoff_validation/data/$(subpath)/infiltration_$(div(i, save_every)).npy", infiltration_copied)
                 #
 
                 #fig = plotSurf(hu1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
                 #             plot_title="hu i=$i, t=$(t/60) min")
-                #swim_save("runoff/plots/$(subpath)/hu_$(div(i, save_every)).png", fig) 
+                #swim_save("runoff_validation/plots/$(subpath)/hu_$(div(i, save_every)).png", fig) 
                 #fig = plotSurf(hv1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
                 #             plot_title="hv i=$i, t=$(t/60) min")
-                #swim_save("runoff/plots/$(subpath)/hv_$(div(i, save_every)).png", fig) 
+                #swim_save("runoff_validation/plots/$(subpath)/hv_$(div(i, save_every)).png", fig) 
                 #fig = plotSurf(w1_copied, B, dx, dy, Nx, Ny, show_ground=true, 
                 #             plot_title="w i=$i, t=$(t/60) min")
-                #swim_save("runoff/plots/$(subpath)/w_$(div(i, save_every)).png", fig) 
+                #swim_save("runoff_validation/plots/$(subpath)/w_$(div(i, save_every)).png", fig) 
                 #lowest_w[(div(i, save_every))+1] = w1_copied[Nx+2, 3]
             end
         end
 
         if number_of_timesteps < 3
             hu1_copied = reshape(collect(curr_hu1_dev), data_shape)
-            fig = plotSurf(hu1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
+            fig = Rumpetroll.plotSurf(hu1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
                 plot_title="hu i=$i, t=$(t) s")
             #w1_copied = reshape(collect(curr_w1_dev), data_shape)
             #fig = plotSurf(w1_copied, B, dx, dy, Nx, Ny, show_ground=true, 
@@ -231,33 +232,33 @@ function run_stuff(subpath, rain_function; topography=1, x0 = nothing, init_damb
     
 
 
-    npzwrite("runoff/data/$(subpath)/t.npy", save_t)
-    npzwrite("runoff/data/$(subpath)/Q_infiltration.npy", Q_infiltrated)
-    npzwrite("runoff/data/$(subpath)/runoff.npy", runoff)
+    npzwrite("runoff_validation/data/$(subpath)/t.npy", save_t)
+    npzwrite("runoff_validation/data/$(subpath)/Q_infiltration.npy", Q_infiltrated)
+    npzwrite("runoff_validation/data/$(subpath)/runoff.npy", runoff)
     #println(save_t)
     #println(Q_infiltrated)
     #println(runoff)
 
     cons_mass_fig = plot_conservation_of_mass(subpath)
-    swim_save("runoff/plots/$(subpath)/conservation_of_mass_fig.png", cons_mass_fig)
+    Rumpetroll.swim_save("runoff_validation/plots/$(subpath)/conservation_of_mass_fig.png", cons_mass_fig)
 
     fcg_fig = make_fcg_plot(subpath, rain_function)
-    swim_save("runoff/plots/$(subpath)/fcg_hyd_outlet_infiltration_fig.png", fcg_fig) 
+    Rumpetroll.swim_save("runoff_validation/plots/$(subpath)/fcg_hyd_outlet_infiltration_fig.png", fcg_fig) 
 
     fcg_fig = make_fcg_plot(subpath, rain_function, with_infiltration=false)
-    swim_save("runoff/plots/$(subpath)/fcg_hyd_outlet_fig.png", fcg_fig) 
+    Rumpetroll.swim_save("runoff_validation/plots/$(subpath)/fcg_hyd_outlet_fig.png", fcg_fig) 
 
-    hyd_fig = plot_hydrographs_at_location(subpath, rain_function, dx, dy)
-    swim_save("runoff/plots/$(subpath)/fcg_hyd_1000_fig.png", hyd_fig) 
+    hyd_fig = Rumpetroll.plot_hydrographs_at_location(subpath, rain_function, dx, dy)
+    Rumpetroll.swim_save("runoff_validation/plots/$(subpath)/fcg_hyd_1000_fig.png", hyd_fig) 
 
     display(fig)    
     return nothing
 end
 
 function make_fcg_plot(subpath, rain_function; with_infiltration=true)
-    t = npzread("runoff/data/$(subpath)/t.npy")
-    Q_infiltrated = npzread("runoff/data/$(subpath)/Q_infiltration.npy")
-    runoff = npzread("runoff/data/$(subpath)/runoff.npy")
+    t = npzread("runoff_validation/data/$(subpath)/t.npy")
+    Q_infiltrated = npzread("runoff_validation/data/$(subpath)/Q_infiltration.npy")
+    runoff = npzread("runoff_validation/data/$(subpath)/runoff.npy")
     rain_Q = zeros(size(runoff))
     if !isnothing(rain_function)
         rain_Q = rain_function.(10,10, t)*2000*20
@@ -289,8 +290,8 @@ end
     
 
 function plot_conservation_of_mass(subpath)
-    t = npzread("runoff/data/$(subpath)/t.npy")
-    mass = total_mass("runoff/data/$(subpath)", trailing_zeros=3)
+    t = npzread("runoff_validation/data/$(subpath)/t.npy")
+    mass = Rumpetroll.total_mass("runoff_validation/data/$(subpath)", trailing_zeros=3)
     fig = Plots.plot(t/60.0, mass, title="Conservation of mass - $(subpath)", ylabel="total mass", xlabel="time [minutes]")
     display(fig)
     return fig
@@ -304,50 +305,50 @@ function print_and_plot_swe!(subpath, index, w_dev, hu_dev, hv_dev, infiltration
         index = lpad(index, 3, "0")
     end
     w1_copied = reshape(collect(w_dev), data_shape)
-    npzwrite("runoff/data/$(subpath)/w_$(index).npy", w1_copied)
+    npzwrite("runoff_validation/data/$(subpath)/w_$(index).npy", w1_copied)
     hu1_copied = reshape(collect(hu_dev), data_shape)
-    npzwrite("runoff/data/$(subpath)/hu_$(index).npy", hu1_copied)
+    npzwrite("runoff_validation/data/$(subpath)/hu_$(index).npy", hu1_copied)
     hv1_copied = reshape(collect(hv_dev), data_shape)
-    npzwrite("runoff/data/$(subpath)/hv_$(index).npy", hv1_copied)
+    npzwrite("runoff_validation/data/$(subpath)/hv_$(index).npy", hv1_copied)
     infiltration_copied = reshape(collect(infiltration_dev), data_shape)
-    npzwrite("runoff/data/$(subpath)/infiltration_$(index).npy", infiltration_copied)
+    npzwrite("runoff_validation/data/$(subpath)/infiltration_$(index).npy", infiltration_copied)
     
     append!(save_t, t)
-    append!(Q_infiltrated, get_Q_infiltrated(infiltration_copied, dx, dy))
-    append!(runoff, compute_runoff(subpath, "w_$(index)", dx, dy))
+    append!(Q_infiltrated, Rumpetroll.get_Q_infiltrated(infiltration_copied, dx, dy))
+    append!(runoff, Rumpetroll.compute_runoff(subpath, "w_$(index)", dx, dy))
     
     fig = nothing
     if doPlot
-        fig = plotSurf(hu1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
+        fig = Rumpetroll.plotSurf(hu1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
                     plot_title="hu t=$(t/60) min")
-        swim_save("runoff/plots/$(subpath)/hu_$(index).png", fig) 
-        fig = plotSurf(hv1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
+        Rumpetroll.swim_save("runoff_validation/plots/$(subpath)/hu_$(index).png", fig) 
+        fig = Rumpetroll.plotSurf(hv1_copied, B, dx, dy, Nx, Ny, show_ground=false, 
                     plot_title="hv t=$(t/60) min")
-        swim_save("runoff/plots/$(subpath)/hv_$(index).png", fig) 
-        fig = plotSurf(w1_copied, B, dx, dy, Nx, Ny, show_ground=true, 
+        Rumpetroll.swim_save("runoff_validation/plots/$(subpath)/hv_$(index).png", fig) 
+        fig = Rumpetroll.plotSurf(w1_copied, B, dx, dy, Nx, Ny, show_ground=true, 
                     plot_title="w  t=$(t/60) min")
-        swim_save("runoff/plots/$(subpath)/w_$(index).png", fig) 
+        Rumpetroll.swim_save("runoff_validation/plots/$(subpath)/w_$(index).png", fig) 
     end
     return fig
 end
 
 # Make output folders.
 subpath = "dambreak_float"; rain_function = nothing
-#subpath = "conservation_of_rain_1_1"; rain_function = rain_fcg_1_4;
+#subpath = "conservation_of_rain_1_1"; rain_function = Rumpetroll.rain_fcg_1_4;
 #subpath = "fcg_case_1_1_bsafric"
-#subpath = "fcg_case_1_1"; rain_function = rain_fcg_1_1;
-#subpath = "fcg_case_1_2"; rain_function = rain_fcg_1_2;
-#subpath = "fcg_case_1_3"; rain_function = rain_fcg_1_3;
-#subpath = "fcg_case_1_4"; rain_function = rain_fcg_1_4;
-#subpath = "fcg_case_1_5"; rain_function = rain_fcg_1_5;
+#subpath = "fcg_case_1_1"; rain_function = Rumpetroll.rain_fcg_1_1;
+#subpath = "fcg_case_1_2"; rain_function = Rumpetroll.rain_fcg_1_2;
+#subpath = "fcg_case_1_3"; rain_function = Rumpetroll.rain_fcg_1_3;
+#subpath = "fcg_case_1_4"; rain_function = Rumpetroll.rain_fcg_1_4;
+#subpath = "fcg_case_1_5"; rain_function = Rumpetroll.rain_fcg_1_5;
 
-#subpath = "fcg_case_2_100"; rain_function = rain_fcg_1_1; x0 = 100
-#subpath = "fcg_case_2_1900"; rain_function = rain_fcg_1_1; x0 = 1900
+#subpath = "fcg_case_2_100"; rain_function = Rumpetroll.rain_fcg_1_1; x0 = 100
+#subpath = "fcg_case_2_1900"; rain_function = Rumpetroll.rain_fcg_1_1; x0 = 1900
 
-#subpath = "fcg_case_3"; rain_function = rain_fcg_3; x0 = 200
+#subpath = "fcg_case_3"; rain_function = Rumpetroll.rain_fcg_3; x0 = 200
 
-mkpath("runoff/plots/$(subpath)/")
-mkpath("runoff/data/$(subpath)/")
+mkpath("runoff_validation/plots/$(subpath)/", )
+mkpath("runoff_validation/data/$(subpath)/")
 
 
 #@time run_stuff(subpath, rain_function)

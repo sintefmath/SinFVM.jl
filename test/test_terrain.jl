@@ -4,7 +4,7 @@ using NPZ
 using Rumpetroll
 import Meshes
 using Plots
-pyplot()
+#pyplot()
 using Printf
 using Parameters
 
