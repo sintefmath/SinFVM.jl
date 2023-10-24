@@ -1,7 +1,7 @@
 using Plots
 using StaticArrays
 
-module Rumpetroll
+module SinSWE
 
 direction(integer) = Val{integer}
 
@@ -226,17 +226,17 @@ end
 
 function run_simulation()
     nx = 8
-    grid = Rumpetroll.CartesianGrid(nx)
-    equation = Rumpetroll.Burgers()
-    reconstruction = Rumpetroll.NoReconstruction()
-    numericalflux = Rumpetroll.Rusanov(equation)
-    conserved_system = Rumpetroll.ConservedSystem(reconstruction, numericalflux, equation, grid)
-    timestepper = Rumpetroll.ForwardEulerStepper()
+    grid = SinSWE.CartesianGrid(nx)
+    equation = SinSWE.Burgers()
+    reconstruction = SinSWE.NoReconstruction()
+    numericalflux = SinSWE.Rusanov(equation)
+    conserved_system = SinSWE.ConservedSystem(reconstruction, numericalflux, equation, grid)
+    timestepper = SinSWE.ForwardEulerStepper()
 
     x = LinRange(0, 1, nx - 2)
     initial = collect(map(z->SVector{1, Float64}([z]), sin.(2*π*x)))
-    simulator = Rumpetroll.Simulator(conserved_system, timestepper, grid)
-    initial_state = Rumpetroll.current_state(simulator)
+    simulator = SinSWE.Simulator(conserved_system, timestepper, grid)
+    initial_state = SinSWE.current_state(simulator)
 
     for i in 2:nx - 1
         @show initial[i-1]
@@ -244,22 +244,22 @@ function run_simulation()
     end
     
 
-    Rumpetroll.current_state(simulator)[2:end-1] .= initial
+    SinSWE.current_state(simulator)[2:end-1] .= initial
 
-    @show Rumpetroll.current_state(simulator)
+    @show SinSWE.current_state(simulator)
 
     t = 0.0
 
     T = 0.001
-    plot(first.(Rumpetroll.current_state(simulator)))
+    plot(first.(SinSWE.current_state(simulator)))
     while t <= T
-        Rumpetroll.perform_step!(simulator)
-        t += Rumpetroll.current_timestep(simulator)
+        SinSWE.perform_step!(simulator)
+        t += SinSWE.current_timestep(simulator)
         #println("$t")
     end
 
-    print(Rumpetroll.current_state(simulator))
-    #plot(first.(Rumpetroll.current_state(simulator)))
+    print(SinSWE.current_state(simulator))
+    #plot(first.(SinSWE.current_state(simulator)))
 end
 
 run_simulation()

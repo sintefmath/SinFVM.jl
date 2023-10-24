@@ -1,4 +1,4 @@
-module Rumpetroll
+module SinSWE
     include("SwimTypeMacros.jl")
     include("conserved_variables.jl")
     include("bathymetry.jl")

@@ -1,7 +1,7 @@
 import DelimitedFiles
 using NPZ
 
-using Rumpetroll
+using SinSWE
 import Meshes
 using ColorSchemes
 using GLMakie

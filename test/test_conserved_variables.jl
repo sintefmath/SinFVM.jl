@@ -1,4 +1,4 @@
-using Rumpetroll
+using SinSWE
 using CUDA
 
 N = 10
