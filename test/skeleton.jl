@@ -1,4 +1,5 @@
 using Plots
+using StaticArrays
 
 module Rumpetroll
 
