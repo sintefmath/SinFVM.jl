@@ -1,4 +1,4 @@
-# Rumpetroll.jl
+# SinSWE.jl
 Shallow Water solvers in Julia
 
 # Setting up the first time
@@ -9,10 +9,10 @@ Open terminal and go into pkg repl "]" and `activate .` the relevant project.
 
 Include Vannlinje as a local repo:
 1. Add dependency:
-`(Rumpetroll) pkg> add "https://git@github.com/sintefmath/Vannlinje.jl"` or 
-`(Rumpetroll) pkg> add "git@github.com:sintefmath/Vannlinje.jl"`
+`(SinSWE) pkg> add "https://git@github.com/sintefmath/Vannlinje.jl"` or 
+`(SinSWE) pkg> add "git@github.com:sintefmath/Vannlinje.jl"`
 2. define where to check out Vannlinje:
-`(Rumpetroll) pkg> develop --local Vannlinje`
+`(SinSWE) pkg> develop --local Vannlinje`
 
 The git repo Vannlinje is now in your project's `dev/Vannlinje/` and works like any other git repo.
 
@@ -22,7 +22,7 @@ From the file via Julia REPL in VSCode:
 `ctrl+shift+p Julia: Execute file in REPL`
 or in Julia:
 `julia> include("<path to your file")`
-or from command line (standing in Rumpetroll.jl):
+or from command line (standing in SinSWE.jl):
 `julia --project=. <path to file>`
 
 # If missing packages
