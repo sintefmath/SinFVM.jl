@@ -2,6 +2,7 @@ using Plots
 using StaticArrays
 
 module SinSWE
+using Logging
 
 direction(integer) = Val{integer}
 
@@ -27,14 +28,22 @@ struct CartesianGrid{dimension, BoundaryType} <: Grid{dimension}
     totalcells::SVector{dimension, Int64}
 
     boundary::BoundaryType
+    extent::SMatrix{dimension, 2, Float64}
 end
 
-function CartesianGrid(nx; gc=1, boundary=PeriodicBC())
+function CartesianGrid(nx; gc=1, boundary=PeriodicBC(), extent=[0.0 1.0])
     return CartesianGrid(SVector{1, Int64}([gc]),
-        SVector{1, Int64}(nx),
-        boundary)
+        SVector{1, Int64}([nx + 2 * gc]),
+        boundary, SMatrix{1, 2, Float64}(extent))
 end
 
+function cell_centers(grid::CartesianGrid{1}; interior=true)
+    @assert interior
+
+    xinterface = collect(LinRange(grid.extent[1, 1], grid.extent[1, 2], grid.totalcells[1] - 2 * grid.ghostcells[1] + 1))
+    xcell = xinterface[1:end-1] .+ (xinterface[2]-xinterface[1])/2.0
+    return xcell
+end
 
 function update_bc!(::PeriodicBC, grid::CartesianGrid{1}, data)
     for ghostcell in 1:grid.ghostcells[1]
@@ -151,9 +160,9 @@ function do_substep!(output, ::ForwardEulerStepper, system::System, current_stat
     output .= zero(output)
 
     add_time_derivative!(output, system, current_state)
-
     output .*= dt
-    output += current_state
+    output .+= current_state
+    #@info "End of substep" output current_state
 end
 
 struct Simulator
@@ -170,6 +179,14 @@ function Simulator(system, timestepper, grid)
 end
 
 current_state(simulator::Simulator) = simulator.substep_outputs[1]
+function set_current_state!(simulator::Simulator, new_state)
+    @assert length(simulator.grid.ghostcells) == 1
+    
+    gc = simulator.grid.ghostcells[1]
+    current_state(simulator)[gc+1:end-gc] = new_state
+    update_bc!(simulator.grid, current_state(simulator))
+end
+
 current_timestep(simulator::Simulator) = simulator.current_timestep[1]
 function compute_timestep(::Simulator) 
     # TODO: FIXME!!!
@@ -177,12 +194,16 @@ function compute_timestep(::Simulator)
 end
 
 function perform_step!(simulator::Simulator)
+    #@info "Before step" simulator.substep_outputs
     simulator.current_timestep[1] = compute_timestep(simulator)
     for substep in 1:number_of_substeps(simulator.timestepper)
+        @assert substep + 1 == 2
         do_substep!(simulator.substep_outputs[substep+1], simulator.timestepper, simulator.system, simulator.substep_outputs[substep], simulator.current_timestep[1])
-        update_bc!(simulator.grid, simulator.substep_outputs[substep])
+        #@info "before bc" simulator.substep_outputs[substep + 1]
+        update_bc!(simulator.grid, simulator.substep_outputs[substep+1])
+        #@info "after bc" simulator.substep_outputs[substep + 1]
     end
-
+    #@info "After step" simulator.substep_outputs[1] simulator.substep_outputs[2]
     simulator.substep_outputs[1], simulator.substep_outputs[end] =  simulator.substep_outputs[end], simulator.substep_outputs[1]
 end
 struct ShallowWaterEquations{T} <: Equation
@@ -225,7 +246,7 @@ end
 
 
 function run_simulation()
-    nx = 8
+    nx = 64
     grid = SinSWE.CartesianGrid(nx)
     equation = SinSWE.Burgers()
     reconstruction = SinSWE.NoReconstruction()
@@ -233,24 +254,24 @@ function run_simulation()
     conserved_system = SinSWE.ConservedSystem(reconstruction, numericalflux, equation, grid)
     timestepper = SinSWE.ForwardEulerStepper()
 
-    x = LinRange(0, 1, nx - 2)
+    x = SinSWE.cell_centers(grid)
     initial = collect(map(z->SVector{1, Float64}([z]), sin.(2*π*x)))
     simulator = SinSWE.Simulator(conserved_system, timestepper, grid)
-    initial_state = SinSWE.current_state(simulator)
+    # initial_state = SinSWE.current_state(simulator)
 
-    for i in 2:nx - 1
-        @show initial[i-1]
-        initial_state[i] = initial[i - 1]
-    end
+    # for i in 1:nx
+    #     # @show initial[i-1]
+    #     initial_state[i+grid.ghostcells[1]] = initial[i]
+    # end
     
 
-    SinSWE.current_state(simulator)[2:end-1] .= initial
-
+    # SinSWE.current_state(simulator)[2:end-1] .= initial
+    SinSWE.set_current_state!(simulator, initial)
     @show SinSWE.current_state(simulator)
 
     t = 0.0
 
-    T = 0.001
+    T = 1.0
     plot(first.(SinSWE.current_state(simulator)))
     while t <= T
         SinSWE.perform_step!(simulator)
@@ -258,8 +279,8 @@ function run_simulation()
         #println("$t")
     end
 
-    print(SinSWE.current_state(simulator))
-    #plot(first.(SinSWE.current_state(simulator)))
+    #print(SinSWE.current_state(simulator))
+    plot!(first.(SinSWE.current_state(simulator)))
 end
 
 run_simulation()
