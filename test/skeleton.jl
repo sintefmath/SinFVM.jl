@@ -1,6 +1,9 @@
 using Plots
 using StaticArrays
 
+module Correct
+include("fasit.jl")
+end
 module SinSWE
 using Logging
 
@@ -29,12 +32,16 @@ struct CartesianGrid{dimension, BoundaryType} <: Grid{dimension}
 
     boundary::BoundaryType
     extent::SMatrix{dimension, 2, Float64}
+    Δx::Float64
 end
 
 function CartesianGrid(nx; gc=1, boundary=PeriodicBC(), extent=[0.0 1.0])
+    domain_width = extent[1,2]-extent[1,1]
+    Δx = domain_width / nx
     return CartesianGrid(SVector{1, Int64}([gc]),
         SVector{1, Int64}([nx + 2 * gc]),
-        boundary, SMatrix{1, 2, Float64}(extent))
+        boundary, SMatrix{1, 2, Float64}(extent), 
+        Δx)
 end
 
 function cell_centers(grid::CartesianGrid{1}; interior=true)
@@ -45,9 +52,11 @@ function cell_centers(grid::CartesianGrid{1}; interior=true)
     return xcell
 end
 
+compute_dx(grid::CartesianGrid{1}) = grid.Δx
+
 function update_bc!(::PeriodicBC, grid::CartesianGrid{1}, data)
     for ghostcell in 1:grid.ghostcells[1]
-        data[ghostcell] = data[end - ghostcell - grid.ghostcells[1] ]
+        data[ghostcell] = data[end + ghostcell - 2 * grid.ghostcells[1] ]
         data[end - (grid.ghostcells[1]-ghostcell)] = data[grid.ghostcells[1] + ghostcell]
     end
 end
@@ -57,7 +66,7 @@ function update_bc!(grid::CartesianGrid{1}, data)
 end
 
 function for_each_inner_cell(f, g::CartesianGrid{1}, include_ghostcells=0)
-    for i in (g.ghostcells[1]-include_ghostcells+1):(g.totalcells[1]-2*g.ghostcells[1]+include_ghostcells + 1)
+    for i in (g.ghostcells[1]-include_ghostcells+1):(g.totalcells[1]-g.ghostcells[1]+include_ghostcells)
         f(i-1, i, i+1)
     end
 end
@@ -68,17 +77,31 @@ struct Rusanov{EquationType <: Equation} <: NumericalFlux
     eq::EquationType
 end
 
-function (rus::Rusanov)(left, right)
-    flux_left = rus.eq(XDIR, left...)
-    flux_right = rus.eq(XDIR, right...)
+function (rus::Rusanov)(faceminus, faceplus)
+    fluxminus = rus.eq(XDIR, faceminus...)
+    fluxplus = rus.eq(XDIR, faceplus...)
 
-    eigenvalue_left = compute_max_eigenvalue(rus.eq, XDIR, left...)
-    eigenvalue_right = compute_max_eigenvalue(rus.eq, XDIR, right...)
+    eigenvalue_minus = compute_max_eigenvalue(rus.eq, XDIR, faceminus...)
+    eigenvalue_plus = compute_max_eigenvalue(rus.eq, XDIR, faceplus...)
 
-    eigenvalue_max = max(eigenvalue_left, eigenvalue_right)
+    eigenvalue_max = max(eigenvalue_minus, eigenvalue_plus)
 
-    F = 0.5 .* (flux_left .+ flux_right) .- 0.5 * eigenvalue_max .* (right .- left);
+    F = 0.5 .* (fluxminus .+ fluxplus) .- 0.5 * eigenvalue_max .* (faceplus .- faceminus);
 
+    return F
+end
+
+
+struct Godunov{EquationType <: Equation} <: NumericalFlux
+    eq::EquationType
+end
+
+function (god::Godunov)(faceminus, faceplus)
+    f(u) = god.eq(XDIR, u...)
+    fluxminus = f(max.(faceminus, zero(faceminus)))
+    fluxplus = f(min.(faceplus, zero(faceplus)))
+    
+    F = max.(fluxminus, fluxplus)
     return F
 end
 
@@ -88,15 +111,16 @@ abstract type Reconstruction end
 struct NoReconstruction <: Reconstruction end
 
 function reconstruct!(::NoReconstruction, output_left, output_right, input_conserved, grid::Grid, equation::Equation, ::XDIRT)
-    for_each_inner_cell(grid) do ileft, imiddle, iright
+    for_each_inner_cell(grid, 1) do ileft, imiddle, iright
         output_left[imiddle] = input_conserved[imiddle]
         output_right[imiddle] = input_conserved[imiddle]
     end
 end
 
 function compute_flux!(F::NumericalFlux, output, left, right, grid, equation::Equation, ::XDIRT)
+    Δx = compute_dx(grid)
     for_each_inner_cell(grid) do ileft, imiddle, iright
-        output[imiddle] += F(left[iright], right[imiddle]) - F(left[imiddle], right[ileft])
+        output[imiddle] -= 1/Δx *( F(right[imiddle], left[iright]) - F(right[ileft], left[imiddle]))
     end
 end
 
@@ -162,7 +186,7 @@ function do_substep!(output, ::ForwardEulerStepper, system::System, current_stat
     add_time_derivative!(output, system, current_state)
     output .*= dt
     output .+= current_state
-    #@info "End of substep" output current_state
+    ##@info "End of substep" output current_state
 end
 
 struct Simulator
@@ -179,6 +203,9 @@ function Simulator(system, timestepper, grid)
 end
 
 current_state(simulator::Simulator) = simulator.substep_outputs[1]
+
+current_interior_state(simulator::Simulator) = current_state(simulator)[simulator.grid.ghostcells[1] + 1 : end - simulator.grid.ghostcells[1]]
+
 function set_current_state!(simulator::Simulator, new_state)
     @assert length(simulator.grid.ghostcells) == 1
     
@@ -190,20 +217,20 @@ end
 current_timestep(simulator::Simulator) = simulator.current_timestep[1]
 function compute_timestep(::Simulator) 
     # TODO: FIXME!!!
-    return 0.001
+    return 0.00001
 end
 
 function perform_step!(simulator::Simulator)
-    #@info "Before step" simulator.substep_outputs
+    ##@info "Before step" simulator.substep_outputs
     simulator.current_timestep[1] = compute_timestep(simulator)
     for substep in 1:number_of_substeps(simulator.timestepper)
         @assert substep + 1 == 2
         do_substep!(simulator.substep_outputs[substep+1], simulator.timestepper, simulator.system, simulator.substep_outputs[substep], simulator.current_timestep[1])
-        #@info "before bc" simulator.substep_outputs[substep + 1]
+        ##@info "before bc" simulator.substep_outputs[substep + 1]
         update_bc!(simulator.grid, simulator.substep_outputs[substep+1])
-        #@info "after bc" simulator.substep_outputs[substep + 1]
+        ##@info "after bc" simulator.substep_outputs[substep + 1]
     end
-    #@info "After step" simulator.substep_outputs[1] simulator.substep_outputs[2]
+    ##@info "After step" simulator.substep_outputs[1] simulator.substep_outputs[2]
     simulator.substep_outputs[1], simulator.substep_outputs[end] =  simulator.substep_outputs[end], simulator.substep_outputs[1]
 end
 struct ShallowWaterEquations{T} <: Equation
@@ -216,7 +243,7 @@ ShallowWaterEquations() = ShallowWaterEquations(1.0, 9.81)
 function (eq::ShallowWaterEquations)(::XDIRT, h, hu, hv)
     ρ = eq.ρ
     g = eq.g
-    return  [
+    return  @SVector [
         ρ * hu,
         ρ * hu  * hu / h + 0.5 * ρ * g * h^2 ,
         ρ * hu * hv / h
@@ -226,7 +253,7 @@ end
 function (eq::ShallowWaterEquations)(::YDIRT, h, hu, hv)
     ρ = eq.ρ
     g = eq.g
-    return  [
+    return  @SVector [
         ρ * hv,
         ρ * hu * hv / h,
         ρ * hv  * hv / h + 0.5 * ρ * g * h^2 ,
@@ -235,7 +262,7 @@ end
 
 struct Burgers <: Equation end
 
-(::Burgers)(::XDIRT, u) = 0.5 * u.^2
+(::Burgers)(::XDIRT, u) = @SVector [0.5 * u.^2]
 
 compute_max_eigenvalue(::Burgers, ::XDIRT, u) = abs(u)
 number_of_conserved_variables(::Burgers) = 1
@@ -246,16 +273,18 @@ end
 
 
 function run_simulation()
+    u0 = x->sin.(2π*x)
     nx = 64
     grid = SinSWE.CartesianGrid(nx)
     equation = SinSWE.Burgers()
     reconstruction = SinSWE.NoReconstruction()
-    numericalflux = SinSWE.Rusanov(equation)
+    numericalflux = SinSWE.Godunov(equation)
     conserved_system = SinSWE.ConservedSystem(reconstruction, numericalflux, equation, grid)
     timestepper = SinSWE.ForwardEulerStepper()
 
     x = SinSWE.cell_centers(grid)
-    initial = collect(map(z->SVector{1, Float64}([z]), sin.(2*π*x)))
+    initial = collect(map(z->SVector{1, Float64}([z]), u0(x)))
+    #initial = collect(map(z->SVector{1, Float64}([z]), 1.0*(x .< 0.5)))
     simulator = SinSWE.Simulator(conserved_system, timestepper, grid)
     # initial_state = SinSWE.current_state(simulator)
 
@@ -271,8 +300,9 @@ function run_simulation()
 
     t = 0.0
 
-    T = 1.0
-    plot(first.(SinSWE.current_state(simulator)))
+    T = 1.0 #1000*SinSWE.compute_timestep(simulator)
+    @show T
+    plot(x, first.(SinSWE.current_interior_state(simulator)))
     while t <= T
         SinSWE.perform_step!(simulator)
         t += SinSWE.current_timestep(simulator)
@@ -280,7 +310,15 @@ function run_simulation()
     end
 
     #print(SinSWE.current_state(simulator))
-    plot!(first.(SinSWE.current_state(simulator)))
+    plot!(x, first.(SinSWE.current_interior_state(simulator)))
+
+
+    number_of_x_cells= nx
+    number_of_saves = 100
+    
+    xcorrect, ucorrect, _, _ = Correct.solve_fvm(x->sin(2π*x), T, number_of_x_cells, number_of_saves, Correct.Burgers())
+    plot!(xcorrect, ucorrect)
+    
 end
 
 run_simulation()
