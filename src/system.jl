@@ -1,9 +1,9 @@
 
-create_buffer(grid::CartesianGrid{1}, equation::Equation) = zeros(SVector{number_of_conserved_variables(equation), Float64}, grid.totalcells[1])
+create_buffer(grid::CartesianGrid{1}, equation::Equation) = zeros(SVector{number_of_conserved_variables(equation),Float64}, grid.totalcells[1])
 
 abstract type System end
 
-struct ConservedSystem{ReconstructionType, NumericalFluxType, EquationType, GridType, BufferType} <: System
+struct ConservedSystem{ReconstructionType,NumericalFluxType,EquationType,GridType,BufferType} <: System
     reconstruction::ReconstructionType
     numericalflux::NumericalFluxType
     equation::EquationType
@@ -18,7 +18,7 @@ struct ConservedSystem{ReconstructionType, NumericalFluxType, EquationType, Grid
         typeof(equation),
         typeof(grid),
         typeof(create_buffer(grid, equation))
-    }(reconstruction, numericalflux, equation, grid, create_buffer(grid, equation), create_buffer(grid,equation))
+    }(reconstruction, numericalflux, equation, grid, create_buffer(grid, equation), create_buffer(grid, equation))
 end
 
 create_buffer(grid, cs::ConservedSystem) = create_buffer(grid, cs.equation)
@@ -29,7 +29,7 @@ function add_time_derivative!(output, cs::ConservedSystem, current_state)
 end
 
 
-struct BalanceSystem{ConservedSystemType <: System, SourceTerm} <: System
+struct BalanceSystem{ConservedSystemType<:System,SourceTerm} <: System
     conserved_system::ConservedSystemType
     source_term::SourceTerm
 end
@@ -45,3 +45,24 @@ function add_time_derivative!(output, bs::BalanceSystem, current_state)
     end
 end
 create_buffer(grid, bs::BalanceSystem) = create_buffer(grid, bs.conserved_system)
+
+
+function compute_wavespeed(system::ConservedSystem, grid, state)
+    maximum_eigenvalue = 0.0
+    for (n, direction) in enumerate(directions(grid))
+        eigenvalue(u) = compute_max_eigenvalue(system.equation, direction, u)
+
+        maximum_at_direction = maximum(eigenvalue.(state))
+
+        if n == 1
+            maximum_eigenvalue = maximum_at_direction
+        else
+            maximum_eigenvalue = max(maximum_at_direction, maximum_eigenvalue)
+        end
+    end
+    return maximum_eigenvalue
+end
+
+function compute_wavespeed(system::BalanceSystem, grid, state)
+    compute_wavespeed(system.conserved_system, grid, state)
+end
