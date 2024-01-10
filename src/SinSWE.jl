@@ -1,12 +1,24 @@
 module SinSWE
-    include("SwimTypeMacros.jl")
-    include("conserved_variables.jl")
-    include("bathymetry.jl")
-    include("Friction.jl")
-    include("SWEPlottingNoMakie.jl")
-    include("SWEUtils.jl")
-    include("double_swe_kp07_pure.jl")
-    include("ValidationUtils.jl")
-    include("run_swe.jl")
-    export ConservedVariables, run_swe, Bathymetry
+
+direction(integer) = Val{integer}
+
+const XDIRT = Val{1}
+const YDIRT = Val{2}
+const ZDIRT = Val{3}
+
+const XDIR = XDIRT()
+const YDIR = YDIRT()
+const ZDIR = ZDIRT()
+
+using StaticArrays
+using Parameters
+
+include("grid.jl")
+include("equation.jl")
+include("reconstruction.jl")
+include("numericalflux.jl")
+include("system.jl")
+include("timestepper.jl")
+include("simulator.jl")
+export XDIR, YDIR, ZDIR, ShallowWaterEquations, Burgers, CartesianGrid
 end
