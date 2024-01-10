@@ -1,3 +1,4 @@
+import ProgressMeter
 
 struct Simulator
     system
@@ -15,7 +16,7 @@ function Simulator(system, timestepper, grid)
         grid,
         [create_buffer(grid, system) for _ in 1:number_of_substeps(timestepper)+1],
         MVector{1,Float64}([0]),
-        0.45)
+        0.5)
 end
 
 current_state(simulator::Simulator) = simulator.substep_outputs[1]
@@ -50,4 +51,15 @@ function perform_step!(simulator::Simulator)
     end
     ##@info "After step" simulator.substep_outputs[1] simulator.substep_outputs[2]
     simulator.substep_outputs[1], simulator.substep_outputs[end] = simulator.substep_outputs[end], simulator.substep_outputs[1]
+end
+
+function simulate_to_time(simulator::Simulator, endtime; t=0.0)
+    progress = ProgressMeter.Progress(100; dt=1.0)
+    while t <= endtime
+        perform_step!(simulator)
+        t += current_timestep(simulator)
+
+        ProgressMeter.update!(progress, ceil(Integer, t / endtime))
+    end
+    ProgressMeter.finish!(progress)
 end

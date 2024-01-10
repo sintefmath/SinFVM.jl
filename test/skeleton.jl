@@ -7,7 +7,7 @@ end
 using SinSWE
 function run_simulation()
     u0 = x -> sin.(2π * x)
-    nx = 64
+    nx = 16 * 1024
     grid = SinSWE.CartesianGrid(nx)
 
     equation = SinSWE.Burgers()
@@ -21,27 +21,20 @@ function run_simulation()
     simulator = SinSWE.Simulator(conserved_system, timestepper, grid)
 
     SinSWE.set_current_state!(simulator, initial)
-    @show SinSWE.current_state(simulator)
 
     t = 0.0
 
-    T = 1.0 #1000*SinSWE.compute_timestep(simulator)
-    @show T
+    T = 1.0
     plot(x, first.(SinSWE.current_interior_state(simulator)))
-    while t <= T
-        SinSWE.perform_step!(simulator)
-        t += SinSWE.current_timestep(simulator)
-        #println("$t")
-    end
+    @time SinSWE.simulate_to_time(simulator, T)
 
-    #print(SinSWE.current_state(simulator))
     plot!(x, first.(SinSWE.current_interior_state(simulator)))
 
 
     number_of_x_cells = nx
     number_of_saves = 100
 
-    xcorrect, ucorrect, _, _ = Correct.solve_fvm(x -> sin(2π * x), T, number_of_x_cells, number_of_saves, Correct.Burgers())
+    @time xcorrect, ucorrect, _, _ = Correct.solve_fvm(x -> sin(2π * x), T, number_of_x_cells, number_of_saves, Correct.Burgers())
     plot!(xcorrect, ucorrect)
 
 end
