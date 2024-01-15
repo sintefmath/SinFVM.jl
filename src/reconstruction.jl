@@ -6,5 +6,7 @@ function reconstruct!(::NoReconstruction, output_left, output_right, input_conse
     for_each_inner_cell(grid, 1) do ileft, imiddle, iright
         output_left[imiddle] = input_conserved[imiddle]
         output_right[imiddle] = input_conserved[imiddle]
+
+        nothing
     end
 end

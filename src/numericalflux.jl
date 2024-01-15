@@ -38,5 +38,7 @@ function compute_flux!(F::NumericalFlux, output, left, right, grid, equation::Eq
     Δx = compute_dx(grid)
     for_each_inner_cell(grid) do ileft, imiddle, iright
         output[imiddle] -= 1/Δx *( F(right[imiddle], left[iright]) - F(right[ileft], left[imiddle]))
+
+        nothing
     end
 end
