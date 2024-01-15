@@ -1,17 +1,23 @@
 import ProgressMeter
 
-struct Simulator
-    system
-    timestepper
-    grid
+struct Simulator{SystemType, TimeStepperType, GridType, StateType, FloatType}
+    system::SystemType
+    timestepper::TimeStepperType
+    grid::GridType
 
-    substep_outputs::Vector
-    current_timestep::MVector{1,Float64}
-    cfl
+    substep_outputs::Vector{StateType}
+    current_timestep::MVector{1,FloatType}
+    cfl::FloatType
 end
 
 function Simulator(system, timestepper, grid)
-    return Simulator(system,
+    return Simulator{
+        typeof(system),
+        typeof(timestepper),
+        typeof(grid),
+        typeof(create_buffer(grid, system)),
+        Float64
+    }(system,
         timestepper,
         grid,
         [create_buffer(grid, system) for _ in 1:number_of_substeps(timestepper)+1],
@@ -54,12 +60,12 @@ function perform_step!(simulator::Simulator)
 end
 
 function simulate_to_time(simulator::Simulator, endtime; t=0.0)
-    progress = ProgressMeter.Progress(100; dt=1.0)
+    #progress = ProgressMeter.Progress(100; dt=1.0)
     while t <= endtime
         perform_step!(simulator)
         t += current_timestep(simulator)
 
-        ProgressMeter.update!(progress, ceil(Integer, t / endtime))
+        #    ProgressMeter.update!(progress, ceil(Integer, t / endtime))
     end
-    ProgressMeter.finish!(progress)
+    #ProgressMeter.finish!(progress)
 end
