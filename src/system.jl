@@ -42,23 +42,23 @@ function add_time_derivative!(output, bs::BalanceSystem, current_state)
     # Then add source term
     for_each_inner_cell(bs.conserved_system.grid) do ileft, imiddle, iright
         output[imiddle] += bs.source_term(current_state[imiddle])
+
+        nothing
     end
 end
 create_buffer(grid, bs::BalanceSystem) = create_buffer(grid, bs.conserved_system)
 
 
+
+
 function compute_wavespeed(system::ConservedSystem, grid, state)
-    maximum_eigenvalue = 0.0
-    for (n, direction) in enumerate(directions(grid))
-        eigenvalue(u) = compute_max_eigenvalue(system.equation, direction, u)
-
-        maximum_at_direction = maximum(eigenvalue.(state))
-
-        if n == 1
-            maximum_eigenvalue = maximum_at_direction
-        else
-            maximum_eigenvalue = max(maximum_at_direction, maximum_eigenvalue)
-        end
+    RealType = typeof(compute_max_abs_eigenvalue(system.equation, XDIR, first(state)))
+    maximum_eigenvalue::RealType = nextfloat(typemin(RealType))
+    for u in state
+        for direction in directions(grid)
+            eigenvalue_in_direction = compute_max_abs_eigenvalue(system.equation, direction, u)
+            maximum_eigenvalue = max(eigenvalue_in_direction, maximum_eigenvalue)
+        end        
     end
     return maximum_eigenvalue
 end
