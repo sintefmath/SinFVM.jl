@@ -41,6 +41,7 @@ mutable struct DummyPrinter
 end
 
 function update!(m::DummyPrinter, state)
+    return 
     currenttime = time()
     if currenttime - m.last_time >= m.printevery
         print(stdout, "$state\r")
@@ -51,7 +52,7 @@ end
 
 function solve_fvm(u0, T::Float64, number_of_x_cells, number_of_saves, flux;
     start_x=0.0, end_x=1.0, numerical_flux=godunov, viscosity=0.0,
-    cfl_constant=0.5, bc = neumann, progress_printer = DummyPrinter)
+    cfl_constant=0.5, bc=neumann, progress_printer=DummyPrinter)
     cfl(u) = deriv(flux, u)
 
     x = range(start_x, end_x, length=number_of_x_cells)
@@ -89,19 +90,19 @@ function solve_fvm(u0, T::Float64, number_of_x_cells, number_of_saves, flux;
                 dudts[i-1, current_save_index] = time_derivative
             end
         end
-        
+
         u[2:end-1] .= u_new[2:end-1]
         bc(u)
         t += dt
 
-        dt = 0.00001#cfl_constant * dx / maximum(abs.(cfl.(u)))
+        dt = cfl_constant * dx / maximum(abs.(cfl.(u)))
 
         if viscosity > 0.0
-            dt_viscosity = 0.25*dx^2 / viscosity
+            dt_viscosity = 0.25 * dx^2 / viscosity
             dt = min(dt, dt_viscosity)
         end
 
-       
+
 
     end
     println()
@@ -110,15 +111,15 @@ function solve_fvm(u0, T::Float64, number_of_x_cells, number_of_saves, flux;
 end
 
 function runme()
-T = 0.1
-number_of_x_cells=64
-number_of_saves = 100
-u0 = x->1.0 * (x .< 0.5)
-u0 = x->sin(2π*x)
-x, u, _, _ = solve_fvm(x->sin(2π*x), T, number_of_x_cells, number_of_saves, Burgers())
-#x, u, _, _ = solve_fvm(u0, T, number_of_x_cells, number_of_saves, Burgers(), bc=periodic)
-f = Burgers()
-plot(x, u)
-#s = (f(1.0)-f(0.0))/(1.0-0.0)
-plot!(x, u0.(x))
+    T = 0.1
+    number_of_x_cells = 64
+    number_of_saves = 100
+    u0 = x -> 1.0 * (x .< 0.5)
+    u0 = x -> sin(2π * x)
+    x, u, _, _ = solve_fvm(x -> sin(2π * x), T, number_of_x_cells, number_of_saves, Burgers())
+    #x, u, _, _ = solve_fvm(u0, T, number_of_x_cells, number_of_saves, Burgers(), bc=periodic)
+    f = Burgers()
+    plot(x, u)
+    #s = (f(1.0)-f(0.0))/(1.0-0.0)
+    plot!(x, u0.(x))
 end
