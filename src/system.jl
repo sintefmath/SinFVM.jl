@@ -1,9 +1,11 @@
 
-create_buffer(grid::CartesianGrid{1}, equation::Equation) = zeros(SVector{number_of_conserved_variables(equation),Float64}, grid.totalcells[1])
+create_buffer(backend, grid::CartesianGrid{1}, equation::Equation) = zeros(SVector{number_of_conserved_variables(equation),Float64}, grid.totalcells[1])
+create_buffer(backend::CUDABackend, grid::CartesianGrid{1}, equation::Equation) = CUDA.cu(zeros(SVector{number_of_conserved_variables(equation),Float64}, grid.totalcells[1]))
 
 abstract type System end
 
-struct ConservedSystem{ReconstructionType,NumericalFluxType,EquationType,GridType,BufferType} <: System
+struct ConservedSystem{BackendType, ReconstructionType,NumericalFluxType,EquationType,GridType,BufferType} <: System
+    backend::BackendType
     reconstruction::ReconstructionType
     numericalflux::NumericalFluxType
     equation::EquationType
@@ -12,20 +14,21 @@ struct ConservedSystem{ReconstructionType,NumericalFluxType,EquationType,GridTyp
     left_buffer::BufferType
     right_buffer::BufferType
 
-    ConservedSystem(reconstruction, numericalflux, equation, grid) = new{
+    ConservedSystem(backend, reconstruction, numericalflux, equation, grid) = new{
+        typeof(backend),
         typeof(reconstruction),
         typeof(numericalflux),
         typeof(equation),
         typeof(grid),
-        typeof(create_buffer(grid, equation))
-    }(reconstruction, numericalflux, equation, grid, create_buffer(grid, equation), create_buffer(grid, equation))
+        typeof(create_buffer(backend, grid, equation))
+    }(backend, reconstruction, numericalflux, equation, grid, create_buffer(backend, grid, equation), create_buffer(backend, grid, equation))
 end
 
-create_buffer(grid, cs::ConservedSystem) = create_buffer(grid, cs.equation)
+create_buffer(backend, grid, cs::ConservedSystem) = create_buffer(backend, grid, cs.equation)
 
 function add_time_derivative!(output, cs::ConservedSystem, current_state)
-    reconstruct!(cs.reconstruction, cs.left_buffer, cs.right_buffer, current_state, cs.grid, cs.equation, XDIR)
-    compute_flux!(cs.numericalflux, output, cs.left_buffer, cs.right_buffer, cs.grid, cs.equation, XDIR)
+    reconstruct!(cs.backend, cs.reconstruction, cs.left_buffer, cs.right_buffer, current_state, cs.grid, cs.equation, XDIR)
+    compute_flux!(cs.backend, cs.numericalflux, output, cs.left_buffer, cs.right_buffer, cs.grid, cs.equation, XDIR)
 end
 
 
@@ -39,6 +42,8 @@ function add_time_derivative!(output, bs::BalanceSystem, current_state)
     # First add conserved system (so F_{i+1}-F_i)
     add_time_derivative!(output, bs.conserved_system, current_state)
 
+    @assert false
+    # FIX FOR LOOP UNDERNEATH
     # Then add source term
     for_each_inner_cell(bs.conserved_system.grid) do ileft, imiddle, iright
         output[imiddle] += bs.source_term(current_state[imiddle])
@@ -46,7 +51,7 @@ function add_time_derivative!(output, bs::BalanceSystem, current_state)
         nothing
     end
 end
-create_buffer(grid, bs::BalanceSystem) = create_buffer(grid, bs.conserved_system)
+create_buffer(backend, grid, bs::BalanceSystem) = create_buffer(backend, grid, bs.conserved_system)
 
 
 

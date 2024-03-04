@@ -52,7 +52,7 @@ function for_each_inner_cell(f, g::CartesianGrid{1}, include_ghostcells=0)
 end
 
 function inner_cells(g::CartesianGrid{1}, direction)
-    return ((g.totalcells[1]-g.ghostcells[1]+include_ghostcells) - (g.ghostcells[1]-include_ghostcells+1), )
+    return ((g.totalcells[1]-g.ghostcells[1]) - (g.ghostcells[1]+1), )
 end
 
 function left_cell(g::CartesianGrid{1}, I::Int64, direction::XDIRT)

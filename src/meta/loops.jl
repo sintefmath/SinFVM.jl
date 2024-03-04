@@ -36,7 +36,7 @@ function get_known_symbols()
     return all_symbols
 end
 
-macro for_each_cell_macro(code_snippet)
+macro fvmloop(code_snippet)
     all_symbols = get_known_symbols()
     
     parameter_names = get_variable_names_referred(code_snippet.args[2].args[1])

@@ -11,16 +11,17 @@ function run_simulation()
     u0 = x -> sin.(2π * x)
     nx = 64*1024
     grid = SinSWE.CartesianGrid(nx)
+    backend = make_cpu_backend()
 
     equation = SinSWE.Burgers()
     reconstruction = SinSWE.NoReconstruction()
     numericalflux = SinSWE.Godunov(equation)
-    conserved_system = SinSWE.ConservedSystem(reconstruction, numericalflux, equation, grid)
+    conserved_system = SinSWE.ConservedSystem(backend, reconstruction, numericalflux, equation, grid)
     timestepper = SinSWE.ForwardEulerStepper()
 
     x = SinSWE.cell_centers(grid)
     initial = collect(map(z -> SVector{1,Float64}([z]), u0(x)))
-    simulator = SinSWE.Simulator(conserved_system, timestepper, grid)
+    simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid)
 
     SinSWE.set_current_state!(simulator, initial)
 

@@ -22,5 +22,5 @@ include("numericalflux.jl")
 include("system.jl")
 include("timestepper.jl")
 include("simulator.jl")
-export XDIR, YDIR, ZDIR, ShallowWaterEquations, Burgers, CartesianGrid
+export XDIR, YDIR, ZDIR, ShallowWaterEquations, Burgers, CartesianGrid, make_cpu_backend, make_cuda_backend
 end

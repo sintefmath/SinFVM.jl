@@ -1,17 +1,19 @@
-import KernelAbstractions
+using KernelAbstractions
+import CUDA
+
 
 struct KernelAbstractionBackend{KABackendType}
     backend::KABackendType
 end
 
-make_cuda_backend() = KernelAbstractionBackend(get_backend(cu(ones(3))))
-make_cpu_backend() = KernelAbstractionBackend(get_backend(cu(ones(3))))
+make_cuda_backend() = KernelAbstractionBackend(get_backend(CUDA.cu(ones(3))))
+make_cpu_backend() = KernelAbstractionBackend(get_backend(ones(3)))
+const CUDABackend = KernelAbstractionBackend{CUDA.CUDAKernels.CUDABackend}
 
 
 
-
-KernelAbstractions.@kernel function for_each_inner_cell_kernel(f, grid, direction, y...)
-    I = KernelAbstractions.@index(Global)
+@kernel function for_each_inner_cell_kernel(f, grid, direction, y...)
+    I =@index(Global)
     f(left_cell(grid, I, direction), middle_cell(grid, I, direction), right_cell(grid, I, direction), y...)
 end
 

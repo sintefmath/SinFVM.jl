@@ -1,6 +1,7 @@
 import ProgressMeter
 
-struct Simulator{SystemType, TimeStepperType, GridType, StateType, FloatType}
+struct Simulator{BackendType, SystemType, TimeStepperType, GridType, StateType, FloatType}
+    backend::BackendType
     system::SystemType
     timestepper::TimeStepperType
     grid::GridType
@@ -10,17 +11,19 @@ struct Simulator{SystemType, TimeStepperType, GridType, StateType, FloatType}
     cfl::FloatType
 end
 
-function Simulator(system, timestepper, grid)
+function Simulator(backend, system, timestepper, grid)
     return Simulator{
+        typeof(backend),
         typeof(system),
         typeof(timestepper),
         typeof(grid),
-        typeof(create_buffer(grid, system)),
+        typeof(create_buffer(backend, grid, system)),
         Float64
-    }(system,
+    }(backend,
+        system,
         timestepper,
         grid,
-        [create_buffer(grid, system) for _ in 1:number_of_substeps(timestepper)+1],
+        [create_buffer(backend, grid, system) for _ in 1:number_of_substeps(timestepper)+1],
         MVector{1,Float64}([0]),
         0.5)
 end
