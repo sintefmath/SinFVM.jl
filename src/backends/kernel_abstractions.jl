@@ -1,0 +1,21 @@
+import KernelAbstractions
+
+struct KernelAbstractionBackend{KABackendType}
+    backend::KABackendType
+end
+
+make_cuda_backend() = KernelAbstractionBackend(get_backend(cu(ones(3))))
+make_cpu_backend() = KernelAbstractionBackend(get_backend(cu(ones(3))))
+
+
+
+
+KernelAbstractions.@kernel function for_each_inner_cell_kernel(f, grid, direction, y...)
+    I = KernelAbstractions.@index(Global)
+    f(left_cell(grid, I, direction), middle_cell(grid, I, direction), right_cell(grid, I, direction), y...)
+end
+
+
+function for_each_inner_cell(f, backend::KernelAbstractionBackend{T}, grid, direction, y...) where {T}
+    ev = for_each_inner_cell_kernel(backend.backend, 1024)(f, grid, direction, y..., ndrange=inner_cells(grid, direction))
+end

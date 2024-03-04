@@ -50,3 +50,20 @@ function for_each_inner_cell(f, g::CartesianGrid{1}, include_ghostcells=0)
         f(i - 1, i, i + 1)
     end
 end
+
+function inner_cells(g::CartesianGrid{1}, direction)
+    return ((g.totalcells[1]-g.ghostcells[1]+include_ghostcells) - (g.ghostcells[1]-include_ghostcells+1), )
+end
+
+function left_cell(g::CartesianGrid{1}, I::Int64, direction::XDIRT)
+    return I + g.ghostcells[1]  - 1
+end
+
+function middle_cell(g::CartesianGrid{1}, I::Int64, direction::XDIRT)
+    return I + g.ghostcells[1]
+end
+
+
+function right_cell(g::CartesianGrid{1}, I::Int64, direction::XDIRT)
+    return I + g.ghostcells[1] + 1
+end

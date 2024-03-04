@@ -118,17 +118,17 @@ function for_inner_each_cell(f, x, backend, grid, y...)
 end
 N = 1000000
 Δx = 1/N
-# x = CUDA.cu(ones(N))
-# y = CUDA.cu(ones(N))
-# output = CUDA.cu(zeros(N))
-# right = CUDA.cu(collect(1:N)) * Δx
-# left = CUDA.cu(collect(0:N-1)) * Δx
+x = CUDA.cu(ones(N))
+y = CUDA.cu(ones(N))
+output = CUDA.cu(zeros(N))
+right = CUDA.cu(collect(1:N)) * Δx
+left = CUDA.cu(collect(0:N-1)) * Δx
 
-x = ones(N)
-y = ones(N)
-output = zeros(N)
-right = collect(1:N) * Δx
-left = collect(0:N-1) * Δx
+# x = ones(N)
+# y = ones(N)
+# output = zeros(N)
+# right = collect(1:N) * Δx
+# left = collect(0:N-1) * Δx
 F = Godunov(Burgers())
 
 function call_me_in_a_loop() 
