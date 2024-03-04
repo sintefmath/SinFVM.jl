@@ -37,7 +37,7 @@ function set_current_state!(simulator::Simulator, new_state)
 
     gc = simulator.grid.ghostcells[1]
     current_state(simulator)[gc+1:end-gc] = new_state
-    update_bc!(simulator.grid, current_state(simulator))
+    update_bc!(simulator.backend, simulator.grid, current_state(simulator))
 end
 
 current_timestep(simulator::Simulator) = simulator.current_timestep[1]

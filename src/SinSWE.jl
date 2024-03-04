@@ -16,6 +16,7 @@ using Parameters
 include("grid.jl")
 include("meta/loops.jl")
 include("backends/kernel_abstractions.jl")
+include("bc.jl")
 include("equation.jl")
 include("reconstruction.jl")
 include("numericalflux.jl")

@@ -34,16 +34,6 @@ end
 
 compute_dx(grid::CartesianGrid{1}) = grid.Δx
 
-function update_bc!(::PeriodicBC, grid::CartesianGrid{1}, data)
-    for ghostcell in 1:grid.ghostcells[1]
-        data[ghostcell] = data[end+ghostcell-2*grid.ghostcells[1]]
-        data[end-(grid.ghostcells[1]-ghostcell)] = data[grid.ghostcells[1]+ghostcell]
-    end
-end
-
-function update_bc!(grid::CartesianGrid{1}, data)
-    update_bc!(grid.boundary, grid, data)
-end
 
 function for_each_inner_cell(f, g::CartesianGrid{1}, include_ghostcells=0)
     for i in (g.ghostcells[1]-include_ghostcells+1):(g.totalcells[1]-g.ghostcells[1]+include_ghostcells)
@@ -66,4 +56,8 @@ end
 
 function right_cell(g::CartesianGrid{1}, I::Int64, direction::XDIRT)
     return I + g.ghostcells[1] + 1
+end
+
+function ghost_cells(g::CartesianGrid{1}, direction::XDIRT)
+    return g.ghostcells[1]
 end

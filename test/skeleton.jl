@@ -11,7 +11,7 @@ function run_simulation()
     u0 = x -> sin.(2π * x)
     nx = 64*1024
     grid = SinSWE.CartesianGrid(nx)
-    backend = make_cpu_backend()
+    backend = make_cuda_backend()
 
     equation = SinSWE.Burgers()
     reconstruction = SinSWE.NoReconstruction()
