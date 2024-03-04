@@ -55,7 +55,7 @@ function perform_step!(simulator::Simulator)
         @assert substep + 1 == 2
         do_substep!(simulator.substep_outputs[substep+1], simulator.timestepper, simulator.system, simulator.substep_outputs[substep], simulator.current_timestep[1])
         ##@info "before bc" simulator.substep_outputs[substep + 1]
-        update_bc!(simulator.grid, simulator.substep_outputs[substep+1])
+        update_bc!(simulator.backend, simulator.grid, simulator.substep_outputs[substep+1])
         ##@info "after bc" simulator.substep_outputs[substep + 1]
     end
     ##@info "After step" simulator.substep_outputs[1] simulator.substep_outputs[2]

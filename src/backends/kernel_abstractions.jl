@@ -24,7 +24,7 @@ end
 
 @kernel function for_each_ghost_cell_kernel(f, grid, direction, y...)
     I =@index(Global)
-    f(left_cell(grid, I, direction), middle_cell(grid, I, direction), right_cell(grid, I, direction), y...)
+    f(I, y...)
 end
 
 
