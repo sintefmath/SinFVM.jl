@@ -9,7 +9,7 @@ end
 using SinSWE
 function run_simulation()
     u0 = x -> sin.(2π * x)
-    nx = 1024
+    nx = 64*1024
     grid = SinSWE.CartesianGrid(nx)
     backend = make_cuda_backend()
 
@@ -33,7 +33,7 @@ function run_simulation()
     @time SinSWE.simulate_to_time(simulator, T)
     SinSWE.set_current_state!(simulator, initial)
     @time SinSWE.simulate_to_time(simulator, T)
-    plot!(x, first.(SinSWE.current_interior_state(simulator)))
+    plot!(x, first.(collect(SinSWE.current_interior_state(simulator))))
 
 
     number_of_x_cells = nx

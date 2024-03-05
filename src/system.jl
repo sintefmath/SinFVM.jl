@@ -57,13 +57,18 @@ create_buffer(backend, grid, bs::BalanceSystem) = create_buffer(backend, grid, b
 
 
 function compute_wavespeed(system::ConservedSystem, grid, state)
-    RealType = typeof(compute_max_abs_eigenvalue(system.equation, XDIR, first(state)))
+    # TODO: Remove @allowscalar here
+    CUDA.@allowscalar RealType = typeof(compute_max_abs_eigenvalue(system.equation, XDIR, first(state)))
     maximum_eigenvalue::RealType = nextfloat(typemin(RealType))
-    for u in state
-        for direction in directions(grid)
-            eigenvalue_in_direction = compute_max_abs_eigenvalue(system.equation, direction, u)
-            maximum_eigenvalue = max(eigenvalue_in_direction, maximum_eigenvalue)
-        end        
+
+    for direction in directions(grid)
+
+        eigenvalue_in_direction = let eq = system.equation, dir = direction
+            u -> compute_max_abs_eigenvalue(eq, dir, u)
+        end
+
+        maximum_at_direction = maximum(eigenvalue_in_direction.(state))
+        maximum_eigenvalue = max(maximum_at_direction, maximum_eigenvalue)
     end
     return maximum_eigenvalue
 end

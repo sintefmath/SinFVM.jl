@@ -11,7 +11,8 @@ number_of_substeps(::ForwardEulerStepper) = 1
 
 function do_substep!(output, ::ForwardEulerStepper, system::System, current_state, dt)
     # Reset to zero
-    output .= @SVector [zero(first(output))]#0.0#zero(output)
+    # TODO: Remove allowscalar
+    CUDA.@allowscalar output .= @SVector [zero(first(output))]#0.0#zero(output)
 
     add_time_derivative!(output, system, current_state)
     output .*= dt
