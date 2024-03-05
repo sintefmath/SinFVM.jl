@@ -62,13 +62,13 @@ function perform_step!(simulator::Simulator)
     simulator.substep_outputs[1], simulator.substep_outputs[end] = simulator.substep_outputs[end], simulator.substep_outputs[1]
 end
 
-function simulate_to_time(simulator::Simulator, endtime; t=0.0)
-    #progress = ProgressMeter.Progress(100; dt=1.0)
+function simulate_to_time(simulator::Simulator, endtime; t=0.0, callback=nothing)
     while t <= endtime
         perform_step!(simulator)
         t += current_timestep(simulator)
 
-        #    ProgressMeter.update!(progress, ceil(Integer, t / endtime))
+        if ! isnothing(callback)
+            callback(t, simulator)
+        end
     end
-    #ProgressMeter.finish!(progress)
 end

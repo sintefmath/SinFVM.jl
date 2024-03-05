@@ -76,6 +76,7 @@ function solve_fvm(u0, T::Float64, number_of_x_cells, number_of_saves, flux;
 
 
     progress = progress_printer(T, "Current time: ")
+    total_timesteps_done = 0
     while t < T
         update!(progress, t)
         for i = 2:size(u, 1)-1
@@ -103,11 +104,11 @@ function solve_fvm(u0, T::Float64, number_of_x_cells, number_of_saves, flux;
         end
 
 
-
+        total_timesteps_done += 1
     end
     println()
 
-    return x, u[2:end-1], saves, dudts
+    return x, u[2:end-1], saves, dudts, total_timesteps_done
 end
 
 function runme()

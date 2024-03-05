@@ -40,8 +40,8 @@ function run_simulation()
     number_of_saves = 100
 
     println("Running bare bones twice")
-    @time xcorrect, ucorrect, _, _ = Correct.solve_fvm(u0, T, number_of_x_cells, number_of_saves, Correct.Burgers())
-    @time xcorrect, ucorrect, _, _ = Correct.solve_fvm(u0, T, number_of_x_cells, number_of_saves, Correct.Burgers())
+    @time xcorrect, ucorrect, _, _, _ = Correct.solve_fvm(u0, T, number_of_x_cells, number_of_saves, Correct.Burgers())
+    @time xcorrect, ucorrect, _, _, _ = Correct.solve_fvm(u0, T, number_of_x_cells, number_of_saves, Correct.Burgers())
     pref = plot!(xcorrect, ucorrect)
     display(pref)
     eigenvalue(u) = SinSWE.compute_max_abs_eigenvalue(simulator.system.equation, XDIR, u)
