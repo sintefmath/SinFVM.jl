@@ -37,8 +37,10 @@ function run_simulation(nx; backend = make_cuda_backend())
 
     T = 1.0
     # plot(x, first.(SinSWE.current_interior_state(simulator)))
-    println("Running SinSWE twice")
-    @time SinSWE.simulate_to_time(simulator, T)
+    if nx <= 64 * 1024
+        println("Running SinSWE twice")
+        @time SinSWE.simulate_to_time(simulator, T)
+    end
     SinSWE.set_current_state!(simulator, initial)
     timestep_counter = CountTimesteps()
     result_sinswe = @timed SinSWE.simulate_to_time(simulator, T, callback=timestep_counter)
@@ -48,8 +50,11 @@ function run_simulation(nx; backend = make_cuda_backend())
     number_of_x_cells = nx
     number_of_saves = 100
 
-    println("Running bare bones twice")
-    @time xcorrect, ucorrect, _, _ = Correct.solve_fvm(u0, T, number_of_x_cells, number_of_saves, Correct.Burgers())
+    if nx <= 64 * 1024
+        println("Running bare bones twice")
+        @time xcorrect, ucorrect, _, _ = Correct.solve_fvm(u0, T, number_of_x_cells, number_of_saves, Correct.Burgers())
+    end
+
     result_barebones = @timed xcorrect, ucorrect, _, _, timesteps_barebones = Correct.solve_fvm(u0, T, number_of_x_cells, number_of_saves, Correct.Burgers())
 
     return (result_sinswe, timestep_counter.current_timestep, result_barebones, timesteps_barebones)
@@ -59,7 +64,7 @@ function benchmark(outname, backend)
     open(outname, "w") do io
         write(io, "resolution,time_swe,bytes_swe,gctime_swe,timesteps_swe,time_bb,bytes_bb,gctime_bb,timesteps_bb\n")
     end
-    resolutions = 2 .^ (2:16)
+    resolutions = 2 .^ (2:22)
 
     for resolution in resolutions
         println("resolution = $resolution")
