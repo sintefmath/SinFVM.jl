@@ -14,6 +14,8 @@ using StaticArrays
 using Parameters
 
 include("grid.jl")
+include("backends/kernel_abstractions_cuda.jl")
+
 include("meta/loops.jl")
 include("backends/kernel_abstractions.jl")
 include("bc.jl")
