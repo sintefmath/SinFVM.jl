@@ -4,12 +4,12 @@ end
 
 
 abstract type Grid{dimension} end
-struct CartesianGrid{dimension,BoundaryType} <: Grid{dimension}
+struct CartesianGrid{dimension,BoundaryType, dimension2} <: Grid{dimension}
     ghostcells::SVector{dimension,Int64}
     totalcells::SVector{dimension,Int64}
 
     boundary::BoundaryType
-    extent::SMatrix{dimension,2,Float64}
+    extent::SVector{dimension2, Float64} # NOTE: SMatrix seems to mess up CUDA.jl
     Δx::Float64
 end
 
@@ -20,14 +20,14 @@ function CartesianGrid(nx; gc=1, boundary=PeriodicBC(), extent=[0.0 1.0])
     Δx = domain_width / nx
     return CartesianGrid(SVector{1,Int64}([gc]),
         SVector{1,Int64}([nx + 2 * gc]),
-        boundary, SMatrix{1,2,Float64}(extent),
+        boundary, SVector{2,Float64}(extent[1], extent[2]),
         Δx)
 end
 
 function cell_centers(grid::CartesianGrid{1}; interior=true)
     @assert interior
 
-    xinterface = collect(LinRange(grid.extent[1, 1], grid.extent[1, 2], grid.totalcells[1] - 2 * grid.ghostcells[1] + 1))
+    xinterface = collect(LinRange(grid.extent[1], grid.extent[2], grid.totalcells[1] - 2 * grid.ghostcells[1] + 1))
     xcell = xinterface[1:end-1] .+ (xinterface[2] - xinterface[1]) / 2.0
     return xcell
 end
