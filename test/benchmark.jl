@@ -70,4 +70,4 @@ function benchmark(outname, backend)
     end
 end
 benchmark("results_cuda.txt", make_cuda_backend())
-benchmark("results_cpu.txt", make_cuda_backend())
+benchmark("results_cpu.txt", make_cpu_backend())
