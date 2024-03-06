@@ -41,7 +41,7 @@ mutable struct DummyPrinter
 end
 
 function update!(m::DummyPrinter, state)
-    return 
+    return
     currenttime = time()
     if currenttime - m.last_time >= m.printevery
         print(stdout, "$state\r")
@@ -50,7 +50,7 @@ function update!(m::DummyPrinter, state)
     end
 end
 
-function solve_fvm(u0, T::Float64, number_of_x_cells, number_of_saves, flux;
+function solve_fvm(u0, T::Float64, number_of_x_cells, flux;
     start_x=0.0, end_x=1.0, numerical_flux=godunov, viscosity=0.0,
     cfl_constant=0.5, bc=neumann, progress_printer=DummyPrinter)
     cfl(u) = deriv(flux, u)
@@ -66,13 +66,6 @@ function solve_fvm(u0, T::Float64, number_of_x_cells, number_of_saves, flux;
 
     u_new = zero(u)
 
-    saves = zeros(number_of_x_cells, number_of_saves)
-
-    dudts = zero(saves)
-    saves[:, 1] = u[2:end-1]
-    save_t = range(0.0, T, length=number_of_saves)
-    @assert size(save_t, 1) == number_of_saves
-    current_save_index = 2
 
 
     progress = progress_printer(T, "Current time: ")
@@ -83,13 +76,6 @@ function solve_fvm(u0, T::Float64, number_of_x_cells, number_of_saves, flux;
             central_difference = (u[i+1] - 2 * u[i] + u[i-1]) / dx^2
             time_derivative = -1 / dx * (numerical_flux(u[i], u[i+1], flux, dt, dx) - numerical_flux(u[i-1], u[i], flux, dt, dx)) + viscosity * central_difference
             u_new[i] = u[i] + dt * time_derivative
-
-            if t == 0
-                dudts[i-1, 1] = time_derivative
-            end
-            if save_t[current_save_index] == t
-                dudts[i-1, current_save_index] = time_derivative
-            end
         end
 
         u[2:end-1] .= u_new[2:end-1]
@@ -108,7 +94,7 @@ function solve_fvm(u0, T::Float64, number_of_x_cells, number_of_saves, flux;
     end
     println()
 
-    return x, u[2:end-1], saves, dudts, total_timesteps_done
+    return x, u[2:end-1], total_timesteps_done
 end
 
 function runme()

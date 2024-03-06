@@ -17,7 +17,7 @@ end
 function (counter::CountTimesteps)(t, sim)
     counter.current_timestep += 1
 end
-function run_simulation(nx; backend = make_cuda_backend())
+function run_simulation(nx; backend=make_cuda_backend())
     u0 = x -> sin.(2π * x)
     grid = SinSWE.CartesianGrid(nx)
 
@@ -36,6 +36,11 @@ function run_simulation(nx; backend = make_cuda_backend())
     t = 0.0
 
     T = 1.0
+
+    time_scale_threshold = 16 * 1024
+    if nx > time_scale_threshold
+        T = (Float64(time_scale_threshold) / Float64(nx)) * T
+    end
     # plot(x, first.(SinSWE.current_interior_state(simulator)))
     if nx <= 64 * 1024
         println("Running SinSWE twice")
@@ -48,14 +53,13 @@ function run_simulation(nx; backend = make_cuda_backend())
 
 
     number_of_x_cells = nx
-    number_of_saves = 100
 
     if nx <= 64 * 1024
         println("Running bare bones twice")
-        @time xcorrect, ucorrect, _, _ = Correct.solve_fvm(u0, T, number_of_x_cells, number_of_saves, Correct.Burgers())
+        @time xcorrect, ucorrect, _ = Correct.solve_fvm(u0, T, number_of_x_cells, Correct.Burgers())
     end
 
-    result_barebones = @timed xcorrect, ucorrect, _, _, timesteps_barebones = Correct.solve_fvm(u0, T, number_of_x_cells, number_of_saves, Correct.Burgers())
+    result_barebones = @timed xcorrect, ucorrect, timesteps_barebones = Correct.solve_fvm(u0, T, number_of_x_cells, Correct.Burgers())
 
     return (result_sinswe, timestep_counter.current_timestep, result_barebones, timesteps_barebones)
 end
@@ -64,7 +68,7 @@ function benchmark(outname, backend)
     open(outname, "w") do io
         write(io, "resolution,time_swe,bytes_swe,gctime_swe,timesteps_swe,time_bb,bytes_bb,gctime_bb,timesteps_bb\n")
     end
-    resolutions = 2 .^ (2:22)
+    resolutions = 2 .^ (2:28)
 
     for resolution in resolutions
         println("resolution = $resolution")
