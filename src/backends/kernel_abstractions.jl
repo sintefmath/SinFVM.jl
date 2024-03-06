@@ -9,7 +9,7 @@ end
 make_cuda_backend() = KernelAbstractionBackend(get_backend(CUDA.cu(ones(3))))
 make_cpu_backend() = KernelAbstractionBackend(get_backend(ones(3)))
 const CUDABackend = KernelAbstractionBackend{CUDA.CUDAKernels.CUDABackend}
-
+const CPUBackend = KernelAbstractionBackend{KernelAbstractions.CPU}
 
 
 @kernel function for_each_inner_cell_kernel(f, grid, direction, y...)
