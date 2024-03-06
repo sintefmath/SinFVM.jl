@@ -6,8 +6,8 @@ import CSV
 f = Figure( size=(1600,600), fontsize=24)
 ax = Axis(f[1, 1],
    
-    title = "Wall runtime",
-    ylabel = "Runtime [s]",
+    title = "Runtime per timestep",
+    ylabel = "Runtime per timestep [s]",
     xlabel = "Resolution [number of cells]",
     xscale= log2,
     yscale= log2,
@@ -19,7 +19,7 @@ ax2 = Axis(f[1, 2],
     xlabel = "Resolution",
     ylabel = "Speedup",
     xscale= log2,
-    yscale= log10,
+    yscale= log2,
 )
 
 runtimes_all = Dict("swe" =>  Float64[], "bb" =>  Float64[])
@@ -32,7 +32,7 @@ for k in use_keys
     csvfile = CSV.File("results_cuda.txt")
 
     for row in csvfile
-        runtime = Float64(row[Symbol("time_$(k)")])
+        runtime = Float64(row[Symbol("time_$(k)")])/Float64(row[Symbol("timesteps_$(k)")])
         resolution =  Int64(row[Symbol("resolution")])
 
         push!(runtime_per_timestep, runtime)
@@ -44,11 +44,20 @@ for k in use_keys
 
     lines!(f[1,1], resolutions, runtime_per_timestep, label=labels[k])
     scatter!(f[1,1], resolutions, runtime_per_timestep)
+
+    if k == "bb"
+        lines!(f[1,1], resolutions, runtime_per_timestep ./ 12, linestyle=:dash, label="Idealized 12 core run")
+        scatter!(f[1,1], resolutions, runtime_per_timestep ./ 12)
+    end
 end
 axislegend(ax, position=:lt)
 
-lines!(f[1,2], resolutions_all["swe"], runtimes_all["bb"]./runtimes_all["swe"])
+lines!(f[1,2], resolutions_all["swe"], runtimes_all["bb"]./runtimes_all["swe"], label="Against single core")
 scatter!(f[1,2], resolutions_all["swe"], runtimes_all["bb"]./runtimes_all["swe"])
+
+lines!(f[1,2], resolutions_all["swe"], runtimes_all["bb"]./runtimes_all["swe"]./12, linestyle=:dash, label="Against ideal 12 core")
+scatter!(f[1,2], resolutions_all["swe"], runtimes_all["bb"]./runtimes_all["swe"]./12)
+axislegend(ax2, position=:lt)
 
 println("Done")
 save("benchmark.png", f)
