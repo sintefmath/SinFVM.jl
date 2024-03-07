@@ -30,7 +30,7 @@ function run_simulation()
 
     T = 0.7
 
-    energy_sw(state) = [sum(first.(state))]
+    energy_sw(state) = [sum(first.(state)) * SinSWE.compute_dx(grid)]
     all_energies = []
     callback(time, sim) = push!(all_energies, energy_sw(SinSWE.current_interior_state(sim)))
 
