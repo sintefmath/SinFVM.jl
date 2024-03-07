@@ -11,7 +11,7 @@ struct Simulator{BackendType, SystemType, TimeStepperType, GridType, StateType, 
     cfl::FloatType
 end
 
-function Simulator(backend, system, timestepper, grid)
+function Simulator(backend, system, timestepper, grid; cfl = 0.5)
     return Simulator{
         typeof(backend),
         typeof(system),
@@ -25,7 +25,7 @@ function Simulator(backend, system, timestepper, grid)
         grid,
         [create_buffer(backend, grid, system) for _ in 1:number_of_substeps(timestepper)+1],
         MVector{1,Float64}([0]),
-        0.5)
+        cfl)
 end
 
 current_state(simulator::Simulator) = simulator.substep_outputs[1]
