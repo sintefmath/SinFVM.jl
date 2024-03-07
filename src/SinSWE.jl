@@ -1,5 +1,5 @@
 module SinSWE
-
+using Logging
 direction(integer) = Val{integer}
 
 const XDIRT = Val{1}
