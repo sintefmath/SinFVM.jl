@@ -35,9 +35,9 @@ end
 
 
 macro for_each_cell_macro(code_snippet)
-    modules= [mod for mod in getfield.(Ref(Main),names(Main)) if typeof(mod)==Module && mod != Main]
-    all_functions = vcat(( filter!(f -> true, #typeof(f), <: Function, 
-              getfield.(Ref(m), names(m)))  for m in modules)...)
+    modules = [mod for mod in getfield.(Ref(Main), names(Main)) if typeof(mod) == Module && mod != Main]
+    all_functions = vcat((filter!(f -> true, #typeof(f), <: Function, 
+        getfield.(Ref(m), names(m))) for m in modules)...)
     # @show (all_functions)
     # println("macro is called")
     # @show code_snippet
@@ -86,7 +86,7 @@ abstract type NumericalFlux end
 struct Burgers <: Equation end
 
 
-struct Godunov{EquationType <: Equation} <: NumericalFlux
+struct Godunov{EquationType<:Equation} <: NumericalFlux
     eq::EquationType
 end
 
@@ -96,7 +96,7 @@ function (god::Godunov)(faceminus, faceplus)
     f(u) = 0.5 * u^2
     fluxminus = f(max.(faceminus, zero(faceminus)))
     fluxplus = f(min.(faceplus, zero(faceplus)))
-    
+
     F = max.(fluxminus, fluxplus)
     return F
 end
@@ -107,7 +107,7 @@ end
 @kernel function for_each_cell_kernel(f, x, grid, y...)
     I = @index(Global)
     if I > 1 && I < size(x)[1]
-        f(I-1, I, I+1, y...)
+        f(I - 1, I, I + 1, y...)
     end
 end
 
@@ -117,7 +117,7 @@ function for_inner_each_cell(f, x, backend, grid, y...)
     #synchronize(backend)
 end
 N = 1000000
-Δx = 1/N
+Δx = 1 / N
 x = CUDA.cu(ones(N))
 y = CUDA.cu(ones(N))
 output = CUDA.cu(zeros(N))
@@ -131,9 +131,9 @@ left = CUDA.cu(collect(0:N-1)) * Δx
 # left = collect(0:N-1) * Δx
 F = Godunov(Burgers())
 
-function call_me_in_a_loop() 
-    @for_each_cell_macro for_inner_each_cell(x, get_backend(x), nothing) do  ileft, imiddle, iright
-        output[imiddle] -= 1/Δx *( F(right[imiddle], left[iright]) - F(right[ileft], left[imiddle]))
+function call_me_in_a_loop()
+    @for_each_cell_macro for_inner_each_cell(x, get_backend(x), nothing) do ileft, imiddle, iright
+        output[imiddle] -= 1 / Δx * (F(right[imiddle], left[iright]) - F(right[ileft], left[imiddle]))
         return nothing
     end
 end

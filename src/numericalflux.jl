@@ -52,7 +52,7 @@ end
 
 
 function compute_flux!(backend, F::NumericalFlux, output, left, right, grid, equation::Equation, direction::XDIRT)
-    Δx = compute_dx(grid)
+    Δx = compute_dx(grid, direction)
     @fvmloop for_each_inner_cell(backend, grid, direction) do ileft, imiddle, iright
         output[imiddle] -= 1 / Δx * (F(right[imiddle], left[iright]) - F(right[ileft], left[imiddle]))
         nothing

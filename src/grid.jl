@@ -10,10 +10,13 @@ struct CartesianGrid{dimension,BoundaryType,dimension2} <: Grid{dimension}
 
     boundary::BoundaryType
     extent::SVector{dimension2,Float64} # NOTE: SMatrix seems to mess up CUDA.jl
-    Δx::Float64
+    Δ::SVector{dimension,Float64}
 end
 
 directions(::Grid{1}) = (XDIR,)
+directions(::Grid{2}) = (XDIR, YDIR)
+directions(::Grid{3}) = (XDIR, YDIR, ZDIR)
+
 
 function CartesianGrid(nx; gc=1, boundary=PeriodicBC(), extent=[0.0 1.0])
     domain_width = extent[1, 2] - extent[1, 1]
@@ -21,7 +24,18 @@ function CartesianGrid(nx; gc=1, boundary=PeriodicBC(), extent=[0.0 1.0])
     return CartesianGrid(SVector{1,Int64}([gc]),
         SVector{1,Int64}([nx + 2 * gc]),
         boundary, SVector{2,Float64}(extent[1], extent[2]),
-        Δx)
+        SVector{1,Float64}([Δx])
+    )
+end
+
+function CartesianGrid(nx, ny; gc=1, boundary=PeriodicBC(), extent=[0.0 1.0; 0.0 1.0])
+    domain_width = extent[1, 2] - extent[1, 1]
+    domain_height = extent[2, 2] - extent[2, 1]
+    Δ = SVector{2,Float64}([domain_width / nx, domain_height / ny])
+    return CartesianGrid(SVector{2,Int64}([gc, gc]),
+        SVector{2,Int64}([nx + 2 * gc, ny + 2 * gc]),
+        boundary, SVector{4,Float64}(extent[1, 1], extent[1, 2], extent[2, 1], extent[2, 2]),
+        Δ)
 end
 
 function cell_centers(grid::CartesianGrid{1}; interior=true)
@@ -32,7 +46,8 @@ function cell_centers(grid::CartesianGrid{1}; interior=true)
     return xcell
 end
 
-compute_dx(grid::CartesianGrid{1}) = grid.Δx
+compute_dx(grid::CartesianGrid{1}, direction=XDIR) = grid.Δ[direction]
+compute_dx(grid::CartesianGrid{dimension}, direction=XDIR) where {dimension} = grid.Δ[direction]
 
 
 function for_each_inner_cell(f, g::CartesianGrid{1}, include_ghostcells=0)
