@@ -48,6 +48,9 @@ for k in use_keys
     if k == "bb"
         lines!(f[1,1], resolutions, runtime_per_timestep ./ 16, linestyle=:dash, label="Idealized 16 core run")
         scatter!(f[1,1], resolutions, runtime_per_timestep ./ 16)
+
+        lines!(f[1,1], resolutions, runtime_per_timestep ./ 4, linestyle=:dashdot, label="'Realistic' 4 core run")
+        scatter!(f[1,1], resolutions, runtime_per_timestep ./ 4)
     end
 end
 axislegend(ax, position=:lt)
@@ -57,6 +60,10 @@ scatter!(f[1,2], resolutions_all["swe"], runtimes_all["bb"]./runtimes_all["swe"]
 
 lines!(f[1,2], resolutions_all["swe"], runtimes_all["bb"]./runtimes_all["swe"]./16, linestyle=:dash, label="Against Idealized 16 core")
 scatter!(f[1,2], resolutions_all["swe"], runtimes_all["bb"]./runtimes_all["swe"]./16)
+
+lines!(f[1,2], resolutions_all["swe"], runtimes_all["bb"]./runtimes_all["swe"]./4, linestyle=:dashdot, label="Against 'realistic' 4 core")
+scatter!(f[1,2], resolutions_all["swe"], runtimes_all["bb"]./runtimes_all["swe"]./4)
+
 axislegend(ax2, position=:lt)
 
 println("Done")
