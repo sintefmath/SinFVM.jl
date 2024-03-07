@@ -51,15 +51,15 @@ function update!(m::DummyPrinter, state)
 end
 
 function solve_fvm(u0, T::Float64, number_of_x_cells, flux;
-    start_x=0.0, end_x=1.0, numerical_flux=godunov, viscosity=0.0,
-    cfl_constant=0.5, bc=neumann, progress_printer=DummyPrinter)
+    start_x=0.0, end_x=1.0, numerical_flux=godunov,
+    cfl_constant=0.5, bc=periodic, progress_printer=DummyPrinter)
     cfl(u) = deriv(flux, u)
 
     x = range(start_x, end_x, length=number_of_x_cells)
     @assert size(x, 1) == number_of_x_cells
     dx = x[2] - x[1]
     u = zeros(size(x, 1) + 2)
-    u[2:end-1] = u0.(x)
+    u[2:end-1] = u0.(x .+ dx / 2)
     bc(u)
     dt = cfl_constant * dx / maximum(abs.(cfl.(u)))
     t = 0.0
@@ -73,8 +73,7 @@ function solve_fvm(u0, T::Float64, number_of_x_cells, flux;
     while t < T
         update!(progress, t)
         for i = 2:size(u, 1)-1
-            central_difference = (u[i+1] - 2 * u[i] + u[i-1]) / dx^2
-            time_derivative = -1 / dx * (numerical_flux(u[i], u[i+1], flux, dt, dx) - numerical_flux(u[i-1], u[i], flux, dt, dx)) + viscosity * central_difference
+            time_derivative = -1 / dx * (numerical_flux(u[i], u[i+1], flux, dt, dx) - numerical_flux(u[i-1], u[i], flux, dt, dx))
             u_new[i] = u[i] + dt * time_derivative
         end
 
@@ -83,12 +82,6 @@ function solve_fvm(u0, T::Float64, number_of_x_cells, flux;
         t += dt
 
         dt = cfl_constant * dx / maximum(abs.(cfl.(u)))
-
-        if viscosity > 0.0
-            dt_viscosity = 0.25 * dx^2 / viscosity
-            dt = min(dt, dt_viscosity)
-        end
-
 
         total_timesteps_done += 1
     end
