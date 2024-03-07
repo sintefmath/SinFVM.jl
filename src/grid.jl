@@ -4,12 +4,12 @@ end
 
 
 abstract type Grid{dimension} end
-struct CartesianGrid{dimension,BoundaryType, dimension2} <: Grid{dimension}
+struct CartesianGrid{dimension,BoundaryType,dimension2} <: Grid{dimension}
     ghostcells::SVector{dimension,Int64}
     totalcells::SVector{dimension,Int64}
 
     boundary::BoundaryType
-    extent::SVector{dimension2, Float64} # NOTE: SMatrix seems to mess up CUDA.jl
+    extent::SVector{dimension2,Float64} # NOTE: SMatrix seems to mess up CUDA.jl
     Δx::Float64
 end
 
@@ -41,23 +41,23 @@ function for_each_inner_cell(f, g::CartesianGrid{1}, include_ghostcells=0)
     end
 end
 
-function inner_cells(g::CartesianGrid{1}, direction::XDIRT)
-    return g.totalcells[1] - 2 * g.ghostcells[1]
+function inner_cells(g::CartesianGrid{1}, direction, ghostcells=g.ghostcells[direction])
+    return g.totalcells[direction] - 2 * ghostcells
 end
 
-function left_cell(g::CartesianGrid{1}, I::Int64, direction::XDIRT)
-    return I + g.ghostcells[1]  - 1
+function left_cell(g::CartesianGrid{1}, I::Int64, direction, ghostcells=g.ghostcells[direction])
+    return I + ghostcells - 1
 end
 
-function middle_cell(g::CartesianGrid{1}, I::Int64, direction::XDIRT)
-    return I + g.ghostcells[1]
+function middle_cell(g::CartesianGrid{1}, I::Int64, direction, ghostcells=g.ghostcells[direction])
+    return I + ghostcells
 end
 
 
-function right_cell(g::CartesianGrid{1}, I::Int64, direction::XDIRT)
-    return I + g.ghostcells[1] + 1
+function right_cell(g::CartesianGrid{1}, I::Int64, direction, ghostcells=g.ghostcells[direction])
+    return I + ghostcells + 1
 end
 
-function ghost_cells(g::CartesianGrid{1}, direction::XDIRT)
-    return g.ghostcells[1]
+function ghost_cells(g::CartesianGrid{1}, direction)
+    return g.ghostcells[direction]
 end

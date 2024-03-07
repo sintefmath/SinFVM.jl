@@ -12,18 +12,18 @@ const CUDABackend = KernelAbstractionBackend{CUDA.CUDAKernels.CUDABackend}
 const CPUBackend = KernelAbstractionBackend{KernelAbstractions.CPU}
 
 
-@kernel function for_each_inner_cell_kernel(f, grid, direction, y...)
-    I =@index(Global)
-    f(left_cell(grid, I, direction), middle_cell(grid, I, direction), right_cell(grid, I, direction), y...)
+@kernel function for_each_inner_cell_kernel(f, grid, direction, ghostcells, y...)
+    I = @index(Global)
+    f(left_cell(grid, I, direction, ghostcells), middle_cell(grid, I, direction, ghostcells), right_cell(grid, I, direction, ghostcells), y...)
 end
 
 
-function for_each_inner_cell(f, backend::KernelAbstractionBackend{T}, grid, direction, y...) where {T}
-    ev = for_each_inner_cell_kernel(backend.backend, 1024)(f, grid, direction, y..., ndrange=inner_cells(grid, direction))
+function for_each_inner_cell(f, backend::KernelAbstractionBackend{T}, grid, direction, y...; ghostcells=grid.ghostcells[direction]) where {T}
+    ev = for_each_inner_cell_kernel(backend.backend, 1024)(f, grid, direction, ghostcells, y..., ndrange=inner_cells(grid, direction, ghostcells))
 end
 
 @kernel function for_each_ghost_cell_kernel(f, grid, direction, y...)
-    I =@index(Global)
+    I = @index(Global)
     f(I, y...)
 end
 

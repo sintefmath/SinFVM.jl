@@ -10,6 +10,10 @@ const XDIR = XDIRT()
 const YDIR = YDIRT()
 const ZDIR = ZDIRT()
 
+Base.to_index(::XDIRT) = 1
+Base.to_index(::YDIRT) = 2
+Base.to_index(::ZDIRT) = 3
+
 using StaticArrays
 using Parameters
 
