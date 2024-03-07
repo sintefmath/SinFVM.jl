@@ -8,7 +8,7 @@ end
 using SinSWE
 function run_simulation()
     u0 = x -> sin.(2π * x) .+ 1.5
-    nx = 1024
+    nx = 32 * 1024
     grid = SinSWE.CartesianGrid(nx)
     backend = make_cpu_backend()
 

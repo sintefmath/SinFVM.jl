@@ -1,6 +1,6 @@
 import ProgressMeter
 
-struct Simulator{BackendType, SystemType, TimeStepperType, GridType, StateType, FloatType}
+struct Simulator{BackendType,SystemType,TimeStepperType,GridType,StateType,FloatType}
     backend::BackendType
     system::SystemType
     timestepper::TimeStepperType
@@ -11,7 +11,7 @@ struct Simulator{BackendType, SystemType, TimeStepperType, GridType, StateType, 
     cfl::FloatType
 end
 
-function Simulator(backend, system, timestepper, grid; cfl = 0.5)
+function Simulator(backend, system, timestepper, grid; cfl=0.5)
     return Simulator{
         typeof(backend),
         typeof(system),
@@ -62,12 +62,13 @@ function perform_step!(simulator::Simulator)
     simulator.substep_outputs[1], simulator.substep_outputs[end] = simulator.substep_outputs[end], simulator.substep_outputs[1]
 end
 
-function simulate_to_time(simulator::Simulator, endtime; t=0.0, callback=nothing)
+function simulate_to_time(simulator::Simulator, endtime; t=0.0, callback=nothing, show_progress=true)
+    prog = ProgressMeter.ProgressThresh(0.0; desc="Remaining time:", enabled=show_progress, dt=2.0)
     while t <= endtime
         perform_step!(simulator)
         t += current_timestep(simulator)
-
-        if ! isnothing(callback)
+        ProgressMeter.update!(prog, abs(endtime - t))
+        if !isnothing(callback)
             callback(t, simulator)
         end
     end
