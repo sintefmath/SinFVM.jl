@@ -1,10 +1,7 @@
-create_buffer(backend, grid::CartesianGrid{1}, equation::Equation) = zeros(SVector{number_of_conserved_variables(equation),Float64}, grid.totalcells[1])
-create_buffer(backend::CPUBackend, grid::CartesianGrid{1}, equation::Equation) = KernelAbstractions.zeros(backend.backend, SVector{number_of_conserved_variables(equation),Float64}, grid.totalcells[1])
-create_buffer(backend::CUDABackend, grid::CartesianGrid{1}, equation::Equation) = CUDA.cu(zeros(SVector{number_of_conserved_variables(equation),Float64}, grid.totalcells[1]))
-
+create_volume(backend, grid, equation) = Volume(backend, equation, grid)
 abstract type System end
 
-struct ConservedSystem{BackendType, ReconstructionType,NumericalFluxType,EquationType,GridType,BufferType} <: System
+struct ConservedSystem{BackendType,ReconstructionType,NumericalFluxType,EquationType,GridType,BufferType} <: System
     backend::BackendType
     reconstruction::ReconstructionType
     numericalflux::NumericalFluxType
@@ -20,11 +17,11 @@ struct ConservedSystem{BackendType, ReconstructionType,NumericalFluxType,Equatio
         typeof(numericalflux),
         typeof(equation),
         typeof(grid),
-        typeof(create_buffer(backend, grid, equation))
-    }(backend, reconstruction, numericalflux, equation, grid, create_buffer(backend, grid, equation), create_buffer(backend, grid, equation))
+        typeof(create_volume(backend, grid, equation))
+    }(backend, reconstruction, numericalflux, equation, grid, create_volume(backend, grid, equation), create_volume(backend, grid, equation))
 end
 
-create_buffer(backend, grid, cs::ConservedSystem) = create_buffer(backend, grid, cs.equation)
+create_volume(backend, grid, cs::ConservedSystem) = create_volume(backend, grid, cs.equation)
 
 function add_time_derivative!(output, cs::ConservedSystem, current_state)
     reconstruct!(cs.backend, cs.reconstruction, cs.left_buffer, cs.right_buffer, current_state, cs.grid, cs.equation, XDIR)
@@ -51,7 +48,7 @@ function add_time_derivative!(output, bs::BalanceSystem, current_state)
         nothing
     end
 end
-create_buffer(backend, grid, bs::BalanceSystem) = create_buffer(backend, grid, bs.conserved_system)
+create_volume(backend, grid, bs::BalanceSystem) = create_volume(backend, grid, bs.conserved_system)
 
 
 

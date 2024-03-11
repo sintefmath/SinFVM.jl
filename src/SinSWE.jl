@@ -17,17 +17,19 @@ Base.to_index(::ZDIRT) = 3
 using StaticArrays
 using Parameters
 
+include("meta/staticvectors.jl")
 include("grid.jl")
 include("backends/kernel_abstractions_cuda.jl")
-
 include("meta/loops.jl")
 include("backends/kernel_abstractions.jl")
+include("backends/buffer.jl")
 include("bc.jl")
 include("equation.jl")
+include("volume.jl")
 include("reconstruction.jl")
 include("numericalflux.jl")
 include("system.jl")
 include("timestepper.jl")
 include("simulator.jl")
-export XDIR, YDIR, ZDIR, ShallowWaterEquations, Burgers, CartesianGrid, make_cpu_backend, make_cuda_backend
+export XDIR, YDIR, ZDIR, ShallowWaterEquations, Burgers, CartesianGrid, make_cpu_backend, make_cuda_backend, Volume
 end

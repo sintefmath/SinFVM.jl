@@ -17,13 +17,13 @@ function Simulator(backend, system, timestepper, grid; cfl=0.5)
         typeof(system),
         typeof(timestepper),
         typeof(grid),
-        typeof(create_buffer(backend, grid, system)),
+        typeof(create_volume(backend, grid, system)),
         Float64
     }(backend,
         system,
         timestepper,
         grid,
-        [create_buffer(backend, grid, system) for _ in 1:number_of_substeps(timestepper)+1],
+        [create_volume(backend, grid, system) for _ in 1:number_of_substeps(timestepper)+1],
         MVector{1,Float64}([0]),
         cfl)
 end
