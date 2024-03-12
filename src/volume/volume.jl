@@ -59,7 +59,15 @@ Base.length(vol::Volume) = Base.size(vol._data, 1)
 Base.size(vol::Volume) = size(vol._grid)
 
 
-
+function Base.setindex!(vol::T, values::Container, indices::UnitRange{Int64}) where {T<:Volume,Container<:AbstractVector{<:AbstractVector}}
+    for j in 1:number_of_variables(T)
+        # We don't want to transfer all of volume to the GPU.
+        data_alias = vol._data
+        @fvmloop for_each_index_value(vol._backend, indices) do index_source, index_target
+            data_alias[index_target, j] = values[index_source][j]
+        end
+    end
+end
 
 include("volume_variable.jl")
 include("interior_volume.jl")

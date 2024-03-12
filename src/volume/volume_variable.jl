@@ -16,7 +16,7 @@ function Base.propertynames(::Type{T}) where {T<:Volume}
 end
 
 function Base.getproperty(volume::T, variable::Symbol) where {T<:Volume}
-    if variable == :_data || variable == :_grid
+    if variable == :_data || variable == :_grid || variable == :_backend
         return getfield(volume, variable)
     end
     variable_index = findfirst(x -> x == variable, variable_names(T))

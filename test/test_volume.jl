@@ -27,4 +27,16 @@ for backend in get_available_backends()
     inner_volume = SinSWE.InteriorVolume(volume)
 
     @test inner_volume[1] == volume[2]
+
+    new_values = zeros(SVector{2,Float64}, (9 - 3))
+    for i in 4:9
+        new_values[i-3] = @SVector [i, 2.0 * i]
+    end
+
+    new_values_backend = SinSWE.convert_to_backend(backend, new_values)
+    volume[4:9] = new_values_backend
+
+    for i in 4:9
+        @show @SVector [i, 2.0 * i]
+    end
 end

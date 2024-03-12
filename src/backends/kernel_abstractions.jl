@@ -12,12 +12,13 @@ const CUDABackend = KernelAbstractionBackend{CUDA.CUDAKernels.CUDABackend}
 const CPUBackend = KernelAbstractionBackend{KernelAbstractions.CPU}
 
 function get_available_backends()
-    backends = [make_cpu_backend()]
+    backends = Any[make_cpu_backend()]
 
     try
         cuda_backend = make_cuda_backend()
         push!(backends, cuda_backend)
-    catch
+    catch err
+        @show err
     end
     return backends
 end
@@ -39,4 +40,19 @@ end
 
 function for_each_ghost_cell(f, backend::KernelAbstractionBackend{T}, grid, direction, y...) where {T}
     ev = for_each_ghost_cell_kernel(backend.backend, 1024)(f, grid, direction, y..., ndrange=ghost_cells(grid, direction))
+end
+
+
+@kernel function for_each_index_value_kernel(f, values, y...)
+    I = @index(Global)
+    f(I, values[I], y...)
+end
+
+
+function for_each_index_value(f, backend::KernelAbstractionBackend{T}, values, y...) where {T}
+    # Make sure we don't have weird indexing. If we do get weird indexing, we would have to 
+    # do the ndrange and @index slightly differently.
+    @assert firstindex(values) == 1
+    @assert lastindex(values) == length(values)
+    ev = for_each_index_value_kernel(backend.backend, 1024)(f, values, y..., ndrange=length(values))
 end
