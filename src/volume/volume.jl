@@ -78,8 +78,8 @@ Base.size(vol::Volume) = size(vol._grid)
 
 
 function Base.setindex!(vol::T, values::Container, indices::UnitRange{Int64}) where {T<:Volume,Container<:AbstractVector{<:AbstractVector}}
+    # TODO: Move this for loop to the inner kernel... Current limitation in the @fvmloop makes this hard.
     for j in 1:number_of_variables(T)
-
         @fvmloop for_each_index_value(vol._backend, indices) do index_source, index_target
             vol._data[index_target, j] = values[index_source][j]
         end

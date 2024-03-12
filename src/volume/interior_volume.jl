@@ -58,7 +58,15 @@ Base.IndexStyle(::Type{InteriorVolume{T}}) where {T<:Volume} = Base.IndexStyle(T
 Base.eltype(::Type{InteriorVolume{T}}) where {T<:Volume} = Base.eltype(T)
 Base.length(vol::InteriorVolume) = number_of_interior_cells(vol._volume)
 Base.size(vol::InteriorVolume) = interior_size(vol._volume)
-
+function Base.setindex!(vol::InteriorVolume{T}, values::Container, indices::UnitRange{Int64}) where {T<:Volume,Container<:AbstractVector{<:AbstractVector}}
+    # TODO: Move this for loop to the inner kernel...
+    for j in 1:number_of_variables(T)
+        proper_volume = vol._volume
+        @fvmloop for_each_index_value(vol._volume._backend, indices) do index_source, index_target
+            proper_volume._data[interior2full(proper_volume, index_target), j] = values[index_source][j]
+        end
+    end
+end
 # function Base.propertynames(::Type{InteriorVolume{T}}) where {T<:Volume}
 #     return variable_names(T)
 # end
