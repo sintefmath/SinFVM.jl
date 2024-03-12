@@ -28,9 +28,10 @@ function run_simulation()
     x = SinSWE.cell_centers(grid)
     initial = u0.(x)#collect(map(z -> SVector{2,Float64}([z]), u0(x)))
     f = Figure(size=(1600, 600), fontsize=24)
+    T = 0.05
     ax = Axis(
         f[1, 1],
-        title="Simulation of the Shallow Water equations in 1D.\nCentral Upwind and Forward-Euler.\nResolution $(nx) cells.",
+        title="Simulation of the Shallow Water equations in 1D.\nCentral Upwind and Forward-Euler.\nResolution $(nx) cells.\nT=$(T)",
         ylabel="Solution",
         xlabel=L"x",
     )
@@ -53,7 +54,7 @@ function run_simulation()
 
     t = 0.0
 
-    T = 0.05
+ 
     energy_sw(state) = [sum(first.(state)), sum(map(q -> q[2], state))]
     all_energies = []
     callback(time, sim) = push!(all_energies, energy_sw(SinSWE.current_interior_state(sim)))
