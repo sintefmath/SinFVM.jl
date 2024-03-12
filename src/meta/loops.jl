@@ -1,4 +1,31 @@
 
+function get_variable_names_defined(expression)
+    nothing
+end
+
+
+
+function get_variable_names_defined(expression::Expr)
+    if expression.head == Symbol("=") && expression.args[1] isa Symbol
+        return [expression.args[1]]
+    else
+        return get_variable_names_defined(expression.args)
+    end
+end
+
+function get_variable_names_defined(expressions::Vector)
+    all_symbols = []
+
+    for expression in expressions
+        symbols_from_expression = get_variable_names_defined(expression)
+
+        if !isnothing(symbols_from_expression)
+            all_symbols = vcat(all_symbols, symbols_from_expression)
+        end
+    end
+    return all_symbols
+end
+
 function get_variable_names_referred(expression)
     nothing
 end
@@ -44,9 +71,17 @@ macro fvmloop(code_snippet)
 
     all_variables_referenced = get_variable_names_referred(function_body.args)
     all_variables_referenced = Set(all_variables_referenced)
-
+    
+    all_variables_defined = get_variable_names_defined(function_body.args)
+    
     for known_symbol in all_symbols
         delete!(all_variables_referenced, Symbol(known_symbol))
+        delete!(all_variables_referenced, Symbol(".$known_symbol"))
+    end
+
+    for defined_symbol in all_variables_defined
+        delete!(all_variables_referenced, defined_symbol)
+        delete!(all_variables_referenced, Symbol(".$defined_symbol"))
     end
    
     new_parameter_names = []
