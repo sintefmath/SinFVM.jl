@@ -37,6 +37,7 @@ for backend in get_available_backends()
     volume[4:9] = new_values_backend
 
     for i in 4:9
-        @show @SVector [i, 2.0 * i]
+        @SVector [i, 2.0 * i]
+        @test volume[i] == @SVector [i, 2.0 * i]
     end
 end
