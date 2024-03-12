@@ -11,7 +11,16 @@ make_cpu_backend() = KernelAbstractionBackend(get_backend(ones(3)))
 const CUDABackend = KernelAbstractionBackend{CUDA.CUDAKernels.CUDABackend}
 const CPUBackend = KernelAbstractionBackend{KernelAbstractions.CPU}
 
+function get_available_backends()
+    backends = [make_cpu_backend()]
 
+    try
+        cuda_backend = make_cuda_backend()
+        push!(backends, cuda_backend)
+    catch
+    end
+    return backends
+end
 @kernel function for_each_inner_cell_kernel(f, grid, direction, ghostcells, y...)
     I = @index(Global)
     f(left_cell(grid, I, direction, ghostcells), middle_cell(grid, I, direction, ghostcells), right_cell(grid, I, direction, ghostcells), y...)

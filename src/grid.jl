@@ -17,6 +17,18 @@ directions(::Grid{1}) = (XDIR,)
 directions(::Grid{2}) = (XDIR, YDIR)
 directions(::Grid{3}) = (XDIR, YDIR, ZDIR)
 
+function number_of_interior_cells(grid::CartesianGrid) 
+    return prod(interior_size)
+end
+
+function interior_size(grid::CartesianGrid)
+    return grid.totalcells .- 2 .* grid.gridcells
+end
+
+function size(grid::CartesianGrid) 
+    return grid.totalcells
+end
+
 
 function CartesianGrid(nx; gc=1, boundary=PeriodicBC(), extent=[0.0 1.0])
     domain_width = extent[1, 2] - extent[1, 1]

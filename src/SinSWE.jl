@@ -25,11 +25,11 @@ include("backends/kernel_abstractions.jl")
 include("backends/buffer.jl")
 include("bc.jl")
 include("equation.jl")
-include("volume.jl")
+include("volume/volume.jl")
 include("reconstruction.jl")
 include("numericalflux.jl")
 include("system.jl")
 include("timestepper.jl")
 include("simulator.jl")
-export XDIR, YDIR, ZDIR, ShallowWaterEquations, Burgers, CartesianGrid, make_cpu_backend, make_cuda_backend, Volume
+export XDIR, YDIR, ZDIR, ShallowWaterEquations, Burgers, CartesianGrid, make_cpu_backend, make_cuda_backend, Volume, get_available_backends
 end
