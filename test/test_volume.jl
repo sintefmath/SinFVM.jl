@@ -3,6 +3,7 @@ using StaticArrays
 using Test
 
 for backend in get_available_backends()
+    @info "Backend " backend
     nx = 10
     grid = SinSWE.CartesianGrid(nx)
     equation = SinSWE.ShallowWaterEquations1D()
@@ -22,4 +23,8 @@ for backend in get_available_backends()
     for i in 3:7
         @test volume[i] == @SVector [0.0, i]
     end
+
+    inner_volume = SinSWE.InteriorVolume(volume)
+
+    @test inner_volume[1] == volume[2]
 end

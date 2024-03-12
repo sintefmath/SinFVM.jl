@@ -11,11 +11,11 @@ end
 function interior2full(grid::CartesianGrid{2}, index)
     nx = grid.totalcells[1]
     nx_without_ghostcells = nx - grid.ghostcells[1]
-    i = index % nx_without_ghostcells
-    j = index ÷ nx_without_ghostcells
+    i = (index - 1) % nx_without_ghostcells
+    j = (index - 1) ÷ nx_without_ghostcells
 
 
-    return i + ghost.ghostcells[1] + (j + grid.ghostcells[2]) * nx
+    return i + ghost.ghostcells[1] + (j + grid.ghostcells[2]) * nx + 1
 end
 
 function interior2full(volume::Volume, index)
