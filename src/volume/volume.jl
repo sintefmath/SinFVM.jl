@@ -52,7 +52,7 @@ Base.setindex!(vol::T, value, index::Int64) where {T<:Volume} =
     SinSWE.set_vector!(Val(number_of_variables(T)), vol._data, value, index)
 
 Base.firstindex(vol::Volume) = 1
-Base.lastindex(vol::Volume) = size(vol._data, 1)
+Base.lastindex(vol::Volume) = Base.size(vol._data, 1)
 
 
 function Base.iterate(vol::Volume)
@@ -60,6 +60,13 @@ function Base.iterate(vol::Volume)
         return nothing
     end
     return (vol[1], 1)
+end
+
+function Base.iterate(vol::Volume, index::Int64)
+    if index > length(vol)
+        return nothing
+    end
+    return (vol[index], index + 1)
 end
 
 function Base.iterate(vol::Volume, state)
@@ -74,7 +81,7 @@ end
 Base.IndexStyle(::Type{T}) where {T<:Volume} = Base.IndexLinear()
 Base.eltype(::Type{T}) where {T<:Volume} = SVector{number_of_variables(T),realtype(T)}
 Base.length(vol::Volume) = Base.size(vol._data, 1)
-Base.size(vol::Volume) = size(vol._grid)
+Base.size(vol::Volume) = Base.size(vol._grid)
 
 
 function Base.setindex!(vol::T, values::Container, indices::UnitRange{Int64}) where {T<:Volume,Container<:AbstractVector{<:AbstractVector}}

@@ -51,4 +51,20 @@ for backend in get_available_backends()
     for i in 4:9
         @test volume[i] == @SVector [4 * i, i]
     end
+
+    f(v) = v[1]^2
+    @show f(volume[1])
+
+    for (n, v) in enumerate(volume)
+        @show n
+        @show f(v)
+    end
+    @show size(volume)
+    @show length(volume)
+    squared = zeros(length(volume))
+    squared .= f.(volume)
+    for i in 1:10
+        @test squared[i] == volume[i] .^ 2
+    end
+
 end
