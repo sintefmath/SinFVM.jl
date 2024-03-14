@@ -15,7 +15,7 @@ function (rus::Rusanov)(faceminus, faceplus)
 
     F = 0.5 .* (fluxminus .+ fluxplus) .- 0.5 * eigenvalue_max .* (faceplus .- faceminus)
 
-    return F
+    return F, eigenvalue_max
 end
 
 
@@ -29,7 +29,8 @@ function (god::Godunov)(faceminus, faceplus)
     fluxplus = f(min.(faceplus, zero(faceplus)))
 
     F = max.(fluxminus, fluxplus)
-    return F
+    return F, max(compute_max_abs_eigenvalue(rus.eq, XDIR, faceminus...), 
+        compute_max_abs_eigenvalue(rus.eq, XDIR, faceplus...))
 end
 
 struct CentralUpwind{T} <: NumericalFlux
@@ -47,14 +48,17 @@ function (centralupwind::CentralUpwind)(faceminus, faceplus)
     aminus = min.(eigenvalues_plus[2], eigenvalues_minus[2], 0.0)
 
     F = (aplus .* fluxminus - aminus .* fluxplus) ./ (aplus - aminus) + ((aplus .* aminus) ./ (aplus - aminus)) .* (faceplus - faceminus)
-    return F
+    return F, max(abs(aplus), abs(aminus))
 end
 
 
-function compute_flux!(backend, F::NumericalFlux, output, left, right, grid, equation::Equation, direction::XDIRT)
+function compute_flux!(backend, F::NumericalFlux, output, left, right, wavespeeds, grid, equation::Equation, direction::XDIRT)
     Δx = compute_dx(grid, direction)
     @fvmloop for_each_inner_cell(backend, grid, direction) do ileft, imiddle, iright
-        output[imiddle] -= 1 / Δx * (F(right[imiddle], left[iright]) - F(right[ileft], left[imiddle]))
+        F_right, speed_right = F(right[imiddle], left[iright])
+        F_left, speed_left = F(right[ileft], left[imiddle])
+        output[imiddle] -= 1 / Δx * (F_right - F_left)
+        wavespeeds[imiddle] = max(speed_right, speed_left)
         nothing
     end
 end

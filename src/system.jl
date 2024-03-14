@@ -1,7 +1,8 @@
 create_volume(backend, grid, equation) = Volume(backend, equation, grid)
+create_scalar(backend, grid, equation) = convert_to_backend(backend, zeros(size(grid)))
 abstract type System end
 
-struct ConservedSystem{BackendType,ReconstructionType,NumericalFluxType,EquationType,GridType,BufferType} <: System
+struct ConservedSystem{BackendType,ReconstructionType,NumericalFluxType,EquationType,GridType,BufferType,ScalarBufferType} <: System
     backend::BackendType
     reconstruction::ReconstructionType
     numericalflux::NumericalFluxType
@@ -10,22 +11,29 @@ struct ConservedSystem{BackendType,ReconstructionType,NumericalFluxType,Equation
 
     left_buffer::BufferType
     right_buffer::BufferType
-
-    ConservedSystem(backend, reconstruction, numericalflux, equation, grid) = new{
+    wavespeeds::ScalarBufferType
+    current_wavespeed::MVector{1, Float64}
+    function ConservedSystem(backend, reconstruction, numericalflux, equation, grid)
+        left_buffer = create_volume(backend, grid, equation)
+        right_buffer = create_volume(backend, grid, equation)
+        wavespeeds = create_scalar(backend, grid, equation)
+        return new{
         typeof(backend),
         typeof(reconstruction),
         typeof(numericalflux),
         typeof(equation),
         typeof(grid),
-        typeof(create_volume(backend, grid, equation))
-    }(backend, reconstruction, numericalflux, equation, grid, create_volume(backend, grid, equation), create_volume(backend, grid, equation))
+        typeof(left_buffer),
+        typeof(wavespeeds)
+    }(backend, reconstruction, numericalflux, equation, grid, left_buffer, right_buffer, wavespeeds)
+    end
 end
 
 create_volume(backend, grid, cs::ConservedSystem) = create_volume(backend, grid, cs.equation)
 
 function add_time_derivative!(output, cs::ConservedSystem, current_state)
     reconstruct!(cs.backend, cs.reconstruction, cs.left_buffer, cs.right_buffer, current_state, cs.grid, cs.equation, XDIR)
-    compute_flux!(cs.backend, cs.numericalflux, output, cs.left_buffer, cs.right_buffer, cs.grid, cs.equation, XDIR)
+    compute_flux!(cs.backend, cs.numericalflux, output, cs.left_buffer, cs.right_buffer, cs.wavespeeds, cs.grid, cs.equation, XDIR)
 end
 
 
