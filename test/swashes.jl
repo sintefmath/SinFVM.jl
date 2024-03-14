@@ -11,7 +11,7 @@ using CairoMakie
 
 
 abstract type Swashes end
-abstract type Swashes1D end
+abstract type Swashes1D <:Swashes end
 abstract type Swashes41x <: Swashes1D end
 
 # struct Swashes421 <: Swashes1D end
@@ -54,9 +54,7 @@ end
 
 function get_reference_solution(sw::Swashes41x, grid::CartesianGrid{1}, t)
     xA = sw.x0 - t*sqrt(sw.g*sw.hl)
-    # xA = sw.x0 - t*sqrt(sw.g*sw.hl)
     xB = sw.x0 + t*(2*sqrt(sw.g*sw.hl) - 3*sw.cm)
-    # xB = sw.x0 + 2*(t*sqrt(sw.g*sw.hl))
     xC = sw.x0 + t*(2*sw.cm^2 *(sqrt(sw.g*sw.hl) - sw.cm))/(sw.cm^2 - sw.g*sw.hr)
     function tmp_h_rarefaction(t, x)
         h =(4.0/(9.0*sw.g))* (sqrt(sw.g*sw.hl) - (x - sw.x0)/(2*t))^2
@@ -90,13 +88,14 @@ function get_reference_solution(sw::Swashes41x, grid::CartesianGrid{1}, t)
     all_x = SinSWE.cell_centers(grid)
     #@show all_x
     #@show type(all_x)
-    h = zeros(MVector{SinSWE.inner_cells(grid, SinSWE.XDIR)})
-    u = zeros(MVector{SinSWE.inner_cells(grid, SinSWE.XDIR)})
-    for i = eachindex(all_x)
-        h[i] = get_h(sw, all_x[i])
-        u[i] = get_u(sw, all_x[i])
-    end
-    return h, u
+    # h = zeros(MVector{SinSWE.inner_cells(grid, SinSWE.XDIR)})
+    # u = zeros(MVector{SinSWE.inner_cells(grid, SinSWE.XDIR)})
+
+    # for (i, x) in pairs(all_x)
+    #     h[i] = get_h(sw, x)
+    #     u[i] = get_u(sw, x)
+    # end        
+    return [SVector{2, Float64}(get_h(sw, x), get_u(sw, x)) for x in all_x]
 end
 
 
@@ -113,7 +112,7 @@ swashes412 = Swashes412()
 nx = 512
 grid = SinSWE.CartesianGrid(nx; gc=2, extent=getExtent(swashes411))
 
-function plot_solution(sw::Swashes1D, grid, T)
+function plot_ref_solution(sw::Swashes1D, grid, T)
     f = Figure(size=(1600, 600), fontsize=24)
     x = SinSWE.cell_centers(grid)
     ax_h = Axis(
@@ -130,9 +129,9 @@ function plot_solution(sw::Swashes1D, grid, T)
         xlabel="x",
     )
     for t in T
-        h, u = get_reference_solution(sw, grid, t)
-        lines!(ax_h, x, h, label="t=$(t)")
-        lines!(ax_u, x, u, label="t=$(t)")
+        q = get_reference_solution(sw, grid, t)
+        lines!(ax_h, x, first.(q), label="t=$(t)")
+        lines!(ax_u, x, map(x -> x[2], q), label="t=$(t)")
     end
     axislegend(ax_h)
     axislegend(ax_u)
@@ -141,12 +140,65 @@ end
 
 #  @show get_reference_solution(swashes, grid, 4)
 
-# a = zeros(MVector{5})
-# for i = eachindex(a)
-#     a[i] = i^2
-# end
-# @show a
+a = zeros(MVector{5})
+for i = eachindex(a)
+    a[i] = i^2
+end
+for (i, v) in pairs(a)
+    @show i, v
+end
+@show a
 
+function compare_swashes(sw::Swashes41x, nx, t)
+    grid = SinSWE.CartesianGrid(nx; gc=2, boundary=SinSWE.WallBC(), extent=getExtent(sw), )
+    backend = make_cpu_backend()
+    eq = SinSWE.ShallowWaterEquations1D()
+    rec = SinSWE.LinearReconstruction(1.0)
+    flux = SinSWE.CentralUpwind(eq)
+    conserved_system = SinSWE.ConservedSystem(backend, rec, flux, eq, grid)
+    # TODO: Second order timestepper
+    timestepper = SinSWE.ForwardEulerStepper()
+    simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid)
+    
+    initial = get_initial_conditions(sw, grid)
+    SinSWE.set_current_state!(simulator, initial)
+ 
+    SinSWE.simulate_to_time(simulator, t)
 
-plot_solution(swashes411, grid, 0:2:10)
-plot_solution(swashes412, grid, 0:2:10)
+    f = Figure(size=(1600, 600), fontsize=24)
+    x = SinSWE.cell_centers(grid)
+    infostring = "swashes test case $(sw.id)\n $(sw.name)\nt=$(t) nx=$(nx)\n$(typeof(rec)) and $(typeof(flux))"
+    ax_h = Axis(
+        f[1, 1],
+        title="h "*infostring,
+        ylabel="h",
+        xlabel="x",
+    )
+
+    ax_u = Axis(
+        f[1, 2],
+        title="u "*infostring,
+        ylabel="u",
+        xlabel="x",
+    )
+
+    q = get_reference_solution(sw, grid, t)
+    lines!(ax_h, x, first.(q), label="swashes")
+    lines!(ax_u, x, map(x -> x[2], q), label="swashes")
+
+    h = first.(SinSWE.current_interior_state(simulator))
+    hu = map(x -> x[2], SinSWE.current_interior_state(simulator))
+    u = hu./h
+    lines!(ax_h, x, h, label="swamp")
+    lines!(ax_u, x, u, label="swamp")
+
+    axislegend(ax_h)
+    axislegend(ax_u)
+    display(f)
+end
+    
+
+# plot_ref_solution(swashes411, grid, 0:2:10)
+# plot_ref_solution(swashes412, grid, 0:2:10)
+
+compare_swashes(swashes411, 512, 8.0)
