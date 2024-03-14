@@ -1,8 +1,4 @@
 
-update_bc!(backend, grid::CartesianGrid{1}, eq::Equation, data) = update_bc!(backend, grid.boundary, grid, eq, data)
-update_bc!(simulator::Simulator, data) = update_bc!(simulator.backend, simulator.grid, simulator.system.equation,  data)
-
-
 function update_bc!(backend, ::PeriodicBC, grid::CartesianGrid{1}, ::Equation, data)
     @fvmloop for_each_ghost_cell(backend, grid, XDIR) do ghostcell
         data[ghostcell] = data[grid.totalcells[1]+ghostcell-2*grid.ghostcells[1]]
@@ -11,7 +7,7 @@ function update_bc!(backend, ::PeriodicBC, grid::CartesianGrid{1}, ::Equation, d
 end
 
 
-function update_bc!(backend, ::WallBC, grid::CartesianGrid{1}, ::SinSWE.ShallowWaterEquations1D, data)
+function update_bc!(backend, ::WallBC, grid::CartesianGrid{1}, ::ShallowWaterEquations1D, data)
     
 
     function local_update_ghostcell!(data, ghost, inner)
@@ -29,3 +25,6 @@ function update_bc!(backend, ::WallBC, grid::CartesianGrid{1}, ::SinSWE.ShallowW
         local_update_ghostcell!(data, right_ghostcell, right_innercell)
     end
 end
+
+update_bc!(backend, grid::CartesianGrid{1}, eq::Equation, data) = update_bc!(backend, grid.boundary, grid, eq, data)
+update_bc!(simulator::Simulator, data) = update_bc!(simulator.backend, simulator.grid, simulator.system.equation,  data)
