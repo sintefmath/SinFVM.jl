@@ -33,7 +33,7 @@ create_volume(backend, grid, cs::ConservedSystem) = create_volume(backend, grid,
 
 function add_time_derivative!(output, cs::ConservedSystem, current_state)
     reconstruct!(cs.backend, cs.reconstruction, cs.left_buffer, cs.right_buffer, current_state, cs.grid, cs.equation, XDIR)
-    compute_flux!(cs.backend, cs.numericalflux, output, cs.left_buffer, cs.right_buffer, cs.wavespeeds, cs.grid, cs.equation, XDIR)
+    return compute_flux!(cs.backend, cs.numericalflux, output, cs.left_buffer, cs.right_buffer, cs.wavespeeds, cs.grid, cs.equation, XDIR)
 end
 
 
@@ -45,7 +45,7 @@ end
 
 function add_time_derivative!(output, bs::BalanceSystem, current_state)
     # First add conserved system (so F_{i+1}-F_i)
-    add_time_derivative!(output, bs.conserved_system, current_state)
+    wavespeed = add_time_derivative!(output, bs.conserved_system, current_state)
 
     @assert false
     # FIX FOR LOOP UNDERNEATH
@@ -55,29 +55,7 @@ function add_time_derivative!(output, bs::BalanceSystem, current_state)
 
         nothing
     end
+
+    return wavespeed
 end
 create_volume(backend, grid, bs::BalanceSystem) = create_volume(backend, grid, bs.conserved_system)
-
-
-
-
-function compute_wavespeed(system::ConservedSystem, grid, state)
-    # TODO: Remove @allowscalar here
-    CUDA.@allowscalar RealType = typeof(compute_max_abs_eigenvalue(system.equation, XDIR, first(state)...))
-    maximum_eigenvalue::RealType = nextfloat(typemin(RealType))
-
-    for direction in directions(grid)
-
-        eigenvalue_in_direction = let eq = system.equation, dir = direction
-            u -> compute_max_abs_eigenvalue(eq, dir, u...)
-        end
-
-        maximum_at_direction = maximum(eigenvalue_in_direction.(state))
-        maximum_eigenvalue = max(maximum_at_direction, maximum_eigenvalue)
-    end
-    return maximum_eigenvalue
-end
-
-function compute_wavespeed(system::BalanceSystem, grid, state)
-    compute_wavespeed(system.conserved_system, grid, state)
-end

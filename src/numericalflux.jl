@@ -29,8 +29,8 @@ function (god::Godunov)(faceminus, faceplus)
     fluxplus = f(min.(faceplus, zero(faceplus)))
 
     F = max.(fluxminus, fluxplus)
-    return F, max(compute_max_abs_eigenvalue(rus.eq, XDIR, faceminus...), 
-        compute_max_abs_eigenvalue(rus.eq, XDIR, faceplus...))
+    return F, max(compute_max_abs_eigenvalue(god.eq, XDIR, faceminus...), 
+        compute_max_abs_eigenvalue(god.eq, XDIR, faceplus...))
 end
 
 struct CentralUpwind{T} <: NumericalFlux
@@ -54,6 +54,7 @@ end
 
 function compute_flux!(backend, F::NumericalFlux, output, left, right, wavespeeds, grid, equation::Equation, direction::XDIRT)
     Δx = compute_dx(grid, direction)
+
     @fvmloop for_each_inner_cell(backend, grid, direction) do ileft, imiddle, iright
         F_right, speed_right = F(right[imiddle], left[iright])
         F_left, speed_left = F(right[ileft], left[imiddle])
@@ -61,4 +62,6 @@ function compute_flux!(backend, F::NumericalFlux, output, left, right, wavespeed
         wavespeeds[imiddle] = max(speed_right, speed_left)
         nothing
     end
+
+    return maximum(wavespeeds)
 end

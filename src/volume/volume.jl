@@ -1,5 +1,4 @@
 function create_buffer(backend, grid::Grid, equation::Equation)
-    @info "In create buffer in volume.jl"
     create_buffer(backend, number_of_conserved_variables(equation), grid.totalcells)
 end
 
@@ -17,9 +16,7 @@ struct Volume{
     _grid::GridType
     _backend::BackendType
     function Volume(backend, equation::Equation, grid::Grid)
-        @info "Creating buffer"
         buffer = create_buffer(backend, grid, equation)
-        @info "Created buffer"
         new{
             typeof(equation),
             typeof(grid),
@@ -105,8 +102,8 @@ Base.size(vol::Volume) = Base.size(vol._grid)
 Base.size(vol::Volume, i::Int64) = Base.size(vol._grid)[i]
 
 Base.similar(vol::Volume) = convert_to_backend(vol._backend, similar(vol._data))
-Base.similar(vol::Volume, type::Type{S}) =  convert_to_backend(vol._backend, similar(vol._data, type))
-Base.similar(vol::Volume, type::Type{S}, dims::Dims) =  convert_to_backend(vol._backend, similar(vol._data, type, dims))
+Base.similar(vol::Volume, type::Type{S}) where S =  convert_to_backend(vol._backend, similar(vol._data, type))
+Base.similar(vol::Volume, type::Type{S}, dims::Dims) where S =  convert_to_backend(vol._backend, similar(vol._data, type, dims))
 Base.similar(vol::Volume, dims::Dims) =
     convert_to_backend(vol._backend, similar(vol._backend, dims))
 function Base.setindex!(

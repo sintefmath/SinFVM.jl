@@ -11,26 +11,29 @@ struct Simulator{BackendType,SystemType,TimeStepperType,GridType,StateType,Float
     cfl::FloatType
 end
 
-function Simulator(backend, system, timestepper, grid; cfl=0.5)
+function Simulator(backend, system, timestepper, grid; cfl = 0.5)
     return Simulator{
         typeof(backend),
         typeof(system),
         typeof(timestepper),
         typeof(grid),
         typeof(create_volume(backend, grid, system)),
-        Float64
-    }(backend,
+        Float64,
+    }(
+        backend,
         system,
         timestepper,
         grid,
-        [create_volume(backend, grid, system) for _ in 1:number_of_substeps(timestepper)+1],
+        [create_volume(backend, grid, system) for _ = 1:number_of_substeps(timestepper)+1],
         MVector{1,Float64}([0]),
-        cfl)
+        cfl,
+    )
 end
 
 current_state(simulator::Simulator) = simulator.substep_outputs[1]
 
-current_interior_state(simulator::Simulator) = current_state(simulator)[simulator.grid.ghostcells[1]+1:end-simulator.grid.ghostcells[1]]
+current_interior_state(simulator::Simulator) =
+    current_state(simulator)[simulator.grid.ghostcells[1]+1:end-simulator.grid.ghostcells[1]]
 
 function set_current_state!(simulator::Simulator, new_state)
     @assert length(simulator.grid.ghostcells) == 1
@@ -41,29 +44,42 @@ function set_current_state!(simulator::Simulator, new_state)
 end
 
 current_timestep(simulator::Simulator) = simulator.current_timestep[1]
-function compute_timestep(simulator::Simulator)
-    # TODO: This can be done more efficiently by doing it in the computation of the flux
-
-    wavespeed = compute_wavespeed(simulator.system, simulator.grid, current_state(simulator))
-    return simulator.cfl * compute_dx(simulator.grid) / wavespeed
-end
 
 function perform_step!(simulator::Simulator)
-    ##@info "Before step" simulator.substep_outputs
-    simulator.current_timestep[1] = compute_timestep(simulator)
-    for substep in 1:number_of_substeps(simulator.timestepper)
+    for substep = 1:number_of_substeps(simulator.timestepper)
         @assert substep + 1 == 2
-        do_substep!(simulator.substep_outputs[substep+1], simulator.timestepper, simulator.system, simulator.substep_outputs[substep], simulator.current_timestep[1])
-        ##@info "before bc" simulator.substep_outputs[substep + 1]
+
+        # the line below needs fixing:
+        @assert dimension(simulator.grid) == 1
+        timestep_computer(wavespeed) = simulator.cfl * compute_dx(simulator.grid) / wavespeed 
+        simulator.current_timestep[1] = do_substep!(
+            simulator.substep_outputs[substep+1],
+            simulator.timestepper,
+            simulator.system,
+            simulator.substep_outputs[substep],
+            simulator.current_timestep[1],
+            timestep_computer,
+            substep
+        )
         update_bc!(simulator.backend, simulator.grid, simulator.substep_outputs[substep+1])
-        ##@info "after bc" simulator.substep_outputs[substep + 1]
     end
-    ##@info "After step" simulator.substep_outputs[1] simulator.substep_outputs[2]
-    simulator.substep_outputs[1], simulator.substep_outputs[end] = simulator.substep_outputs[end], simulator.substep_outputs[1]
+    simulator.substep_outputs[1], simulator.substep_outputs[end] =
+        simulator.substep_outputs[end], simulator.substep_outputs[1]
 end
 
-function simulate_to_time(simulator::Simulator, endtime; t=0.0, callback=nothing, show_progress=true)
-    prog = ProgressMeter.ProgressThresh(0.0; desc="Remaining time:", enabled=show_progress, dt=2.0)
+function simulate_to_time(
+    simulator::Simulator,
+    endtime;
+    t = 0.0,
+    callback = nothing,
+    show_progress = true,
+)
+    prog = ProgressMeter.ProgressThresh(
+        0.0;
+        desc = "Remaining time:",
+        enabled = show_progress,
+        dt = 2.0,
+    )
     while t <= endtime
         perform_step!(simulator)
         t += current_timestep(simulator)
