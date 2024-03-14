@@ -1,5 +1,5 @@
 abstract type Equation end
-
+number_of_conserved_variables(::Type{T}) where {T} = error("This is not an equation type.")
 number_of_conserved_variables(::T) where {T<:Equation} = number_of_conserved_variables(T)
 number_of_conserved_variables(::Type{T}) where {T<:Equation} = length(conserved_variable_names(T))
 struct ShallowWaterEquations1D{T} <: Equation
