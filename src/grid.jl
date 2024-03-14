@@ -1,6 +1,9 @@
 struct PeriodicBC
 end
 
+struct WallBC
+end
+
 
 
 abstract type Grid{dimension} end

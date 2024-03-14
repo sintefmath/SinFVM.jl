@@ -37,7 +37,7 @@ function set_current_state!(simulator::Simulator, new_state)
 
     gc = simulator.grid.ghostcells[1]
     current_state(simulator)[gc+1:end-gc] = new_state
-    update_bc!(simulator.backend, simulator.grid, current_state(simulator))
+    update_bc!(simulator, current_state(simulator))
 end
 
 current_timestep(simulator::Simulator) = simulator.current_timestep[1]
@@ -55,7 +55,7 @@ function perform_step!(simulator::Simulator)
         @assert substep + 1 == 2
         do_substep!(simulator.substep_outputs[substep+1], simulator.timestepper, simulator.system, simulator.substep_outputs[substep], simulator.current_timestep[1])
         ##@info "before bc" simulator.substep_outputs[substep + 1]
-        update_bc!(simulator.backend, simulator.grid, simulator.substep_outputs[substep+1])
+        update_bc!(simulator, simulator.substep_outputs[substep+1])
         ##@info "after bc" simulator.substep_outputs[substep + 1]
     end
     ##@info "After step" simulator.substep_outputs[1] simulator.substep_outputs[2]
