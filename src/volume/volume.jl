@@ -138,3 +138,4 @@ end
 
 include("volume_variable.jl")
 include("interior_volume.jl")
+include("interior_volume_variable.jl")

@@ -81,4 +81,8 @@ for backend in get_available_backends()
 
     collected_volume = collect(volume)
     collected_interior_volume = collect(inner_volume)
+
+    collect_hu = collect(volume.hu)
+
+    collect_inner_hu = collect(inner_volume.hu)
 end

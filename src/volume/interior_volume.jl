@@ -5,7 +5,7 @@ struct InteriorVolume{EquationType,
     MatrixType,
     BackendType,
     NumberOfConservedVariables,
-    Dimension,} <: AbstractArray{SVector{NumberOfConservedVariables, RealType}, NumberOfConservedVariables}
+    Dimension,} <: AbstractArray{SVector{NumberOfConservedVariables, RealType}, Dimension}
     _volume::Volume{EquationType,
     GridType,
     RealType,
@@ -14,6 +14,27 @@ struct InteriorVolume{EquationType,
     NumberOfConservedVariables,
     Dimension,}
 end
+
+variable_names(::Type{InteriorVolume{EquationType,
+GridType,
+RealType,
+MatrixType,
+BackendType,
+NumberOfConservedVariables,
+Dimension,}}) where {EquationType,
+GridType,
+RealType,
+MatrixType,
+BackendType,
+NumberOfConservedVariables,
+Dimension,} = variable_names(Volume{EquationType,
+GridType,
+RealType,
+MatrixType,
+BackendType,
+NumberOfConservedVariables,
+Dimension,})
+
 
 function interior2full(grid::CartesianGrid{1}, index)
     return index + grid.ghostcells[1]
