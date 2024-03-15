@@ -11,11 +11,11 @@ function Base.iterate(volumevariable::VolumeVariable)
     return (volumevariable[1], 1)
 end
 
-function Base.propertynames(::Type{T}) where {T<:Volume}
+@inline function Base.propertynames(::Type{T}) where {T<:Volume}
     return variable_names(T)
 end
 
-function Base.getproperty(volume::T, variable::Symbol) where {T<:Volume}
+@inline function Base.getproperty(volume::T, variable::Symbol) where {T<:Volume}
     if variable == :_data || variable == :_grid || variable == :_backend
         return getfield(volume, variable)
     end

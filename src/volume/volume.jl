@@ -36,7 +36,15 @@ struct Volume{
         # Only for internal use. Note that this is only used when
         # transferring this struct to the GPU, and there we do not need access to the backend.
         # Hence, to avoid headache, we simply leave that at nothing.
-        new{EquationType,typeof(grid),eltype(data),typeof(data),Nothing, dimension(grid), number_of_conserved_variables(EquationType)}(
+        new{
+            EquationType,
+            typeof(grid),
+            eltype(data),
+            typeof(data),
+            Nothing,
+            dimension(grid),
+            number_of_conserved_variables(EquationType),
+        }(
             data,
             grid,
             nothing,
@@ -63,9 +71,9 @@ variable_names(::Type{Volume{EquationType,S,T,M,B,N,D}}) where {EquationType,S,T
 
 realtype(::Type{Volume{S,T,RealType,M,B,N,D}}) where {S,T,RealType,M,B,N,D} = RealType
 
-Base.getindex(vol::T, index::Int64) where {T<:Volume} =
+@inline Base.getindex(vol::T, index::Int64) where {T<:Volume} =
     SinSWE.extract_vector(Val(number_of_variables(T)), vol._data, index)
-Base.setindex!(vol::T, value, index::Int64) where {T<:Volume} =
+@inline Base.setindex!(vol::T, value, index::Int64) where {T<:Volume} =
     SinSWE.set_vector!(Val(number_of_variables(T)), vol._data, value, index)
 
 Base.firstindex(vol::Volume) = 1
@@ -95,18 +103,21 @@ function Base.iterate(vol::Volume, state)
 end
 
 # TODO: Support Cartesian indexing
-Base.IndexStyle(::Type{T}) where {T<:Volume} = Base.IndexLinear()
-Base.eltype(::Type{T}) where {T<:Volume} = SVector{number_of_variables(T),realtype(T)}
-Base.length(vol::Volume) = Base.size(vol._data, 1)
-Base.size(vol::Volume) = Base.size(vol._grid)
-Base.size(vol::Volume, i::Int64) = Base.size(vol._grid)[i]
+@inline Base.IndexStyle(::Type{T}) where {T<:Volume} = Base.IndexLinear()
+@inline Base.eltype(::Type{T}) where {T<:Volume} =
+    SVector{number_of_variables(T),realtype(T)}
+@inline Base.length(vol::Volume) = Base.size(vol._data, 1)
+@inline Base.size(vol::Volume) = Base.size(vol._grid)
+@inline Base.size(vol::Volume, i::Int64) = Base.size(vol._grid)[i]
 
-Base.similar(vol::Volume) = convert_to_backend(vol._backend, similar(vol._data))
-Base.similar(vol::Volume, type::Type{S}) where S =  convert_to_backend(vol._backend, similar(vol._data, type))
-Base.similar(vol::Volume, type::Type{S}, dims::Dims) where S =  convert_to_backend(vol._backend, similar(vol._data, type, dims))
-Base.similar(vol::Volume, dims::Dims) =
+@inline Base.similar(vol::Volume) = convert_to_backend(vol._backend, similar(vol._data))
+@inline Base.similar(vol::Volume, type::Type{S}) where {S} =
+    convert_to_backend(vol._backend, similar(vol._data, type))
+@inline Base.similar(vol::Volume, type::Type{S}, dims::Dims) where {S} =
+    convert_to_backend(vol._backend, similar(vol._data, type, dims))
+@inline Base.similar(vol::Volume, dims::Dims) =
     convert_to_backend(vol._backend, similar(vol._backend, dims))
-function Base.setindex!(
+@inline function Base.setindex!(
     vol::T,
     values::Container,
     indices::UnitRange{Int64},
