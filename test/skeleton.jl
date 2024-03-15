@@ -8,7 +8,7 @@ end
 using SinSWE
 function run_simulation()
     u0 = x -> sin.(2π * x) .+ 1.5
-    nx = 32 * 1024
+    nx = 1024 * 1024
     grid = SinSWE.CartesianGrid(nx)
     backend = make_cpu_backend()
 
@@ -39,7 +39,7 @@ function run_simulation()
     @show swe_timesteps
     SinSWE.set_current_state!(simulator, initial)
     @time SinSWE.simulate_to_time(simulator, T)
-
+    # @profview SinSWE.simulate_to_time(simulator, T)
     f = Figure(size=(1600, 600), fontsize=24)
 
     ax = Axis(f[1, 1], title="Comparison",

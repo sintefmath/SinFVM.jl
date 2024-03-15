@@ -1,6 +1,18 @@
 
-struct InteriorVolume{VolumeType<:Volume}
-    _volume::VolumeType
+struct InteriorVolume{EquationType,
+    GridType,
+    RealType,
+    MatrixType,
+    BackendType,
+    NumberOfConservedVariables,
+    Dimension,} <: AbstractArray{SVector{NumberOfConservedVariables, RealType}, NumberOfConservedVariables}
+    _volume::Volume{EquationType,
+    GridType,
+    RealType,
+    MatrixType,
+    BackendType,
+    NumberOfConservedVariables,
+    Dimension,}
 end
 
 function interior2full(grid::CartesianGrid{1}, index)
@@ -45,6 +57,13 @@ function Base.iterate(vol::InteriorVolume)
     return (vol[1], 1)
 end
 
+
+function Base.iterate(vol::InteriorVolume, index::Int64)
+    if index > length(vol)
+        return nothing
+    end
+    return (vol[index], index + 1)
+end
 function Base.iterate(vol::InteriorVolume, state)
     index = state[2]
     if index > length(vol)
@@ -54,19 +73,71 @@ function Base.iterate(vol::InteriorVolume, state)
 end
 
 # TODO: Support Cartesian indexing
-Base.IndexStyle(::Type{InteriorVolume{T}}) where {T<:Volume} = Base.IndexStyle(T)
-Base.eltype(::Type{InteriorVolume{T}}) where {T<:Volume} = Base.eltype(T)
+Base.IndexStyle(::Type{InteriorVolume{EquationType,
+GridType,
+RealType,
+MatrixType,
+BackendType,
+NumberOfConservedVariables,
+Dimension,}}) where {EquationType,
+GridType,
+RealType,
+MatrixType,
+BackendType,
+NumberOfConservedVariables,
+Dimension,} = Base.IndexStyle(Volume{EquationType,
+GridType,
+RealType,
+MatrixType,
+BackendType,
+NumberOfConservedVariables,
+Dimension,})
+
+Base.eltype(::Type{InteriorVolume{EquationType,
+GridType,
+RealType,
+MatrixType,
+BackendType,
+NumberOfConservedVariables,
+Dimension,}}) where {EquationType,
+GridType,
+RealType,
+MatrixType,
+BackendType,
+NumberOfConservedVariables,
+Dimension,} = Base.eltype(Volume{EquationType,
+GridType,
+RealType,
+MatrixType,
+BackendType,
+NumberOfConservedVariables,
+Dimension,})
+
+
 Base.length(vol::InteriorVolume) = number_of_interior_cells(vol._volume)
-Base.size(vol::InteriorVolume) = interior_size(vol._volume)
-function Base.setindex!(vol::InteriorVolume{T}, values::Container, indices::UnitRange{Int64}) where {T<:Volume,Container<:AbstractVector{<:AbstractVector}}
+Base.size(vol::InteriorVolume) = interior_size(vol._volume._grid)
+function Base.setindex!(vol::InteriorVolume, values::Container, indices::UnitRange{Int64}) where {Container<:AbstractVector{<:AbstractVector}}
     # TODO: Move this for loop to the inner kernel...
-    for j in 1:number_of_variables(T)
+    for j in 1:number_of_variables(vol._volume)
         proper_volume = vol._volume
         @fvmloop for_each_index_value(vol._volume._backend, indices) do index_source, index_target
             proper_volume._data[interior2full(proper_volume, index_target), j] = values[index_source][j]
         end
     end
 end
+
+
+@inline Base.similar(vol::InteriorVolume) = similar(vol._volume._data, size(vol))
+
+@inline Base.similar(vol::InteriorVolume, type::Type{S}) where {S} =
+    similar(vol._volume._data, type, size(vol))
+
+@inline Base.similar(vol::InteriorVolume, type::Type{S}, dims::Dims) where {S} =
+    similar(vol._volume, type, dims)
+
+@inline Base.similar(vol::InteriorVolume, dims::Dims) =
+    similar(vol._volume, dims)
+    
 # function Base.propertynames(::Type{InteriorVolume{T}}) where {T<:Volume}
 #     return variable_names(T)
 # end

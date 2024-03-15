@@ -21,11 +21,11 @@ directions(::Grid{2}) = (XDIR, YDIR)
 directions(::Grid{3}) = (XDIR, YDIR, ZDIR)
 
 function number_of_interior_cells(grid::CartesianGrid)
-    return prod(interior_size)
+    return prod(interior_size(grid))
 end
 
 function interior_size(grid::CartesianGrid)
-    return grid.totalcells .- 2 .* grid.gridcells
+    return Tuple(Int64(i) for i in (grid.totalcells .- 2 .* grid.ghostcells))
 end
 
 function Base.size(grid::CartesianGrid)

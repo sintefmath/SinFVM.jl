@@ -1,4 +1,5 @@
 create_volume(backend, grid, equation) = Volume(backend, equation, grid)
+# create_volume(backend, grid, equation) = convert_to_backend(backend, zeros(SVector{number_of_conserved_variables(equation), Float64}, size(grid)))
 create_scalar(backend, grid, equation) = convert_to_backend(backend, zeros(size(grid)))
 abstract type System end
 

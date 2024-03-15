@@ -36,12 +36,7 @@ function run_simulation()
         xlabel=L"x",
     )
 
-    ax2 = Axis(
-        f[1, 2],
-        title="Conservation",
-        ylabel="Conserved quantity",
-        xlabel=L"t",
-    )
+    
     lines!(ax, x, first.(initial), label=L"h_0(x)")
     lines!(ax, x, map(x -> x[2], initial), label=L"hu_0(x)")
 
@@ -55,14 +50,14 @@ function run_simulation()
     t = 0.0
 
  
-    energy_sw(state) = [sum(first.(state)), sum(map(q -> q[2], state))]
+    energy_sw(state) = @show state#[sum(first.(state)), sum(map(q -> q[2], state))]
     all_energies = []
     callback(time, sim) = push!(all_energies, energy_sw(SinSWE.current_interior_state(sim)))
 
 
     result = collect(SinSWE.current_state(simulator))
     @time SinSWE.simulate_to_time(simulator, T) #, callback=callback)
-    @time SinSWE.simulate_to_time(linrec_simulator, T, callback=callback)
+    @time SinSWE.simulate_to_time(linrec_simulator, T)#, callback=callback)
 
     result = collect(SinSWE.current_interior_state(simulator))
     linrec_results = collect(SinSWE.current_interior_state(linrec_simulator))
@@ -104,9 +99,7 @@ function run_simulation()
     )
     axislegend(ax, position=:lb)
 
-    lines!(ax2, first.(all_energies), label=L"\int_0^1 h(x, t)\; dx")
-    lines!(ax2, map(q -> q[2], all_energies), label=L"\int_0^1 hu(x, $(t))\; dx")
-    axislegend(ax2)
+    
     display(f)
 
 

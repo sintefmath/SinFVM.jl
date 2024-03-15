@@ -73,4 +73,12 @@ for backend in get_available_backends()
         @test squared[i] == volume[i][1] ^ 2
     end
 
+    # @show typeof(f.(volume))
+    squared_interior = f.(inner_volume)
+    for i = 2:9
+        @test squared_interior[i-1] == inner_volume[i-1][1] ^ 2
+    end
+
+    collected_volume = collect(volume)
+    collected_interior_volume = collect(inner_volume)
 end

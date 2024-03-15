@@ -66,6 +66,9 @@ end
 number_of_variables(
     ::Type{Volume{EquationType,S,T,M,B,N,D}},
 ) where {EquationType,S,T,M,B,N,D} = number_of_conserved_variables(EquationType)
+
+number_of_variables(::T) where {T<:Volume} = number_of_variables(T)
+
 variable_names(::Type{Volume{EquationType,S,T,M,B,N,D}}) where {EquationType,S,T,M,B,N,D} =
     conserved_variable_names(EquationType)
 
@@ -116,7 +119,8 @@ end
 @inline Base.similar(vol::Volume, type::Type{S}, dims::Dims) where {S} =
     convert_to_backend(vol._backend, similar(vol._data, type, dims))
 @inline Base.similar(vol::Volume, dims::Dims) =
-    convert_to_backend(vol._backend, similar(vol._backend, dims))
+    convert_to_backend(vol._backend, similar(vol._data, dims))
+
 @inline function Base.setindex!(
     vol::T,
     values::Container,

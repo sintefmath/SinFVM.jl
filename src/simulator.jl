@@ -1,4 +1,5 @@
 import ProgressMeter
+interior(x) = InteriorVolume(x)
 
 struct Simulator{BackendType,SystemType,TimeStepperType,GridType,StateType,FloatType}
     backend::BackendType
@@ -33,7 +34,7 @@ end
 current_state(simulator::Simulator) = simulator.substep_outputs[1]
 
 current_interior_state(simulator::Simulator) =
-    current_state(simulator)[simulator.grid.ghostcells[1]+1:end-simulator.grid.ghostcells[1]]
+    interior(current_state(simulator))
 
 function set_current_state!(simulator::Simulator, new_state)
     @assert length(simulator.grid.ghostcells) == 1
