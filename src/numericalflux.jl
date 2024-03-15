@@ -1,4 +1,3 @@
-abstract type NumericalFlux end
 
 struct Rusanov{EquationType<:Equation} <: NumericalFlux
     eq::EquationType

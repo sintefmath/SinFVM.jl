@@ -2,7 +2,6 @@ create_buffer(backend, grid::CartesianGrid{1}, equation::Equation) = zeros(SVect
 create_buffer(backend::CPUBackend, grid::CartesianGrid{1}, equation::Equation) = KernelAbstractions.zeros(backend.backend, SVector{number_of_conserved_variables(equation),Float64}, grid.totalcells[1])
 create_buffer(backend::CUDABackend, grid::CartesianGrid{1}, equation::Equation) = CUDA.cu(zeros(SVector{number_of_conserved_variables(equation),Float64}, grid.totalcells[1]))
 
-abstract type System end
 
 struct ConservedSystem{BackendType, ReconstructionType,NumericalFluxType,EquationType,GridType,BufferType} <: System
     backend::BackendType

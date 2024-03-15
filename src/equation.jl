@@ -1,5 +1,3 @@
-abstract type Equation end
-
 struct ShallowWaterEquations1D{T} <: Equation
     ρ::T
     g::T

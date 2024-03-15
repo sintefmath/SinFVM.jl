@@ -1,12 +1,10 @@
-struct PeriodicBC
+struct PeriodicBC <: BoundaryCondition
 end
 
-struct WallBC
+struct WallBC <: BoundaryCondition
 end
 
 
-
-abstract type Grid{dimension} end
 struct CartesianGrid{dimension,BoundaryType,dimension2} <: Grid{dimension}
     ghostcells::SVector{dimension,Int64}
     totalcells::SVector{dimension,Int64}

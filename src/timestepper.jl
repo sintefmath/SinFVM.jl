@@ -1,8 +1,6 @@
 
 
 
-abstract type TimeStepper end
-
 struct ForwardEulerStepper <: TimeStepper
 end
 

@@ -1,8 +1,8 @@
-abstract type Reconstruction end
 
 struct NoReconstruction <: Reconstruction end
 struct LinearReconstruction <: Reconstruction 
     theta::Float64
+    # LinearReconstruction() = new(1.2)
 end
 
 
