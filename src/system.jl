@@ -12,8 +12,12 @@ struct ConservedSystem{BackendType, ReconstructionType,NumericalFluxType,Equatio
 
     left_buffer::BufferType
     right_buffer::BufferType
+end
 
-    ConservedSystem(backend, reconstruction, numericalflux, equation, grid) = new{
+
+function ConservedSystem(backend, reconstruction, numericalflux, equation, grid) 
+    is_compatible(equation, grid)
+    return ConservedSystem{
         typeof(backend),
         typeof(reconstruction),
         typeof(numericalflux),
@@ -74,4 +78,12 @@ end
 
 function compute_wavespeed(system::BalanceSystem, grid, state)
     compute_wavespeed(system.conserved_system, grid, state)
+end
+
+function is_compatible(eq::Burgers, grid::Grid)
+    @assert true
+end
+
+function is_compatible(eq::ShallowWaterEquations1D, grid::CartesianGrid{1})
+    @assert grid.totalcells[1]+1 == size(eq.B)[1]
 end

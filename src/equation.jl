@@ -1,9 +1,11 @@
 struct ShallowWaterEquations1D{T} <: Equation
     ρ::T
     g::T
+    B
 end
 
-ShallowWaterEquations1D() = ShallowWaterEquations1D(1.0, 9.81)
+ShallowWaterEquations1D(B::Vector) = ShallowWaterEquations1D(1.0, 9.81, B)
+ShallowWaterEquations1D(grid::Grid) = ShallowWaterEquations1D(constant_bottom_topography(grid, 0.0))
 
 function (eq::ShallowWaterEquations1D)(::XDIRT, h, hu)
     ρ = eq.ρ

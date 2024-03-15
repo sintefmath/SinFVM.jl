@@ -152,13 +152,13 @@ end
 function compare_swashes(sw::Swashes41x, nx, t)
     grid = SinSWE.CartesianGrid(nx; gc=2, boundary=SinSWE.WallBC(), extent=getExtent(sw), )
     backend = make_cpu_backend()
-    eq = SinSWE.ShallowWaterEquations1D()
-    rec = SinSWE.LinearReconstruction(1.0)
+    eq = SinSWE.ShallowWaterEquations1D(grid)
+    rec = SinSWE.LinearReconstruction(2)
     flux = SinSWE.CentralUpwind(eq)
     conserved_system = SinSWE.ConservedSystem(backend, rec, flux, eq, grid)
     # TODO: Second order timestepper
     timestepper = SinSWE.ForwardEulerStepper()
-    simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid)
+    simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid, cfl=0.1)
     
     initial = get_initial_conditions(sw, grid)
     SinSWE.set_current_state!(simulator, initial)

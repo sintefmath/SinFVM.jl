@@ -55,6 +55,13 @@ end
 compute_dx(grid::CartesianGrid{1}, direction=XDIR) = grid.Δ[direction]
 compute_dx(grid::CartesianGrid{dimension}, direction=XDIR) where {dimension} = grid.Δ[direction]
 
+function constant_bottom_topography(grid::CartesianGrid{1}, value)
+    # TODO: Allow constant bottom topography to be represented by a scalar with arbitrary index...
+    return ones(grid.totalcells[1] + 1) .* value
+end
+
+
+
 
 function for_each_inner_cell(f, g::CartesianGrid{1}, include_ghostcells=0)
     for i in (g.ghostcells[1]-include_ghostcells+1):(g.totalcells[1]-g.ghostcells[1]+include_ghostcells)
