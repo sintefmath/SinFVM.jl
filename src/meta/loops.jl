@@ -4,7 +4,6 @@ function get_variable_names_defined(expression)
 end
 
 
-
 function get_variable_names_defined(expression::Expr)
     if expression.head == Symbol("=") && expression.args[1] isa Symbol
         # a = b
@@ -98,6 +97,8 @@ macro fvmloop(code_snippet)
     
     all_variables_defined = get_variable_names_defined(function_body.args)
     
+    
+
     for known_symbol in all_symbols
         delete!(all_variables_referenced, Symbol(known_symbol))
         delete!(all_variables_referenced, Symbol(".$known_symbol"))
@@ -106,6 +107,18 @@ macro fvmloop(code_snippet)
     for defined_symbol in all_variables_defined
         delete!(all_variables_referenced, defined_symbol)
         delete!(all_variables_referenced, Symbol(".$defined_symbol"))
+    end
+
+    # Delete functions. This could be an issue down the line...
+    # TODO: Review this. Currently we need it for the minmod function in LinearReconstruction for some reason...
+    all_functions = []
+    for variable in all_variables_referenced
+        if isdefined(SinSWE, variable) &&  isa(getfield(SinSWE, variable), Function)
+            push!(all_functions, variable)
+        end
+    end
+    for function_name in all_functions
+        delete!(all_variables_referenced, function_name)
     end
    
     new_parameter_names = []

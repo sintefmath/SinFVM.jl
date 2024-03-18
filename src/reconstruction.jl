@@ -7,8 +7,19 @@ end
 
 
 function reconstruct!(backend, ::NoReconstruction, output_left, output_right, input_conserved, grid::Grid, equation::Equation, direction::XDIRT)
-    output_left .= input_conserved
-    output_right .= input_conserved
+    @fvmloop for_each_cell(backend, grid) do middle
+        output_left[middle] = input_conserved[middle]
+        output_right[middle] = input_conserved[middle]
+    end
+end
+
+function minmod(a, b, c)
+    if (a > 0) && (b > 0) && (c > 0)
+        return min(a, b, c)
+    elseif a < 0 && b < 0 && c < 0
+        return max(a, b, c)
+    end
+    return zero(a)
 end
 
 function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, direction::XDIRT)
@@ -20,7 +31,6 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
         backward_diff = (input_conserved[imiddle] .- input_conserved[ileft])./Δx
         central_diff  = (forward_diff .+ backward_diff)./2.0
         slope = minmod.(linRec.theta.*forward_diff, central_diff, linRec.theta.*backward_diff)
-
         output_left[imiddle]  = input_conserved[imiddle] .- 0.5.*Δx.*slope
         output_right[imiddle] = input_conserved[imiddle] .+ 0.5.*Δx.*slope
     end
@@ -48,13 +58,3 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
     end
 end
 
-
-function minmod(a, b, c)
-    # TODO: avoid if statement
-    if (a > 0) && (b > 0) && (c > 0)
-        return min(a, b, c)
-    elseif a < 0 && b < 0 && c < 0
-        return max(a, b, c)
-    end
-    return 0.0
-end

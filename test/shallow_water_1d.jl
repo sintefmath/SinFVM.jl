@@ -13,7 +13,7 @@ function run_simulation()
     nx = 512
     grid = SinSWE.CartesianGrid(nx; gc=2)
     #backend = make_cuda_backend()
-    backend = make_cpu_backend()
+    backend = make_cuda_backend()
 
     equation = SinSWE.ShallowWaterEquations1D(grid)
     reconstruction = SinSWE.NoReconstruction()
@@ -26,78 +26,89 @@ function run_simulation()
         SinSWE.ConservedSystem(backend, linrec, numericalflux, equation, grid)
 
     x = SinSWE.cell_centers(grid)
-    initial = u0.(x)#collect(map(z -> SVector{2,Float64}([z]), u0(x)))
-    f = Figure(size=(1600, 600), fontsize=24)
+    initial = u0.(x)
     T = 0.05
+
+    f = Figure(size=(1600, 600), fontsize=24)
     ax = Axis(
         f[1, 1],
         title="Simulation of the Shallow Water equations in 1D.\nCentral Upwind and Forward-Euler.\nResolution $(nx) cells.\nT=$(T)",
-        ylabel="Solution",
+        ylabel="h",
         xlabel=L"x",
     )
 
-    
-    lines!(ax, x, first.(initial), label=L"h_0(x)")
-    lines!(ax, x, map(x -> x[2], initial), label=L"hu_0(x)")
+    ax2 = Axis(
+        f[1, 2],
+        title="Simulation of the Shallow Water equations in 1D.\nCentral Upwind and Forward-Euler.\nResolution $(nx) cells.\nT=$(T)",
+        ylabel="hu",
+        xlabel=L"x",
+    )
+
+   
 
     simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid)
     linrec_simulator = SinSWE.Simulator(backend, linrec_conserved_system, timestepper, grid)
 
-    SinSWE.set_current_state!(simulator, initial)
+    
     SinSWE.set_current_state!(linrec_simulator, initial)
+    SinSWE.set_current_state!(simulator, initial)
 
+
+    initial_state = SinSWE.current_interior_state(simulator)
+    lines!(ax, x, collect(initial_state.h), label=L"h_0(x)")
+    lines!(ax2, x, collect(initial_state.hu), label=L"hu_0(x)")
 
     t = 0.0
 
  
-    energy_sw(state) = @show state#[sum(first.(state)), sum(map(q -> q[2], state))]
-    all_energies = []
-    callback(time, sim) = push!(all_energies, energy_sw(SinSWE.current_interior_state(sim)))
-
+   
 
     result = collect(SinSWE.current_state(simulator))
-    @time SinSWE.simulate_to_time(simulator, T) #, callback=callback)
-    @time SinSWE.simulate_to_time(linrec_simulator, T)#, callback=callback)
+    @time SinSWE.simulate_to_time(simulator, T) 
+    @time SinSWE.simulate_to_time(linrec_simulator, T)
 
-    result = collect(SinSWE.current_interior_state(simulator))
-    linrec_results = collect(SinSWE.current_interior_state(linrec_simulator))
+    
+    result = SinSWE.current_interior_state(simulator)
+    linrec_results = SinSWE.current_interior_state(linrec_simulator)
+    
     lines!(
         ax,
         x,
-        first.(result),
+        collect(result.h),
         linestyle=:dot,
         color=:red,
-        linewidth=4,
+        linewidth=8,
         label=L"h^{\Delta x}(x, t)",
     )
     lines!(
-        ax,
+        ax2,
         x,
-        map(x -> x[2], result),
+        collect(result.hu),
         linestyle=:dashdot,
         color=:green,
-        linewidth=4,
+        linewidth=8,
         label=L"hu^{\Delta x}(x, t)",
     )
     lines!(
         ax,
         x,
-        first.(linrec_results),
+        collect(linrec_results.h),
         linestyle=:dot,
         color=:orange,
         linewidth=4,
         label=L"h_2^{\Delta x}(x, t)",
     )
     lines!(
-        ax,
+        ax2,
         x,
-        map(x -> x[2], linrec_results),
+        collect(linrec_results.hu),
         linestyle=:dashdot,
         color=:purple,
         linewidth=4,
         label=L"hu_2^{\Delta x}(x, t)",
     )
     axislegend(ax, position=:lb)
+    axislegend(ax2, position=:lb)
 
     
     display(f)

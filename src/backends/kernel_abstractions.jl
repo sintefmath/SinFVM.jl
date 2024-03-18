@@ -56,3 +56,14 @@ function for_each_index_value(f, backend::KernelAbstractionBackend{T}, values, y
     @assert lastindex(values) == length(values)
     ev = for_each_index_value_kernel(backend.backend, 1024)(f, values, y..., ndrange=length(values))
 end
+
+
+@kernel function for_each_cell_kernel(f, grid, y...)
+    I = @index(Global)
+    f(I, y...)
+end
+
+
+function for_each_cell(f, backend::KernelAbstractionBackend{T}, grid, y...;) where {T}
+    ev = for_each_cell_kernel(backend.backend, 1024)(f, grid, y..., ndrange=size(grid))
+end
