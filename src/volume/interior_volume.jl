@@ -158,15 +158,5 @@ end
 
 @inline Base.similar(vol::InteriorVolume, dims::Dims) =
     similar(vol._volume, dims)
-    
-# function Base.propertynames(::Type{InteriorVolume{T}}) where {T<:Volume}
-#     return variable_names(T)
-# end
 
-# function Base.getproperty(volume::InteriorVolume{T}, variable::Symbol) where {T<:Volume}
-#     if variable == :_data || variable == :_grid
-#         return getfield(volume, variable)
-#     end
-#     variable_index = findfirst(x -> x == variable, variable_names(T))
-#     return VolumeVariable(volume, variable_index)
-# end
+Base.collect(vol::InteriorVolume) = Base.collect(vol._volume._data[interior2full(vol._volume, 1):interior2full(vol._volume, length(vol)), :])

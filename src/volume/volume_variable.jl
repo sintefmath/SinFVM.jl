@@ -111,3 +111,5 @@ NumberOfConservedVariables,
 Dimension,} = RealType
 Base.length(volumevariable::VolumeVariable) = Base.size(volumevariable._volume, 1)
 Base.size(volumevariable::VolumeVariable) = size(volumevariable._volume)
+
+Base.collect(vol::VolumeVariable) = Base.collect(vol._volume._data[:, vol._index])

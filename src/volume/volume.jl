@@ -113,27 +113,29 @@ end
 @inline Base.size(vol::Volume) = Base.size(vol._grid)
 @inline Base.size(vol::Volume, i::Int64) = Base.size(vol._grid)[i]
 
-@inline Base.similar(vol::Volume) = convert_to_backend(vol._backend, similar(vol._data))
-@inline Base.similar(vol::Volume, type::Type{S}) where {S} =
+Base.similar(vol::Volume) = convert_to_backend(vol._backend, similar(vol._data))
+Base.similar(vol::Volume, type::Type{S}) where {S} =
     convert_to_backend(vol._backend, similar(vol._data, type))
-@inline Base.similar(vol::Volume, type::Type{S}, dims::Dims) where {S} =
+Base.similar(vol::Volume, type::Type{S}, dims::Dims) where {S} =
     convert_to_backend(vol._backend, similar(vol._data, type, dims))
-@inline Base.similar(vol::Volume, dims::Dims) =
+Base.similar(vol::Volume, dims::Dims) =
     convert_to_backend(vol._backend, similar(vol._data, dims))
 
-@inline function Base.setindex!(
+function Base.setindex!(
     vol::T,
     values::Container,
     indices::UnitRange{Int64},
 ) where {T<:Volume,Container<:AbstractVector{<:AbstractVector}}
     # TODO: Move this for loop to the inner kernel... Current limitation in the @fvmloop makes this hard.
+    values_backend = convert_to_backend(vol._backend, values)
     for j = 1:number_of_variables(T)
         @fvmloop for_each_index_value(vol._backend, indices) do index_source, index_target
-            vol._data[index_target, j] = values[index_source][j]
+            vol._data[index_target, j] = values_backend[index_source][j]
         end
     end
 end
 
+Base.collect(vol::Volume) = Base.collect(vol._data)
 
 
 include("volume_variable.jl")
