@@ -40,14 +40,50 @@ Adapt.@adapt_structure CentralUpwind
 
 
 function (centralupwind::CentralUpwind)(faceminus, faceplus)
+    centralupwind(centralupwind.eq, faceminus, faceplus)
+end
+
+function (centralupwind::CentralUpwind)(::Equation, faceminus, faceplus)
+
     fluxminus = centralupwind.eq(XDIR, faceminus...)
     fluxplus = centralupwind.eq(XDIR, faceplus...)
-
+    
     eigenvalues_minus = compute_eigenvalues(centralupwind.eq, XDIR, faceminus...) # compute_max_eigenvalue(centralupwind.eq, XDIR, faceminus...)
     eigenvalues_plus = compute_eigenvalues(centralupwind.eq, XDIR, faceplus...)  # compute_max_eigenvalue(centralupwind.eq, XDIR, faceplus...)
 
     aplus = max.(eigenvalues_plus[1], eigenvalues_minus[1], 0.0)
     aminus = min.(eigenvalues_plus[2], eigenvalues_minus[2], 0.0)
+
+    F = (aplus .* fluxminus - aminus .* fluxplus) ./ (aplus - aminus) + ((aplus .* aminus) ./ (aplus - aminus)) .* (faceplus - faceminus)
+    return F, max(abs(aplus), abs(aminus))
+end
+
+
+function (centralupwind::CentralUpwind)(::ShallowWaterEquations1D, faceminus, faceplus)
+
+    if faceminus[1] > centralupwind.eq.depth_cutoff
+        fluxminus = centralupwind.eq(XDIR, faceminus...)
+        eigenvalues_minus = compute_eigenvalues(centralupwind.eq, XDIR, faceminus...) # compute_max_eigenvalue(centralupwind.eq, XDIR, faceminus...)
+    else
+        fluxminus = zero(faceminus)
+        eigenvalues_minus = zero(faceminus)
+    end
+
+    if faceplus[1] > centralupwind.eq.depth_cutoff
+        fluxplus = centralupwind.eq(XDIR, faceplus...)
+        eigenvalues_plus = compute_eigenvalues(centralupwind.eq, XDIR, faceplus...)  # compute_max_eigenvalue(centralupwind.eq, XDIR, faceplus...)
+    else
+        fluxplus = zero(faceplus)
+        eigenvalues_plus = zero(faceplus)
+    end
+
+    aplus = max.(eigenvalues_plus[1], eigenvalues_minus[1], 0.0)
+    aminus = min.(eigenvalues_plus[2], eigenvalues_minus[2], 0.0)
+
+    # Check for dry states
+    if abs(aplus - aminus) < centralupwind.eq.desingularizing_kappa
+        return zero(faceminus), 0.0
+    end
 
     F = (aplus .* fluxminus - aminus .* fluxplus) ./ (aplus - aminus) + ((aplus .* aminus) ./ (aplus - aminus)) .* (faceplus - faceminus)
     return F, max(abs(aplus), abs(aminus))
