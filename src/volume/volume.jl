@@ -111,7 +111,7 @@ end
     SVector{number_of_variables(T),realtype(T)}
 @inline Base.length(vol::Volume) = Base.size(vol._data, 1)
 @inline Base.size(vol::Volume) = Base.size(vol._grid)
-@inline Base.size(vol::Volume, i::Int64) = Base.size(vol._grid)[i]
+@inline Base.size(vol::Volume, i::Int64) = (Base.size(vol._grid)[i],)
 
 Base.similar(vol::Volume) = convert_to_backend(vol._backend, similar(vol._data))
 Base.similar(vol::Volume, type::Type{S}) where {S} =
