@@ -1,3 +1,6 @@
+number_of_conserved_variables(::Type{T}) where {T} = error("This is not an equation type.")
+number_of_conserved_variables(::T) where {T<:Equation} = number_of_conserved_variables(T)
+number_of_conserved_variables(::Type{T}) where {T<:Equation} = length(conserved_variable_names(T))
 struct ShallowWaterEquations1D{T} <: Equation
     ρ::T
     g::T
@@ -19,16 +22,16 @@ end
 function compute_eigenvalues(eq::ShallowWaterEquations1D, ::XDIRT, h, hu)
     g = eq.g
     u = hu / h
-    return @SVector [u + sqrt(g*h), u - sqrt(g*h)]
+    return @SVector [u + sqrt(g * h), u - sqrt(g * h)]
 end
 
 function compute_max_abs_eigenvalue(eq::ShallowWaterEquations1D, ::XDIRT, h, hu)
     # TODO: Use compute_eigenvalues
     g = eq.g
     u = hu / h
-    return max(abs(u + sqrt(g*h)), abs(u - sqrt(g*h)))
+    return max(abs(u + sqrt(g * h)), abs(u - sqrt(g * h)))
 end
-number_of_conserved_variables(::ShallowWaterEquations1D) = 2
+conserved_variable_names(::Type{T}) where {T<:ShallowWaterEquations1D} = (:h, :hu)
 
 struct ShallowWaterEquations{T} <: Equation
     ρ::T
@@ -62,4 +65,4 @@ struct Burgers <: Equation end
 (::Burgers)(::XDIRT, u) = @SVector [0.5 * u .^ 2]
 
 compute_max_abs_eigenvalue(::Burgers, ::XDIRT, u) = abs(first(u))
-number_of_conserved_variables(::Burgers) = 1
+conserved_variable_names(::Type{Burgers}) = (:u,)

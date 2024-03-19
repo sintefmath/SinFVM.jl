@@ -7,7 +7,31 @@ end
 
 function get_variable_names_defined(expression::Expr)
     if expression.head == Symbol("=") && expression.args[1] isa Symbol
+        # a = b
         return [expression.args[1]]
+    elseif expression.head == :tuple && expression.args[1] isa Symbol && expression.args[end] isa Expr && expression.args[end].head == :(=)
+        # a, b, ... = expr
+        defined_names = Symbol[]
+
+        for s in expression.args[2:end-1]
+            if s isa Symbol
+                push!(defined_names, s)
+            end
+        end
+
+        push!(defined_names, expression.args[end].args[1])
+
+        return defined_names
+    elseif expression.head == :(=) && expression.args[1] isa Expr && expression.args[1].head == :(tuple) && any([x isa Symbol for x in expression.args[1].args])
+        # a,b,c,.. = f()   
+        defined_names = Symbol[]     
+        for s in expression.args[1].args
+            if s isa Symbol # We support expressions where only parts are symbols
+                push!(defined_names, s)
+            end
+        end
+
+        return defined_names
     else
         return get_variable_names_defined(expression.args)
     end

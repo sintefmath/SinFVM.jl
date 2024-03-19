@@ -5,6 +5,10 @@ struct WallBC <: BoundaryCondition
 end
 
 
+
+dimension(::Type{<:Grid{d}}) where {d} = d
+dimension(::T) where T<:Grid = dimension(T)
+
 struct CartesianGrid{dimension,BoundaryType,dimension2} <: Grid{dimension}
     ghostcells::SVector{dimension,Int64}
     totalcells::SVector{dimension,Int64}
@@ -18,8 +22,20 @@ directions(::Grid{1}) = (XDIR,)
 directions(::Grid{2}) = (XDIR, YDIR)
 directions(::Grid{3}) = (XDIR, YDIR, ZDIR)
 
+function number_of_interior_cells(grid::CartesianGrid)
+    return prod(interior_size(grid))
+end
 
-function CartesianGrid(nx; gc=1, boundary=PeriodicBC(), extent=[0.0 1.0])
+function interior_size(grid::CartesianGrid)
+    return Tuple(Int64(i) for i in (grid.totalcells .- 2 .* grid.ghostcells))
+end
+
+function Base.size(grid::CartesianGrid)
+    return Tuple(Int64(i) for i in grid.totalcells)
+end
+
+
+function CartesianGrid(nx; gc = 1, boundary = PeriodicBC(), extent = [0.0 1.0])
     domain_width = extent[1, 2] - extent[1, 1]
     Δx = domain_width / nx
     return CartesianGrid(SVector{1,Int64}([gc]),
@@ -29,7 +45,7 @@ function CartesianGrid(nx; gc=1, boundary=PeriodicBC(), extent=[0.0 1.0])
     )
 end
 
-function CartesianGrid(nx, ny; gc=1, boundary=PeriodicBC(), extent=[0.0 1.0; 0.0 1.0])
+function CartesianGrid(nx, ny; gc = 1, boundary = PeriodicBC(), extent = [0.0 1.0; 0.0 1.0])
     domain_width = extent[1, 2] - extent[1, 1]
     domain_height = extent[2, 2] - extent[2, 1]
     Δ = SVector{2,Float64}([domain_width / nx, domain_height / ny])
