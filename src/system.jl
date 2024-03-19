@@ -11,11 +11,10 @@ struct ConservedSystem{BackendType, ReconstructionType,NumericalFluxType,Equatio
     left_buffer::BufferType
     right_buffer::BufferType
     wavespeeds::ScalarBufferType
-    current_wavespeed::MVector{1, Float64}
 
     source_terms::Vector{SourceTerm}
     function ConservedSystem(backend, reconstruction, numericalflux, equation, grid, source_terms=SourceTerm[])
-	is_compatible(equation, grid)
+	    is_compatible(equation, grid)
         left_buffer = create_volume(backend, grid, equation)
         right_buffer = create_volume(backend, grid, equation)
         wavespeeds = create_scalar(backend, grid, equation)
@@ -46,9 +45,6 @@ function add_time_derivative!(output, cs::ConservedSystem, current_state)
     end
     return wavespeed
 end
-
-
-create_volume(backend, grid, bs::BalanceSystem) = create_volume(backend, grid, bs.conserved_system)
 
 function is_compatible(eq::Burgers, grid::Grid)
     nothing
