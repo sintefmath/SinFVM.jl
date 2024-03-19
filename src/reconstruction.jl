@@ -22,17 +22,21 @@ function minmod(a, b, c)
     return zero(a)
 end
 
+function minmod_slope(left, center, right, theta)
+    forward_diff  = right  .- center
+    backward_diff = center .- left
+    central_diff  = (forward_diff .+ backward_diff)./2.0
+    return minmod.(theta.*forward_diff, central_diff, theta.*backward_diff)
+
+end
 function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, direction::XDIRT)
     @assert grid.ghostcells[1] > 1
 
-    Δx = compute_dx(grid, direction)
+    # NOTE: dx cancel, as the slope depends on 1/dx and face values depend on dx*slope
     @fvmloop for_each_inner_cell(backend, grid, direction; ghostcells=1) do ileft, imiddle, iright
-        forward_diff  = (input_conserved[iright]  .- input_conserved[imiddle])./Δx
-        backward_diff = (input_conserved[imiddle] .- input_conserved[ileft])./Δx
-        central_diff  = (forward_diff .+ backward_diff)./2.0
-        slope = minmod.(linRec.theta.*forward_diff, central_diff, linRec.theta.*backward_diff)
-        output_left[imiddle]  = input_conserved[imiddle] .- 0.5.*Δx.*slope
-        output_right[imiddle] = input_conserved[imiddle] .+ 0.5.*Δx.*slope
+        slope = minmod_slope.(input_conserved[ileft], input_conserved[imiddle], input_conserved[iright], linRec.theta)
+        output_left[imiddle]  = input_conserved[imiddle] .- 0.5.*slope
+        output_right[imiddle] = input_conserved[imiddle] .+ 0.5.*slope
     end
 end
 function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, ::Equation, direction::XDIRT)
@@ -40,20 +44,34 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
 end
 
 function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, eq::ShallowWaterEquations1D, direction::XDIRT)
-    # TODO: Might need to put all these steps in one fvmloop for performance
+    @assert grid.ghostcells[1] > 1
 
-    # input is (w, hu)
-    # First, reconstruct (w, hu)
-    reconstruct!(backend, linRec, output_left, output_right, input_conserved, grid, direction)
-
-    # TODO: Second, avoid negative water depth
-    
+    w_input = input_conserved.h
     h_left = output_left.h
     h_right = output_right.h
-    # Third, map from (w, hu) to (h, hu), where h = w - B
+
+    # input_conserved is (w, hu)
     @fvmloop for_each_inner_cell(backend, grid, direction; ghostcells=1) do ileft, imiddle, iright
-        h_left[imiddle] = h_left[imiddle] - eq.B[imiddle]
-        h_right[imiddle] = h_right[imiddle] - eq.B[imiddle + 1]
+        # 1) Obtain slope of (w, hu)
+        slope = minmod_slope.(input_conserved[ileft], input_conserved[imiddle], input_conserved[iright], linRec.theta)
+
+        # 2) Adjust slope of water
+        if (w_input[imiddle] - 0.5*slope[1] < eq.B[imiddle])
+            # Negative h on left face
+            slope[1] = 2.0*(w_input[imiddle] - eq.B[imiddle])
+        elseif (w_input[imiddle] + 0.5*slope[1] < eq.B[imiddle])
+            # Negative h on right face
+            slope[1] = 2.0*(eq.B[imiddle] - w_input[imiddle])
+        end
+        
+        # 3) Reconstruct face values (w, hu)
+        output_left[imiddle]  = input_conserved[imiddle] .- 0.5.*slope
+        output_right[imiddle] = input_conserved[imiddle] .+ 0.5.*slope
+
+        # 4) Return face values (h, hu)
+        h_left[imiddle]  -= eq.B[imiddle]
+        h_right[imiddle] -= eq.B[imiddle + 1] 
     end
+    nothing
 end
 
