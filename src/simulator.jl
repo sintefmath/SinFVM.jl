@@ -35,12 +35,18 @@ current_state(simulator::Simulator) = simulator.substep_outputs[1]
 current_interior_state(simulator::Simulator) =
     interior(current_state(simulator))
 
+
+
 function set_current_state!(simulator::Simulator, new_state)
     @assert length(simulator.grid.ghostcells) == 1
 
     gc = simulator.grid.ghostcells[1]
     current_state(simulator)[gc+1:end-gc] = new_state
     update_bc!(simulator, current_state(simulator))
+end
+
+function set_current_state!(simulator::Simulator, new_state::Volume)
+    set_current_state!(simulator, InteriorVolume(new_state))
 end
 
 current_timestep(simulator::Simulator) = simulator.current_timestep[1]

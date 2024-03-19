@@ -14,6 +14,7 @@ abstract type Swashes end
 abstract type Swashes1D <:Swashes end
 abstract type Swashes41x <: Swashes1D end
 
+# Other useful tests:
 # struct Swashes421 <: Swashes1D end
 # abstract struct Swashes2D <: Swashes end
 # struct Swashes422 <: Swashes2D end
@@ -52,7 +53,7 @@ function getExtent(sw::Swashes1D)
     return [0.0  sw.L]
 end
 
-function get_reference_solution(sw::Swashes41x, grid::CartesianGrid{1}, t)
+function get_reference_solution(sw::Swashes41x, grid::CartesianGrid{1}, t, eq::SinSWE.ShallowWaterEquations1D, backend)
     xA = sw.x0 - t*sqrt(sw.g*sw.hl)
     xB = sw.x0 + t*(2*sqrt(sw.g*sw.hl) - 3*sw.cm)
     xC = sw.x0 + t*(2*sw.cm^2 *(sqrt(sw.g*sw.hl) - sw.cm))/(sw.cm^2 - sw.g*sw.hr)
@@ -95,12 +96,15 @@ function get_reference_solution(sw::Swashes41x, grid::CartesianGrid{1}, t)
     #     h[i] = get_h(sw, x)
     #     u[i] = get_u(sw, x)
     # end        
-    return [SVector{2, Float64}(get_h(sw, x), get_u(sw, x)) for x in all_x]
+    
+    ref_state = SinSWE.Volume(backend, eq, grid)
+    SinSWE.InteriorVolume(ref_state)[:] = [SVector{2, Float64}(get_h(sw, x), get_u(sw, x)) for x in all_x]
+    return ref_state
 end
 
 
-function get_initial_conditions(sw::Swashes, grid)
-    return get_reference_solution(sw, grid, 0.0)
+function get_initial_conditions(sw::Swashes, grid, eq::SinSWE.ShallowWaterEquations1D, backend)
+    return get_reference_solution(sw, grid, 0.0, eq, backend)
 end
 
 
@@ -129,38 +133,29 @@ function plot_ref_solution(sw::Swashes1D, grid, T)
         xlabel="x",
     )
     for t in T
-        q = get_reference_solution(sw, grid, t)
-        lines!(ax_h, x, first.(q), label="t=$(t)")
-        lines!(ax_u, x, map(x -> x[2], q), label="t=$(t)")
+        ref_state = get_reference_solution(sw, grid, t)
+        lines!(ax_h, x, ref_state.h, label="t=$(t)")
+        lines!(ax_u, x, ref_state.hu, label="t=$(t)")
     end
     axislegend(ax_h)
     axislegend(ax_u)
     display(f)
 end
 
-#  @show get_reference_solution(swashes, grid, 4)
 
-a = zeros(MVector{5})
-for i = eachindex(a)
-    a[i] = i^2
-end
-for (i, v) in pairs(a)
-    @show i, v
-end
-@show a
 
 function compare_swashes(sw::Swashes41x, nx, t)
     grid = SinSWE.CartesianGrid(nx; gc=2, boundary=SinSWE.WallBC(), extent=getExtent(sw), )
     backend = make_cpu_backend()
     eq = SinSWE.ShallowWaterEquations1D(grid)
-    rec = SinSWE.LinearReconstruction(2)
+    rec = SinSWE.LinearReconstruction(1.2)
     flux = SinSWE.CentralUpwind(eq)
     conserved_system = SinSWE.ConservedSystem(backend, rec, flux, eq, grid)
     # TODO: Second order timestepper
     timestepper = SinSWE.ForwardEulerStepper()
     simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid, cfl=0.1)
     
-    initial = get_initial_conditions(sw, grid)
+    initial = get_initial_conditions(sw, grid, eq, backend)
     SinSWE.set_current_state!(simulator, initial)
  
     SinSWE.simulate_to_time(simulator, t)
@@ -182,12 +177,14 @@ function compare_swashes(sw::Swashes41x, nx, t)
         xlabel="x",
     )
 
-    q = get_reference_solution(sw, grid, t)
-    lines!(ax_h, x, first.(q), label="swashes")
-    lines!(ax_u, x, map(x -> x[2], q), label="swashes")
+    ref_sol = SinSWE.InteriorVolume(get_reference_solution(sw, grid, t, eq, backend))
+    lines!(ax_h, x, collect(ref_sol.h), label="swashes")
+    lines!(ax_u, x, collect(ref_sol.hu), label="swashes")
 
-    h = first.(SinSWE.current_interior_state(simulator))
-    hu = map(x -> x[2], SinSWE.current_interior_state(simulator))
+    
+    our_sol = SinSWE.current_interior_state(simulator)
+    hu = collect(our_sol.hu)
+    h  = collect(our_sol.h)
     u = hu./h
     lines!(ax_h, x, h, label="swamp")
     lines!(ax_u, x, u, label="swamp")
