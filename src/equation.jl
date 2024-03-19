@@ -6,27 +6,34 @@ struct ShallowWaterEquations1D{T, S} <: Equation
     ρ::T
     g::T
     depth_cutoff::T
-    flux_slope_eps::T
-    ShallowWaterEquations1D(B::BottomType; ρ=1.0, g=9.81, depth_cutoff=10^-5, flux_slope_eps=10^-4) where {BottomType <: AbstractArray} = new{typeof(g), typeof(B)}(B, ρ, g, depth_cutoff, flux_slope_eps)
+    desingularizing_kappa::T
+    ShallowWaterEquations1D(B::BottomType; ρ=1.0, g=9.81, depth_cutoff=10^-5, desingularizing_kappa=10^-5) where {BottomType <: AbstractArray} = new{typeof(g), typeof(B)}(B, ρ, g, depth_cutoff, desingularizing_kappa)
 end
 Adapt.@adapt_structure ShallowWaterEquations1D
 
 # ShallowWaterEquations1D(B::AbstractArray) = ShallowWaterEquations1D(B)
-ShallowWaterEquations1D(grid::Grid) = ShallowWaterEquations1D(constant_bottom_topography(grid, 0.0))
-ShallowWaterEquations1D(backend::Backend, grid::Grid) = ShallowWaterEquations1D(convert_to_backend(backend, constant_bottom_topography(grid, 0.0)))
+ShallowWaterEquations1D(grid::Grid; B=0.0, kwargs...) = ShallowWaterEquations1D(constant_bottom_topography(grid, B); kwargs...)
+ShallowWaterEquations1D(backend::Backend, grid::Grid; kwargs...) = ShallowWaterEquations1D(convert_to_backend(backend, constant_bottom_topography(grid, 0.0); kwargs...))
+
+function desingularize(eq::ShallowWaterEquations1D, h, hu)
+    h_star = sign(h)*max(abs(h), min(h^2/(2*eq.desingularizing_kappa) + eq.desingularizing_kappa/2.0, eq.desingularizing_kappa))
+    return hu/h_star
+end
+
 
 function (eq::ShallowWaterEquations1D)(::XDIRT, h, hu)
     ρ = eq.ρ
     g = eq.g
+    u = desingularize(eq, h, hu)
     return @SVector [
-        ρ * hu,
-        ρ * hu * hu / h + 0.5 * ρ * g * h^2,
+        ρ * h * u,
+        ρ * h * u * u + 0.5 * ρ * g * h^2,
     ]
 end
 
 function compute_eigenvalues(eq::ShallowWaterEquations1D, ::XDIRT, h, hu)
     g = eq.g
-    u = hu / h
+    u = desingularize(eq, h, hu)
     return @SVector [u + sqrt(g * h), u - sqrt(g * h)]
 end
 
