@@ -2,10 +2,18 @@ using SinSWE
 using Test
 
 @testset "SinSWE tests" begin
-    @testset "Boundary condition tests" begin
-        include("test_update_bc.jl")
+    # Run all scripts in test/test_*.jl
+    ls_test = readdir("test")
+    for test_file in readdir("test")
+        if startswith(test_file, "test_") && endswith(test_file, ".jl")
+            #@show test_name, test_file
+            
+            test_name = replace(test_file, ".jl"=>"")
+            @testset "$(test_name)" begin
+                include(test_file)
+            end
+      
+        end
     end
-    @testset "Grid tests" begin
-        include("test_grid.jl")
-    end 
 end
+nothing

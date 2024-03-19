@@ -3,12 +3,13 @@ using StaticArrays
 using Test
 import CUDA
 
+
 for backend in get_available_backends()
     @info "Backend " backend
     nx = 10
     grid = SinSWE.CartesianGrid(nx)
     equation = SinSWE.ShallowWaterEquations1D(grid)
-    volume = Volume(backend, equation, grid)
+    volume = SinSWE.Volume(backend, equation, grid)
 
     CUDA.@allowscalar volume[1] = @SVector [4.0, 4.0]
     CUDA.@allowscalar @test volume[1][1] == 4.0
