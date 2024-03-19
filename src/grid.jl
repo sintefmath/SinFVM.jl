@@ -56,13 +56,17 @@ function CartesianGrid(nx, ny; gc = 1, boundary = PeriodicBC(), extent = [0.0 1.
 end
 
 function cell_faces(grid::CartesianGrid{1}; interior=true)
-    @assert interior
-    return collect(LinRange(grid.extent[1], grid.extent[2], grid.totalcells[1] - 2 * grid.ghostcells[1] + 1))
+    if interior
+        return collect(LinRange(grid.extent[1], grid.extent[2], grid.totalcells[1] - 2 * grid.ghostcells[1] + 1))
+    else
+        dx = compute_dx(grid)
+        ghost_extend = [grid.extent[1] - grid.ghostcells[1]*dx 
+                        grid.extent[2] + grid.ghostcells[1]*dx ]
+        collect(LinRange(ghost_extend[1], ghost_extend[2], grid.totalcells[1] + 1))
+    end
 end
 
 function cell_centers(grid::CartesianGrid{1}; interior=true)
-    @assert interior
-
     xinterface = cell_faces(grid; interior)
     xcell = xinterface[1:end-1] .+ (xinterface[2] - xinterface[1]) / 2.0
     return xcell

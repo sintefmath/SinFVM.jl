@@ -12,7 +12,9 @@ struct ConservedSystem{BackendType, ReconstructionType,NumericalFluxType,Equatio
     right_buffer::BufferType
     wavespeeds::ScalarBufferType
     current_wavespeed::MVector{1, Float64}
-    function ConservedSystem(backend, reconstruction, numericalflux, equation, grid)
+
+    source_terms::Vector{SourceTerm}
+    function ConservedSystem(backend, reconstruction, numericalflux, equation, grid, source_terms=SourceTerm[])
 	is_compatible(equation, grid)
         left_buffer = create_volume(backend, grid, equation)
         right_buffer = create_volume(backend, grid, equation)
@@ -25,45 +27,37 @@ struct ConservedSystem{BackendType, ReconstructionType,NumericalFluxType,Equatio
         typeof(grid),
         typeof(left_buffer),
         typeof(wavespeeds)
-    }(backend, reconstruction, numericalflux, equation, grid, left_buffer, right_buffer, wavespeeds)
+    }(backend, reconstruction, numericalflux, equation, grid, left_buffer, right_buffer, wavespeeds, source_terms)
     end
+end
+
+function ConservedSystem(backend, reconstruction, numericalflux, equation, grid, source_term::SourceTerm) 
+    return ConservedSystem(backend, reconstruction, numericalflux, equation, grid, [source_term])
 end
 
 create_volume(backend, grid, cs::ConservedSystem) = create_volume(backend, grid, cs.equation)
 
 function add_time_derivative!(output, cs::ConservedSystem, current_state)
     reconstruct!(cs.backend, cs.reconstruction, cs.left_buffer, cs.right_buffer, current_state, cs.grid, cs.equation, XDIR)
-    return compute_flux!(cs.backend, cs.numericalflux, output, cs.left_buffer, cs.right_buffer, cs.wavespeeds, cs.grid, cs.equation, XDIR)
-end
+    wavespeed = compute_flux!(cs.backend, cs.numericalflux, output, cs.left_buffer, cs.right_buffer, cs.wavespeeds, cs.grid, cs.equation, XDIR)
 
-
-struct BalanceSystem{ConservedSystemType<:System,SourceTerm} <: System
-    conserved_system::ConservedSystemType
-    source_term::SourceTerm
-end
-
-
-function add_time_derivative!(output, bs::BalanceSystem, current_state)
-    # First add conserved system (so F_{i+1}-F_i)
-    wavespeed = add_time_derivative!(output, bs.conserved_system, current_state)
-
-    @assert false
-    # FIX FOR LOOP UNDERNEATH
-    # Then add source term
-    for_each_inner_cell(bs.conserved_system.grid) do ileft, imiddle, iright
-        output[imiddle] += bs.source_term(current_state[imiddle])
-
-        nothing
+    for source_term in cs.source_terms
+        evaluate_source_term!(source_term, output, current_state, cs)
     end
-
     return wavespeed
 end
+
+
 create_volume(backend, grid, bs::BalanceSystem) = create_volume(backend, grid, bs.conserved_system)
 
 function is_compatible(eq::Burgers, grid::Grid)
-    @assert true
+    nothing
 end
 
 function is_compatible(eq::ShallowWaterEquations1D, grid::CartesianGrid{1})
-    @assert grid.totalcells[1]+1 == size(eq.B)[1]
+    if grid.totalcells[1]+1 != size(eq.B)[1]
+        throw(DimensionMismatch("Equation and grid has mismatching dimensions. "*
+                                "\nGrid requires B to have dimension $(grid.totalcells .+ 1), "*
+                                "but got B with dimension $(size(eq.B))"))
+    end
 end

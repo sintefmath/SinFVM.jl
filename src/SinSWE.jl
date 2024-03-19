@@ -32,6 +32,8 @@ include("numericalflux.jl")
 include("system.jl")
 include("timestepper.jl")
 include("simulator.jl")
+
+include("source_terms.jl")
 include("bc.jl")
 export XDIR, YDIR, ZDIR, ShallowWaterEquations, Burgers, CartesianGrid, make_cpu_backend, make_cuda_backend, Volume, get_available_backends
 end
