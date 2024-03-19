@@ -10,14 +10,14 @@ using SinSWE
 function run_simulation()
 
     u0 = x -> @SVector[exp.(-(x - 0.5)^2 / 0.001) .+ 1.5, 0.0 .* x]
-    nx = 64*1024
+    nx = 1024*1024
     grid = SinSWE.CartesianGrid(nx; gc=2)
     #backend = make_cuda_backend()
     backend = make_cuda_backend()
 
-    equation = SinSWE.ShallowWaterEquations1D(grid)
+    equation = SinSWE.ShallowWaterEquations1D(backend, grid)
     reconstruction = SinSWE.NoReconstruction()
-    linrec = SinSWE.LinearReconstruction(1.2)
+    linrec = SinSWE.LinearReconstruction(1.05)
     numericalflux = SinSWE.CentralUpwind(equation)
     conserved_system =
         SinSWE.ConservedSystem(backend, reconstruction, numericalflux, equation, grid)
@@ -47,7 +47,7 @@ function run_simulation()
    
 
     simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid)
-    linrec_simulator = SinSWE.Simulator(backend, linrec_conserved_system, timestepper, grid; cfl=0.01)
+    linrec_simulator = SinSWE.Simulator(backend, linrec_conserved_system, timestepper, grid; cfl=0.2)
 
     
     SinSWE.set_current_state!(linrec_simulator, initial)
