@@ -32,9 +32,12 @@ function (god::Godunov)(faceminus, faceplus)
         compute_max_abs_eigenvalue(god.eq, XDIR, faceplus...))
 end
 
-struct CentralUpwind{T} <: NumericalFlux
-    eq::ShallowWaterEquations1D{T}
+struct CentralUpwind{T, S} <: NumericalFlux
+    eq::ShallowWaterEquations1D{T, S}
 end
+
+Adapt.@adapt_structure CentralUpwind
+
 
 function (centralupwind::CentralUpwind)(faceminus, faceplus)
     fluxminus = centralupwind.eq(XDIR, faceminus...)

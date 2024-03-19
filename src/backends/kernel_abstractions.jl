@@ -1,8 +1,10 @@
 using KernelAbstractions
 import CUDA
 
+abstract type Backend end
 
-struct KernelAbstractionBackend{KABackendType}
+
+struct KernelAbstractionBackend{KABackendType} <: Backend
     backend::KABackendType
 end
 

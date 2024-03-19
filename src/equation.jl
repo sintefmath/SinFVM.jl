@@ -1,14 +1,19 @@
 number_of_conserved_variables(::Type{T}) where {T} = error("This is not an equation type.")
 number_of_conserved_variables(::T) where {T<:Equation} = number_of_conserved_variables(T)
 number_of_conserved_variables(::Type{T}) where {T<:Equation} = length(conserved_variable_names(T))
-struct ShallowWaterEquations1D{T} <: Equation
+struct ShallowWaterEquations1D{T, S} <: Equation
+    B::S
     ρ::T
     g::T
-    B
+    depth_cutoff::T
+    flux_slope_eps::T
+    ShallowWaterEquations1D(B::BottomType; ρ=1.0, g=9.81, depth_cutoff=10^-5, flux_slope_eps=10^-4) where {BottomType <: AbstractArray} = new{typeof(g), typeof(B)}(B, ρ, g, depth_cutoff, flux_slope_eps)
 end
+Adapt.@adapt_structure ShallowWaterEquations1D
 
-ShallowWaterEquations1D(B::Vector) = ShallowWaterEquations1D(1.0, 9.81, B)
+# ShallowWaterEquations1D(B::AbstractArray) = ShallowWaterEquations1D(B)
 ShallowWaterEquations1D(grid::Grid) = ShallowWaterEquations1D(constant_bottom_topography(grid, 0.0))
+ShallowWaterEquations1D(backend::Backend, grid::Grid) = ShallowWaterEquations1D(convert_to_backend(backend, constant_bottom_topography(grid, 0.0)))
 
 function (eq::ShallowWaterEquations1D)(::XDIRT, h, hu)
     ρ = eq.ρ
