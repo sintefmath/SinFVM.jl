@@ -2,7 +2,7 @@
 struct NoReconstruction <: Reconstruction end
 struct LinearReconstruction <: Reconstruction 
     theta::Float64
-    # LinearReconstruction() = new(1.2)
+    LinearReconstruction(theta=1.2) = new(theta)
 end
 
 
@@ -47,14 +47,13 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
     reconstruct!(backend, linRec, output_left, output_right, input_conserved, grid, direction)
 
     # TODO: Second, avoid negative water depth
-
+    
+    h_left = output_left.h
+    h_right = output_right.h
     # Third, map from (w, hu) to (h, hu), where h = w - B
     @fvmloop for_each_inner_cell(backend, grid, direction; ghostcells=1) do ileft, imiddle, iright
-        # TODO: How do we easily update values within output_left and right?
-        #       This does not feel correct... See also update_bc!(::WallBC) 
-        output_left[imiddle]  = typeof(output_left[imiddle])(output_left[imiddle][1]   - eq.B[imiddle    ], output_left[imiddle][2] )
-        output_right[imiddle] = typeof(output_right[imiddle])(output_right[imiddle][1] - eq.B[imiddle + 1], output_right[imiddle][2])
-        # output_right[imiddle][1] = output_right[imiddle][1] - eq.B[imiddle +1 ]
+        h_left[imiddle] = h_left[imiddle] - eq.B[imiddle]
+        h_right[imiddle] = h_right[imiddle] - eq.B[imiddle + 1]
     end
 end
 

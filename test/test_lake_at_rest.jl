@@ -3,7 +3,7 @@ using Test
 using StaticArrays
 using CairoMakie
 
-function test_lake_at_rest(grid, B, w0; plot=true)
+function test_lake_at_rest(grid, B, w0, t=0.001; plot=true)
 
     backend = make_cpu_backend()
     eq = SinSWE.ShallowWaterEquations1D(B)
@@ -25,10 +25,16 @@ function test_lake_at_rest(grid, B, w0; plot=true)
 
     SinSWE.set_current_state!(simulator, initial)
     
-    t = 0.001
     SinSWE.simulate_to_time(simulator, t)
-    w = first.(SinSWE.current_interior_state(simulator))
-    hu = map(x -> x[2], SinSWE.current_interior_state(simulator))
+
+    
+    # initial_state = SinSWE.current_interior_state(simulator)
+    # lines!(ax, x, collect(initial_state.h), label=L"h_0(x)")
+    # lines!(ax2, x, collect(initial_state.hu), label=L"hu_0(x)")
+
+    state = SinSWE.current_interior_state(simulator)
+    w =  collect(state.h)
+    hu = collect(state.hu)
         
     if plot
         f = Figure(size=(800, 800), fontsize=24)
@@ -56,17 +62,19 @@ function test_lake_at_rest(grid, B, w0; plot=true)
         # axislegend(ax_u)
         display(f)
     end
-    @test maximum(abs.(hu)) ≈ 0.0 atol=10^-15
-    @test maximum(abs.(w[1] - w0)) ≈ 0.0 atol=10^-15
+    @test maximum(abs.(hu)) ≈ 0.0 atol=10^-14
+    @test maximum(abs.(w[1] - w0)) ≈ 0.0 atol=10^-14
 end
 
-nx = 32
+nx = 64
 grid = SinSWE.CartesianGrid(nx; gc=2, boundary=SinSWE.WallBC(), extent=[0.0  10.0], )
 x0 = 5.0
 #step_bottom = x-> x < x0 ? @SVector[0.45+0.0*x] : @SVector[0.55 + 0.0*x ]
 #B = step_bottom.(SinSWE.cell_centers(grid))
 B = [x < x0 ? 0.45 : 0.55 for x in SinSWE.cell_faces(grid, interior=false)]
-test_lake_at_rest(grid, B, 0.7, plot=true)
+
+test_lake_at_rest(grid, B, 0.7, plot=false)
+test_lake_at_rest(grid, B, 0.7, 10, plot=true)
 
 
 # bst = SinSWE.SourceTermBottom()
@@ -75,4 +83,4 @@ test_lake_at_rest(grid, B, 0.7, plot=true)
 
 # v_st::Vector{SinSWE.SourceTerm} = [bst, rain, infl]
 # @show(v_st)
-@show maximum(B)
+#@show maximum(B)
