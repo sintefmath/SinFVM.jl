@@ -13,7 +13,6 @@ for backend in get_available_backends()
     end
 
     output = collect(output)
-    @show output == 2 .* values
     @test output == 2 .* values
 
 
@@ -26,6 +25,5 @@ for backend in get_available_backends()
     end
 
     output = collect(output_svector)
-    @show output == 4 .* values
     @test output == 4 .* values
 end

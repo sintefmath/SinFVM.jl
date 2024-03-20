@@ -5,7 +5,7 @@ struct VolumeVariable{EquationType,
     MatrixType,
     BackendType,
     NumberOfConservedVariables,
-    Dimension,} <: AbstractArray{RealType, Dimension}
+    Dimension,} <: AbstractArray{RealType,Dimension}
 
     _volume::Volume{EquationType,
         GridType,
@@ -17,8 +17,8 @@ struct VolumeVariable{EquationType,
 
     _index::Int64
 
-    function VolumeVariable(volume::Volume{A, B, C, D, E, F, G}, index) where {A, B, C, D, E, F, G}
-        return new{A, B, C, D, E, F, G}(volume, index)
+    function VolumeVariable(volume::Volume{A,B,C,D,E,F,G}, index) where {A,B,C,D,E,F,G}
+        return new{A,B,C,D,E,F,G}(volume, index)
     end
 
 end
@@ -67,7 +67,7 @@ Base.firstindex(volumevariable::VolumeVariable) = Base.firstindex(volumevariable
 Base.lastindex(volumevariable::VolumeVariable) = Base.lastindex(volumevariable._volume)
 
 
-@inline Base.similar(vol::T) where {T<: VolumeVariable} = convert_to_backend(vol._volume._backend, zeros(eltype(T), size(vol)))
+@inline Base.similar(vol::T) where {T<:VolumeVariable} = convert_to_backend(vol._volume._backend, zeros(eltype(T), size(vol)))
 
 @inline Base.similar(vol::VolumeVariable, type::Type{S}) where {S} =
     convert_to_backend(vol._volume._backend, zeros(type, size(vol)))
@@ -75,7 +75,7 @@ Base.lastindex(volumevariable::VolumeVariable) = Base.lastindex(volumevariable._
 @inline Base.similar(vol::VolumeVariable, type::Type{S}, dims::Dims) where {S} =
     convert_to_backend(vol._volume._backend, zeros(type, dims))
 
-@inline Base.similar(vol::T, dims::Dims) where {T<: VolumeVariable}=
+@inline Base.similar(vol::T, dims::Dims) where {T<:VolumeVariable} =
     convert_to_backend(vol._volume._backend, zeros(eltype(T), dims))
 
 function Base.iterate(volumevariable::VolumeVariable, index::Int64)
@@ -97,18 +97,18 @@ end
 # TODO: Support Cartesian indexing
 Base.IndexStyle(::Type{T}) where {T<:VolumeVariable} = Base.IndexLinear()
 Base.eltype(::Type{VolumeVariable{EquationType,
-GridType,
-RealType,
-MatrixType,
-BackendType,
-NumberOfConservedVariables,
-Dimension,}}) where {EquationType,
-GridType,
-RealType,
-MatrixType,
-BackendType,
-NumberOfConservedVariables,
-Dimension,} = RealType
+    GridType,
+    RealType,
+    MatrixType,
+    BackendType,
+    NumberOfConservedVariables,
+    Dimension,}}) where {EquationType,
+    GridType,
+    RealType,
+    MatrixType,
+    BackendType,
+    NumberOfConservedVariables,
+    Dimension,} = RealType
 Base.length(volumevariable::VolumeVariable) = Base.size(volumevariable._volume, 1)
 Base.size(volumevariable::VolumeVariable) = size(volumevariable._volume)
 
