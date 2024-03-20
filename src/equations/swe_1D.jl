@@ -4,13 +4,23 @@ struct ShallowWaterEquations1D{T, S} <: Equation
     g::T
     depth_cutoff::T
     desingularizing_kappa::T
-    ShallowWaterEquations1D(B::BottomType, ρ=1.0, g=9.81, depth_cutoff=10^-5, desingularizing_kappa=10^-5) where {BottomType <: AbstractArray} = new{typeof(g), typeof(B)}(B, ρ, g, depth_cutoff, desingularizing_kappa)
+    ShallowWaterEquations1D(B::BottomType; ρ=1.0, g=9.81, depth_cutoff=10^-5, desingularizing_kappa=10^-5) where {BottomType <: AbstractArray} = new{typeof(g), typeof(B)}(B, ρ, g, depth_cutoff, desingularizing_kappa)
 end
-Adapt.@adapt_structure ShallowWaterEquations1D
 
-# ShallowWaterEquations1D(B::AbstractArray) = ShallowWaterEquations1D(B)
+function Adapt.adapt_structure(
+    to,
+    swe::ShallowWaterEquations1D{T, S}
+) where {T, S}
+    B = Adapt.adapt_structure(to, swe.B)
+    ρ = Adapt.adapt_structure(to, swe.ρ)
+    g = Adapt.adapt_structure(to, swe.g)
+    depth_cutoff = Adapt.adapt_structure(to, swe.depth_cutoff)
+    desingularizing_kappa = Adapt.adapt_structure(to, swe.desingularizing_kappa)
+    
+    ShallowWaterEquations1D(B; ρ=ρ, g=g, depth_cutoff=depth_cutoff, desingularizing_kappa=desingularizing_kappa)
+end
+
 ShallowWaterEquations1D(backend::Backend, grid::Grid; B=0.0, kwargs...) = ShallowWaterEquations1D(convert_to_backend(backend, constant_bottom_topography(grid, B)); kwargs...)
-ShallowWaterEquations1D(backend::Backend, grid::Grid; kwargs...) = ShallowWaterEquations1D(convert_to_backend(backend, constant_bottom_topography(grid, 0.0); kwargs...))
 
 function desingularize(eq::ShallowWaterEquations1D, h, hu)
     # The different desingularizations are taken from 

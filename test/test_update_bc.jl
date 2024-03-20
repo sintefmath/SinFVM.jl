@@ -27,7 +27,7 @@ SinSWE.update_bc!(backend, grid, equation, xvec)
 ## Test wall boundary condition for shallow water equations
 
 wall_grid = SinSWE.CartesianGrid(nx, gc=2, boundary=SinSWE.WallBC())
-swe = SinSWE.ShallowWaterEquations1D(wall_grid)
+swe = SinSWE.ShallowWaterEquations1D(backend, wall_grid)
 
 x = collect(1:(nx+4))
 u     = [SVector{2, Float64}(x, x*10) for x in 1:(nx+4)]
