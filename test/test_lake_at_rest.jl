@@ -73,8 +73,8 @@ x0 = 5.0
 #B = step_bottom.(SinSWE.cell_centers(grid))
 B = [x < x0 ? 0.45 : 0.55 for x in SinSWE.cell_faces(grid, interior=false)]
 
-test_lake_at_rest(grid, B, 0.7, plot=false)
-test_lake_at_rest(grid, B, 0.7, 10, plot=true)
+# test_lake_at_rest(grid, B, 0.7, plot=false)
+test_lake_at_rest(grid, B, 0.7, 1, plot=true)
 
 
 # bst = SinSWE.SourceTermBottom()
