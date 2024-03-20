@@ -60,16 +60,15 @@ end
 
 
 function (centralupwind::CentralUpwind)(::ShallowWaterEquations1D, faceminus, faceplus)
-    # TODO: modify equation to support 32 bits instead of multiplying with g here to get correct type
-    fluxminus = zero(faceminus.*centralupwind.eq.g)
-    eigenvalues_minus = zero(faceminus.*centralupwind.eq.g)
+    fluxminus = zero(faceminus)
+    eigenvalues_minus = zero(faceminus)
     if faceminus[1] > centralupwind.eq.depth_cutoff
         fluxminus = centralupwind.eq(XDIR, faceminus...)
         eigenvalues_minus = compute_eigenvalues(centralupwind.eq, XDIR, faceminus...) # compute_max_eigenvalue(centralupwind.eq, XDIR, faceminus...)
     end
 
-    fluxplus = zero(faceplus.*centralupwind.eq.g)
-    eigenvalues_plus = zero(faceplus.*centralupwind.eq.g)
+    fluxplus = zero(faceplus)
+    eigenvalues_plus = zero(faceplus)
     if faceplus[1] > centralupwind.eq.depth_cutoff
         fluxplus = centralupwind.eq(XDIR, faceplus...)
         eigenvalues_plus = compute_eigenvalues(centralupwind.eq, XDIR, faceplus...)  # compute_max_eigenvalue(centralupwind.eq, XDIR, faceplus...)
@@ -80,8 +79,7 @@ function (centralupwind::CentralUpwind)(::ShallowWaterEquations1D, faceminus, fa
 
     # Check for dry states
     if abs(aplus - aminus) < centralupwind.eq.desingularizing_kappa
-        # TODO: g type. 
-        return zero(faceminus.*centralupwind.eq.g), zero(aminus.*centralupwind.eq.g)
+        return zero(faceminus), zero(aminus)
     end
 
     F = (aplus .* fluxminus .- aminus .* fluxplus) ./ (aplus .- aminus) + ((aplus .* aminus) ./ (aplus .- aminus)) .* (faceplus .- faceminus)
