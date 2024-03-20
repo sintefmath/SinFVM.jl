@@ -121,6 +121,10 @@ macro fvmloop(code_snippet)
         delete!(all_variables_referenced, function_name)
     end
    
+    # TODO: Delete all module names
+    # TODO: Use current module name insteadof referencing SinSWE
+    delete!(all_variables_referenced, :SinSWE)
+    
     new_parameter_names = []
     for variable_referred in all_variables_referenced
         if !(variable_referred in parameter_names)

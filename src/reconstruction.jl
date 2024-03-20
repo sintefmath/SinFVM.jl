@@ -58,10 +58,12 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
         # 2) Adjust slope of water
         if (w_input[imiddle] - 0.5*slope[1] < eq.B[imiddle])
             # Negative h on left face
-            slope[1] = 2.0*(w_input[imiddle] - eq.B[imiddle])
+            #TODO: uncomment and fix
+            #slope[1] = 2.0*(w_input[imiddle] - eq.B[imiddle])
         elseif (w_input[imiddle] + 0.5*slope[1] < eq.B[imiddle])
             # Negative h on right face
-            slope[1] = 2.0*(eq.B[imiddle] - w_input[imiddle])
+            #TODO:uncomment and fix
+            #slope[1] = 2.0*(eq.B[imiddle] - w_input[imiddle])
         end
         
         # 3) Reconstruct face values (w, hu)

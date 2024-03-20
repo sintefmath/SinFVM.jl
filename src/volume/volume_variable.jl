@@ -23,6 +23,15 @@ struct VolumeVariable{EquationType,
 
 end
 
+import Adapt
+function Adapt.adapt_structure(
+    to,
+    volumevar::VolumeVariable{EquationType,S,T,M,B,N,D},
+) where {EquationType,S,T,M,B,N,D}
+    volume = Adapt.adapt_structure(to, volumevar._volume)
+    #index = Adapt.adapt_structure(to, volume._index)
+    VolumeVariable(volume, volumevar._index)
+end
 
 
 @inline function Base.propertynames(::Type{T}) where {T<:Volume}

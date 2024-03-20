@@ -4,7 +4,7 @@ struct ShallowWaterEquations1D{T, S} <: Equation
     g::T
     depth_cutoff::T
     desingularizing_kappa::T
-    ShallowWaterEquations1D(B::BottomType; ρ=1.0, g=9.81, depth_cutoff=10^-5, desingularizing_kappa=10^-5) where {BottomType <: AbstractArray} = new{typeof(g), typeof(B)}(B, ρ, g, depth_cutoff, desingularizing_kappa)
+    ShallowWaterEquations1D(B::BottomType, ρ=1.0, g=9.81, depth_cutoff=10^-5, desingularizing_kappa=10^-5) where {BottomType <: AbstractArray} = new{typeof(g), typeof(B)}(B, ρ, g, depth_cutoff, desingularizing_kappa)
 end
 Adapt.@adapt_structure ShallowWaterEquations1D
 

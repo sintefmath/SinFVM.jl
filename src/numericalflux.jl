@@ -32,8 +32,8 @@ function (god::Godunov)(faceminus, faceplus)
         compute_max_abs_eigenvalue(god.eq, XDIR, faceplus...))
 end
 
-struct CentralUpwind{T, S} <: NumericalFlux
-    eq::ShallowWaterEquations1D{T, S}
+struct CentralUpwind{E <: AllSWE} <: NumericalFlux
+    eq::E #ShallowWaterEquations1D{T, S}
 end
 
 Adapt.@adapt_structure CentralUpwind
@@ -61,31 +61,30 @@ end
 
 function (centralupwind::CentralUpwind)(::ShallowWaterEquations1D, faceminus, faceplus)
 
+    # TODO: modify equation to support 32 bits instead of multiplying with g here to get correct type
+    fluxminus = zero(faceminus.*centralupwind.eq.g)
+    eigenvalues_minus = zero(faceminus.*centralupwind.eq.g)
     if faceminus[1] > centralupwind.eq.depth_cutoff
         fluxminus = centralupwind.eq(XDIR, faceminus...)
         eigenvalues_minus = compute_eigenvalues(centralupwind.eq, XDIR, faceminus...) # compute_max_eigenvalue(centralupwind.eq, XDIR, faceminus...)
-    else
-        fluxminus = zero(faceminus)
-        eigenvalues_minus = zero(faceminus)
     end
 
+    fluxplus = zero(faceplus.*centralupwind.eq.g)
+    eigenvalues_plus = zero(faceplus.*centralupwind.eq.g)
     if faceplus[1] > centralupwind.eq.depth_cutoff
         fluxplus = centralupwind.eq(XDIR, faceplus...)
         eigenvalues_plus = compute_eigenvalues(centralupwind.eq, XDIR, faceplus...)  # compute_max_eigenvalue(centralupwind.eq, XDIR, faceplus...)
-    else
-        fluxplus = zero(faceplus)
-        eigenvalues_plus = zero(faceplus)
     end
 
-    aplus = max.(eigenvalues_plus[1], eigenvalues_minus[1], 0.0)
-    aminus = min.(eigenvalues_plus[2], eigenvalues_minus[2], 0.0)
+    aplus = max.(eigenvalues_plus[1], eigenvalues_minus[1], zero(eigenvalues_plus[1]))
+    aminus = min.(eigenvalues_plus[2], eigenvalues_minus[2], zero(eigenvalues_plus[2]))
 
     # Check for dry states
     if abs(aplus - aminus) < centralupwind.eq.desingularizing_kappa
-        return zero(faceminus), 0.0
+        return zero(faceminus), zero(aminus)
     end
 
-    F = (aplus .* fluxminus - aminus .* fluxplus) ./ (aplus - aminus) + ((aplus .* aminus) ./ (aplus - aminus)) .* (faceplus - faceminus)
+    F = (aplus .* fluxminus .- aminus .* fluxplus) ./ (aplus .- aminus) + ((aplus .* aminus) ./ (aplus .- aminus)) .* (faceplus .- faceminus)
     return F, max(abs(aplus), abs(aminus))
 end
 
