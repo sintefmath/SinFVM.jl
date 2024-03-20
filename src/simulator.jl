@@ -41,7 +41,8 @@ function set_current_state!(simulator::Simulator, new_state)
     @assert length(simulator.grid.ghostcells) == 1
 
     gc = simulator.grid.ghostcells[1]
-    current_state(simulator)[gc+1:end-gc] = new_state
+    # TODO: Fix so that we don't need allowscalar
+    CUDA.@allowscalar current_state(simulator)[gc+1:end-gc] = new_state
     update_bc!(simulator, current_state(simulator))
 end
 

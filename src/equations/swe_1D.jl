@@ -9,7 +9,7 @@ end
 Adapt.@adapt_structure ShallowWaterEquations1D
 
 # ShallowWaterEquations1D(B::AbstractArray) = ShallowWaterEquations1D(B)
-ShallowWaterEquations1D(grid::Grid; B=0.0, kwargs...) = ShallowWaterEquations1D(constant_bottom_topography(grid, B); kwargs...)
+ShallowWaterEquations1D(backend::Backend, grid::Grid; B=0.0, kwargs...) = ShallowWaterEquations1D(convert_to_backend(backend, constant_bottom_topography(grid, B)); kwargs...)
 ShallowWaterEquations1D(backend::Backend, grid::Grid; kwargs...) = ShallowWaterEquations1D(convert_to_backend(backend, constant_bottom_topography(grid, 0.0); kwargs...))
 
 function desingularize(eq::ShallowWaterEquations1D, h, hu)

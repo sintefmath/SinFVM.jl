@@ -59,10 +59,12 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
         if (w_input[imiddle] - 0.5*slope[1] < eq.B[imiddle])
             # Negative h on left face
             #TODO: uncomment and fix
+            slope = typeof(slope)(2.0*(w_input[imiddle] - eq.B[imiddle]), slope[2] )
             #slope[1] = 2.0*(w_input[imiddle] - eq.B[imiddle])
         elseif (w_input[imiddle] + 0.5*slope[1] < eq.B[imiddle])
             # Negative h on right face
             #TODO:uncomment and fix
+            slope = typeof(slope)(2.0*(eq.B[imiddle] - w_input[imiddle]), slope[2] )
             #slope[1] = 2.0*(eq.B[imiddle] - w_input[imiddle])
         end
         
