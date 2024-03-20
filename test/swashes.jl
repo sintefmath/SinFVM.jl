@@ -147,7 +147,7 @@ end
 function compare_swashes(sw::Swashes41x, nx, t)
     grid = SinSWE.CartesianGrid(nx; gc=2, boundary=SinSWE.WallBC(), extent=getExtent(sw), )
     backend = make_cpu_backend()
-    eq = SinSWE.ShallowWaterEquations1D(grid)
+    eq = SinSWE.ShallowWaterEquations1D(grid) #, depth_cutoff=10^-5, desingularizing_kappa=10^-5)
     rec = SinSWE.LinearReconstruction(1.2)
     flux = SinSWE.CentralUpwind(eq)
     conserved_system = SinSWE.ConservedSystem(backend, rec, flux, eq, grid)
@@ -159,6 +159,7 @@ function compare_swashes(sw::Swashes41x, nx, t)
     SinSWE.set_current_state!(simulator, initial)
  
     SinSWE.simulate_to_time(simulator, t)
+    #SinSWE.simulate_to_time(simulator, 0.000001)
 
     f = Figure(size=(1600, 600), fontsize=24)
     x = SinSWE.cell_centers(grid)
@@ -199,3 +200,5 @@ end
 # plot_ref_solution(swashes412, grid, 0:2:10)
 
 compare_swashes(swashes411, 512, 8.0)
+compare_swashes(swashes412, 512, 6.0)
+
