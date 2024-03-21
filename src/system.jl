@@ -46,7 +46,7 @@ function add_time_derivative!(output, cs::ConservedSystem, current_state)
     return wavespeed
 end
 
-function is_compatible(eq::Burgers, grid::Grid)
+function is_compatible(eq::Equation, grid::Grid)
     nothing
 end
 

@@ -1,7 +1,7 @@
 struct ShallowWaterEquations1DPure{T} <: Equation
     ρ::T
     g::T
-    ShallowWaterEquations1D(ρ=1.0, g=9.81) = new{typeof(g)}(ρ, g)
+    ShallowWaterEquations1DPure(ρ=1.0, g=9.81) = new{typeof(g)}(ρ, g)
 end
 Adapt.@adapt_structure ShallowWaterEquations1DPure
 
