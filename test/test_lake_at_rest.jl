@@ -16,7 +16,7 @@ function test_lake_at_rest(grid, B, w0, t=0.001; plot=true)
     
     
     timestepper = SinSWE.ForwardEulerStepper()
-    simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid, cfl=0.25)
+    simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid, cfl=0.2)
     
     x = SinSWE.cell_centers(grid)
     xf = SinSWE.cell_faces(grid)
@@ -74,7 +74,12 @@ x0 = 5.0
 B = [x < x0 ? 0.45 : 0.55 for x in SinSWE.cell_faces(grid, interior=false)]
 
 # test_lake_at_rest(grid, B, 0.7, plot=false)
-test_lake_at_rest(grid, B, 0.7, 1, plot=true)
+test_lake_at_rest(grid, B, 0.7, 1, plot=false)
+
+nx_bumpy = 1024
+grid_bumpy = SinSWE.CartesianGrid(nx_bumpy; gc=2, boundary=SinSWE.PeriodicBC(), extent=[-2*pi  2*pi], )
+B_bumpy = [(cos(x)-0.5 - 1.5*(abs(x) < 1.0)) for x in SinSWE.cell_faces(grid_bumpy, interior=false)]
+test_lake_at_rest(grid_bumpy, B_bumpy, 0.7, 1, plot=false)
 
 
 # bst = SinSWE.SourceTermBottom()

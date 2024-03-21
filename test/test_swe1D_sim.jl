@@ -29,10 +29,10 @@ function plot_sols(ref_sol, sol, grid, test_name)
         f[1, 1],
         title="test_name",
         ylabel="h",
-        xlabel=L"x",
+        xlabel="x",
     )
-    lines!(ax, x, collect(ref_sol.h), label=L"ref_sol")
-    lines!(ax, x, collect(sol.h), label=L"sol")
+    lines!(ax, x, collect(ref_sol.h), label="ref_sol")
+    lines!(ax, x, collect(sol.h), label="sol")
     axislegend(ax, position=:lt)
 
     display(f)

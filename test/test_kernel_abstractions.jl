@@ -1,7 +1,7 @@
 using KernelAbstractions
 import CUDA
 using StaticArrays
-
+using SinSWE
 
 function get_variable_names_referred(expression)
     nothing
