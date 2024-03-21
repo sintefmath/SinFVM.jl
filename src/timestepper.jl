@@ -8,7 +8,6 @@ number_of_substeps(::ForwardEulerStepper) = 1
 
 function do_substep!(output, ::ForwardEulerStepper, system::System, current_state, dt, timestep_computer, substep_number)
     # Reset to zero
-    # TODO: Remove allowscalar
     @fvmloop for_each_cell(system.backend, system.grid) do index
         output[index] = zero(output[index])
     end
