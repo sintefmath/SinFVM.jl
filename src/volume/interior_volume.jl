@@ -35,6 +35,7 @@ BackendType,
 NumberOfConservedVariables,
 Dimension,})
 
+linear2cartesian(vol::InteriorVolume, index) = linear2cartesian(vol._volume, index)
 
 function interior2full(grid::CartesianGrid{1}, index)
     return index + grid.ghostcells[1]
@@ -48,12 +49,24 @@ function interior2full(grid::CartesianGrid{2}, index)
     j = (index - 1) ÷ nx_without_ghostcells
 
 
-    return i + ghost.ghostcells[1] + (j + grid.ghostcells[2]) * nx + 1
+    return i + grid.ghostcells[1] + (j + grid.ghostcells[2]) * nx + 1
 end
+
+
 
 function interior2full(volume::Volume, index)
     interior2full(volume._grid, index)
 end
+
+function interior2full(grid::CartesianGrid{2}, i_inner, j_inner)
+    return CartesianIndex(i_inner + grid.ghostcells[1], j_inner +  grid.ghostcells[2])
+end
+
+
+function interior2full(volume::Volume, i, j)
+    interior2full(volume._grid, i, j)
+end
+
 
 function number_of_interior_cells(volume::Volume)
     number_of_interior_cells(volume._grid)
@@ -61,39 +74,32 @@ end
 
 
 
+# TODO: One could probably combine linear2cartesian and interior2full
 Base.getindex(vol::InteriorVolume, index::Int64) =
-    vol._volume[interior2full(vol._volume, index)]
+    vol._volume[Tuple(linear2cartesian(vol, interior2full(vol._volume, index)))...]
 function Base.setindex!(vol::InteriorVolume, value, index::Int64)
-    vol._volume[interior2full(vol._volume, index)] = value
+    vol._volume[Tuple(linear2cartesian(vol, interior2full(vol._volume, index)))...] = value
 end
+Base.getindex(vol::InteriorVolume, i::Int64, j::Int64) =
+    vol._volume[Tuple(interior2full(vol._volume, i, j))...]
+
+function Base.setindex!(vol::InteriorVolume, value, i::Int64, j::Int64)
+    vol._volume[Tuple(interior2full(vol._volume, i, j))...] = value
+end
+
 
 Base.firstindex(vol::InteriorVolume) = Base.firstindex(vol._volume)
 Base.lastindex(vol::InteriorVolume) = Base.lastindex(vol._volume)
 
 
-function Base.iterate(vol::InteriorVolume)
-    if length(vol) == 0
-        return nothing
-    end
-    return (vol[1], 1)
-end
 
-
-function Base.iterate(vol::InteriorVolume, index::Int64)
+function Base.iterate(vol::InteriorVolume, index::Int64 = 1)
     if index > length(vol)
         return nothing
     end
     return (vol[index], index + 1)
 end
-function Base.iterate(vol::InteriorVolume, state)
-    index = state[2]
-    if index > length(vol)
-        return nothing
-    end
-    return (vol[state[2]], index + 1)
-end
 
-# TODO: Support Cartesian indexing
 Base.IndexStyle(::Type{InteriorVolume{EquationType,
 GridType,
 RealType,
@@ -147,6 +153,17 @@ function Base.setindex!(vol::InteriorVolume, values::Container, indices::UnitRan
     end
 end
 
+function Base.setindex!(vol::InteriorVolume, values::Container, indices1::UnitRange{Int64}, indices2::UnitRange{Int64}) where {Container<:AbstractMatrix{<:AbstractVector}}
+    # TODO: Move this for loop to the inner kernel...
+    for variable_index in 1:number_of_variables(vol._volume)
+        proper_volume = vol._volume
+        @fvmloop for_each_index_value_2d(vol._volume._backend, indices1, indices2) do i_source, j_source, i_target, j_target
+            proper_volume._data[interior2full(proper_volume, i_target, j_target), variable_index] = values[i_source, j_source][variable_index]
+        end
+    end
+end
+
+
 
 @inline Base.similar(vol::InteriorVolume) = similar(vol._volume._data, size(vol))
 
@@ -159,4 +176,12 @@ end
 @inline Base.similar(vol::InteriorVolume, dims::Dims) =
     similar(vol._volume, dims)
 
-Base.collect(vol::InteriorVolume) = Base.collect(vol._volume._data[interior2full(vol._volume, 1):interior2full(vol._volume, length(vol)), :])
+collect_interior(d::AbstractArray{T, 2}, grid) where {T} = collect(d[grid.ghostcells[1]:(end-grid.ghostcells[1]), :])
+function collect_interior(d::AbstractArray{T, 3}, grid) where {T}
+    start_x = grid.ghostcells[1]
+    end_x = grid.ghostcells[1]
+    start_y = grid.ghostcells[2]
+    end_y = grid.ghostcells[2]
+    collect(d[start_x:(end - end_x), start_y:(end-end_y), :])
+end
+Base.collect(vol::InteriorVolume) = collect_interior(vol._volume._data, vol._volume._grid)

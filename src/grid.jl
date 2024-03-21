@@ -30,8 +30,12 @@ function interior_size(grid::CartesianGrid)
     return Tuple(Int64(i) for i in (grid.totalcells .- 2 .* grid.ghostcells))
 end
 
-function Base.size(grid::CartesianGrid)
-    return Tuple(Int64(i) for i in grid.totalcells)
+function Base.size(grid::CartesianGrid{1})
+    return (grid.totalcells[1], )
+end
+
+function Base.size(grid::CartesianGrid{2})
+    return (grid.totalcells[1], grid.totalcells[2])
 end
 
 

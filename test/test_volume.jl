@@ -84,4 +84,14 @@ for backend in get_available_backends()
     collect_hu = collect(volume.hu)
 
     collect_inner_hu = collect(inner_volume.hu)
+
+    if backend isa SinSWE.CPUBackend
+        all_elements = []
+        for (n, element) in enumerate(volume)
+            @test element isa SVector{2}
+            
+            push!(all_elements, element)
+        end
+        @test length(all_elements) == length(volume)
+    end
 end

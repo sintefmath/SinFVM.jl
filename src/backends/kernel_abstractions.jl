@@ -60,6 +60,26 @@ function for_each_index_value(f, backend::KernelAbstractionBackend{T}, values, y
 end
 
 
+@kernel function for_each_index_value_2d_kernel(f, values1, values2, y...)
+    I = @index(Global, Cartesian)
+    f(Tuple(I)..., values1[I[1]], values2[I[2]], y...)
+end
+
+
+function for_each_index_value_2d(f, backend::KernelAbstractionBackend{T}, values1, values2, y...) where {T}
+    #TODO: This could be made general by just taking a tuple of values...
+    # Make sure we don't have weird indexing. If we do get weird indexing, we would have to 
+    # do the ndrange and @index slightly differently.
+    @assert firstindex(values1) == 1
+    @assert lastindex(values1) == length(values1)
+    @assert firstindex(values2) == 1
+    @assert lastindex(values2) == length(values2)
+
+    ev = for_each_index_value_2d_kernel(backend.backend, 1024)(f, values1, values2, y..., ndrange=(length(values1), length(values2)))
+end
+
+
+
 @kernel function for_each_cell_kernel(f, grid, y...)
     I = @index(Global)
     f(I, y...)

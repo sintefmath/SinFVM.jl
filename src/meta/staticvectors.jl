@@ -3,7 +3,7 @@ macro generate_static_vector_functions(max_dimension)
     for dimension in 1:max_dimension
         argument_to_vector_creation = [:(data[index, $i]) for i in 1:dimension]
         vector_creation = :(SVector{$(dimension),RealType}($(argument_to_vector_creation...)))
-        function_definition = :(@inline extract_vector(::Val{$(dimension)}, data::AbstractMatrix{RealType}, index) where {RealType} = $(vector_creation))
+        function_definition = :(@inline extract_vector(::Val{$(dimension)}, data::AbstractArray{RealType}, index) where {RealType} = $(vector_creation))
         push!(expression_to_return, function_definition)
 
     end

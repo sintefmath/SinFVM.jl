@@ -1,8 +1,6 @@
 function create_buffer(backend, grid::Grid, equation::Equation)
     create_buffer(backend, number_of_conserved_variables(equation), grid.totalcells)
 end
-
-
 struct Volume{
     EquationType<:Equation,
     GridType,
@@ -52,6 +50,9 @@ struct Volume{
     end
 end
 
+linear2cartesian(::Tuple{Int64}, index) = index
+linear2cartesian(s::Tuple{Int64, Int64}, index) = CartesianIndex((index - 1) % s[1] + 1, (index - 1) ÷ s[2] + 1)
+linear2cartesian(vol::Volume, index) = linear2cartesian(size(vol), index)
 
 import Adapt
 function Adapt.adapt_structure(
@@ -74,42 +75,36 @@ variable_names(::Type{Volume{EquationType,S,T,M,B,N,D}}) where {EquationType,S,T
 
 realtype(::Type{Volume{S,T,RealType,M,B,N,D}}) where {S,T,RealType,M,B,N,D} = RealType
 
-@inline Base.getindex(vol::T, index::Int64) where {T<:Volume} =
-    SinSWE.extract_vector(Val(number_of_variables(T)), vol._data, index)
-@inline Base.setindex!(vol::T, value, index::Int64) where {T<:Volume} =
-    SinSWE.set_vector!(Val(number_of_variables(T)), vol._data, value, index)
+@inline function Base.getindex(vol::T, index::Int64) where {T<:Volume}
+    SinSWE.extract_vector(Val(number_of_variables(T)), vol._data, linear2cartesian(vol, index))
+end
+@inline function Base.setindex!(vol::T, value, index::Int64) where {T<:Volume}
+    SinSWE.set_vector!(Val(number_of_variables(T)), vol._data, value, linear2cartesian(vol, index))
+end
+
+@inline Base.getindex(vol::T, i::Int64, j::Int64) where {T<:Volume} =
+    SinSWE.extract_vector(Val(number_of_variables(T)), vol._data, CartesianIndex(i, j))
+@inline Base.setindex!(vol::T, value, i::Int64, j::Int64) where {T<:Volume} =
+    SinSWE.set_vector!(Val(number_of_variables(T)), vol._data, value, CartesianIndex(i, j))
+
 
 Base.firstindex(vol::Volume) = 1
-Base.lastindex(vol::Volume) = Base.size(vol._data, 1)
+Base.lastindex(vol::Volume) = Base.length(vol)
 
-
-function Base.iterate(vol::Volume)
-    if length(vol) == 0
-        return nothing
-    end
-    return (vol[1], 1)
-end
-
-function Base.iterate(vol::Volume, index::Int64)
+function Base.iterate(vol::Volume, index = 1)
     if index > length(vol)
         return nothing
     end
-    return (vol[index], index + 1)
+    nextindex = index + 1
+    
+    return (vol[index], nextindex)
 end
 
-function Base.iterate(vol::Volume, state)
-    index = state[2]
-    if index > length(vol)
-        return nothing
-    end
-    return (vol[state[2]], index + 1)
-end
-
-# TODO: Support Cartesian indexing
-@inline Base.IndexStyle(::Type{T}) where {T<:Volume} = Base.IndexLinear()
+@inline Base.IndexStyle(::Type{T}) where {T<:Volume} = Base.IndexCartesian()
 @inline Base.eltype(::Type{T}) where {T<:Volume} =
     SVector{number_of_variables(T),realtype(T)}
-@inline Base.length(vol::Volume) = Base.size(vol._data, 1)
+
+@inline Base.length(vol::Volume) = prod(Base.size(vol._grid))
 @inline Base.size(vol::Volume) = Base.size(vol._grid)
 @inline Base.size(vol::Volume, i::Int64) = (Base.size(vol._grid)[i],)
 
@@ -131,6 +126,22 @@ function Base.setindex!(
     for j = 1:number_of_variables(T)
         @fvmloop for_each_index_value(vol._backend, indices) do index_source, index_target
             vol._data[index_target, j] = values_backend[index_source][j]
+        end
+    end
+end
+
+function Base.setindex!(
+    vol::T,
+    values::Container,
+    indices1::UnitRange{Int64},
+    indices2::UnitRange{Int64},
+) where {T<:Volume,Container<:AbstractMatrix{<:AbstractVector}}
+    # TODO: Move this for loop to the inner kernel... Current limitation in the @fvmloop makes this hard.
+    values_backend = convert_to_backend(vol._backend, values)
+    
+    for variable_index = 1:number_of_variables(T)
+        @fvmloop for_each_index_value_2d(vol._backend, indices1, indices2) do i_source, j_source, i_target, j_target
+            vol._data[i_target, j_target, variable_index] = values_backend[i_source, j_source][variable_index]
         end
     end
 end

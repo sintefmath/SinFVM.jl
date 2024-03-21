@@ -38,18 +38,18 @@ end
 end
 
 
-function Base.iterate(interiorVolumeVariable::InteriorVolumeVariable)
-    if length(interiorVolumeVariable) == 0
-        return nothing
-    end
-    return (interiorVolumeVariable[1], 1)
-end
-
 Base.getindex(vol::InteriorVolumeVariable, index::Int64) =
-    vol._volume._volume._data[interior2full(vol._volume._volume, index), vol._index]
+    vol._volume._volume._data[linear2cartesian(vol._volume, interior2full(vol._volume._volume, index)), vol._index]
 
 function Base.setindex!(vol::InteriorVolumeVariable, value, index::Int64)
-    vol._volume._volume._data[interior2full(vol._volume._volume, index), vol._index] = value
+    vol._volume._volume._data[linear2cartesian(vol._volume, interior2full(vol._volume._volume, index)), vol._index] = value
+end
+
+Base.getindex(vol::InteriorVolumeVariable, i::Int64, j::Int64) =
+    vol._volume._volume._data[interior2full(vol._volume._volume, i, j), vol._index]
+
+function Base.setindex!(vol::InteriorVolumeVariable, value, i::Int64, j::Int64)
+    vol._volume._volume._data[interior2full(vol._volume._volume, i, j), vol._index] = value
 end
 
 function Base.setindex!(
@@ -61,7 +61,7 @@ function Base.setindex!(
         index -> interior2full(volume, index)
     end
     converted_range = conversion.(indexrange)
-    vol._volume._data[converted_range, vol._index] = value
+    vol._volume._volume._data[converted_range, vol._index] = value
 end
 
 function Base.getindex(vol::InteriorVolumeVariable, indexrange::UnitRange{Int64})
@@ -69,7 +69,42 @@ function Base.getindex(vol::InteriorVolumeVariable, indexrange::UnitRange{Int64}
         index -> interior2full(volume, index)
     end
     converted_range = conversion.(indexrange)
-    vol._volume._data[converted_range, vol._index]
+    vol._volume._volume._data[converted_range, vol._index]
+end
+
+
+function Base.setindex!(
+    vol::InteriorVolumeVariable,
+    value::AbstractMatrix{S},
+    indexrange1::UnitRange{Int64},
+    indexrange2::UnitRange{Int64},
+) where {S}
+    conversion1 = let grid = vol._volume._volume._grid
+        index -> index + grid.ghostcells[1]
+    end
+    converted_range1 = conversion1.(indexrange1)
+
+    conversion2 = let grid = vol._volume._volume._grid
+        index -> index + grid.ghostcells[2]
+    end
+    converted_range2 = conversion2.(indexrange2)
+    vol._volume._volume._data[converted_range1, converted_range2, vol._index] = value
+end
+
+function Base.getindex(
+    vol::InteriorVolumeVariable, 
+    indexrange1::UnitRange{Int64},
+    indexrange2::UnitRange{Int64},)
+    conversion1 = let grid = vol._volume._volume._grid
+        index -> index + grid.ghostcells[1]
+    end
+    converted_range1 = conversion1.(indexrange1)
+
+    conversion2 = let grid = vol._volume._volume._grid
+        index -> index + grid.ghostcells[2]
+    end
+    converted_range2 = conversion2.(indexrange2)
+    vol._volume._data[converted_range1, converted_range2, vol._index]
 end
 
 Base.firstindex(vol::InteriorVolumeVariable) = Base.firstindex(vol._volume)
@@ -87,23 +122,13 @@ Base.lastindex(vol::InteriorVolumeVariable) = Base.lastindex(vol._volume)
 @inline Base.similar(vol::T, dims::Dims) where {T<: InteriorVolumeVariable}=
     convert_to_backend(vol._volume._volume._backend, zeros(eltype(T), dims))
 
-function Base.iterate(vol::InteriorVolumeVariable, index::Int64)
+function Base.iterate(vol::InteriorVolumeVariable, index::Int64 = 1)
     if index > length(vol)
         return nothing
     end
     return (vol[index], index + 1)
 end
 
-
-function Base.iterate(vol::InteriorVolumeVariable, state)
-    index = state[2]
-    if index > length(vol)
-        return nothing
-    end
-    return (vol[state[2]], index + 1)
-end
-
-# TODO: Support Cartesian indexing
 Base.IndexStyle(::Type{T}) where {T<:InteriorVolumeVariable} = Base.IndexLinear()
 Base.eltype(::Type{InteriorVolumeVariable{EquationType,
 GridType,
@@ -118,7 +143,14 @@ MatrixType,
 BackendType,
 NumberOfConservedVariables,
 Dimension,} = RealType
-Base.length(vol::InteriorVolumeVariable) = Base.size(vol._volume, 1)
+Base.length(vol::InteriorVolumeVariable) = length(vol._volume)
 Base.size(vol::InteriorVolumeVariable) = size(vol._volume)
-
-Base.collect(vol::InteriorVolumeVariable) = Base.collect(vol._volume._volume._data[interior2full(vol._volume._volume, 1):interior2full(vol._volume._volume, length(vol)), vol._index])
+collect_interior(d::AbstractArray{T, 2}, grid, index) where {T} = collect(d[(grid.ghostcells[1]+1):(end-grid.ghostcells[1]), index])
+function collect_interior(d::AbstractArray{T, 3}, grid, index) where {T}
+    start_x = grid.ghostcells[1] + 1
+    end_x = grid.ghostcells[1]
+    start_y = grid.ghostcells[2] + 1
+    end_y = grid.ghostcells[2]
+    collect(d[start_x:(end - end_x), start_y:(end-end_y), index])
+end
+Base.collect(vol::InteriorVolumeVariable) = collect_interior(vol._volume._volume._data, vol._volume._volume._grid, vol._index)
