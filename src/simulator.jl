@@ -11,7 +11,8 @@ struct Simulator{BackendType,SystemType,TimeStepperType,GridType,StateType,Float
     cfl::FloatType
 end
 
-function Simulator(backend, system, timestepper, grid; cfl = 0.5)
+function Simulator(backend, system, timestepper, grid; cfl = 0.25)
+    # TODO: Get cfl from reconstruction
     return Simulator{
         typeof(backend),
         typeof(system),
