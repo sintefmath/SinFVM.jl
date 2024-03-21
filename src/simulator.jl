@@ -70,6 +70,7 @@ function perform_step!(simulator::Simulator)
             simulator.substep_outputs[substep+1],
             simulator.timestepper,
             simulator.system,
+            simulator.system.equation,
             simulator.substep_outputs[substep],
             simulator.current_timestep[1],
             timestep_computer,

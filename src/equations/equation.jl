@@ -10,3 +10,4 @@ include("swe_2D_pure.jl")
 include("swe_2D.jl")
 
 const AllSWE = Union{ShallowWaterEquations1D, ShallowWaterEquations1DPure} #, ShallowWaterEquations2D, ShallowWaterEquations2DPure}
+const AllPracticalSWE = Union{ShallowWaterEquations1D} #, ShallowWaterEquations2D}
