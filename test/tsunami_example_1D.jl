@@ -17,9 +17,10 @@ function tsunami(;T=10, dt=1, w0_height=1.0, bump=false)
         return b
     end
     
-    B = [terrain(x) for x in SinSWE.cell_faces(grid, interior=false)]
+    B_data = Float64[terrain(x) for x in SinSWE.cell_faces(grid, interior=false)]
 
     backend = make_cpu_backend()
+    B = SinSWE.BottomTopography1D(B_data, backend, grid)
     eq = SinSWE.ShallowWaterEquations1D(B)
     rec = SinSWE.LinearReconstruction(2)
     flux = SinSWE.CentralUpwind(eq)
@@ -67,7 +68,7 @@ function tsunami(;T=10, dt=1, w0_height=1.0, bump=false)
         )
 
         lines!(ax_h, x, h, color="blue", label='w')
-        lines!(ax_h, xf, B[3:end-2], label='B', color="red")
+        lines!(ax_h, xf, collect(B.B[3:end-2]), label='B', color="red")
 
         ax_u = Axis(
             f[2, 1],

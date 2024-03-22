@@ -3,9 +3,9 @@ using Test
 using StaticArrays
 using CairoMakie
 
-function test_lake_at_rest(grid, B, w0, t=0.001; plot=true)
+function test_lake_at_rest(backend, grid, B_data, w0, t=0.001; plot=true)
 
-    backend = make_cpu_backend()
+    B = SinSWE.BottomTopography1D(B_data, backend, grid)
     eq = SinSWE.ShallowWaterEquations1D(B)
     rec = SinSWE.LinearReconstruction(2)
     flux = SinSWE.CentralUpwind(eq)
@@ -47,7 +47,7 @@ function test_lake_at_rest(grid, B, w0, t=0.001; plot=true)
         )
 
         lines!(ax_h, x, w, color="blue", label='w')
-        lines!(ax_h, xf, B[3:end-2], label='B', color="red")
+        lines!(ax_h, xf, collect(B.B[3:end-2]), label='B', color="red")
 
         ax_u = Axis(
             f[2, 1],
@@ -66,21 +66,29 @@ function test_lake_at_rest(grid, B, w0, t=0.001; plot=true)
     @test maximum(abs.(w[1] - w0)) ≈ 0.0 atol=10^-14
 end
 
+
+
 nx = 64
 grid = SinSWE.CartesianGrid(nx; gc=2, boundary=SinSWE.WallBC(), extent=[0.0  10.0], )
 x0 = 5.0
-#step_bottom = x-> x < x0 ? @SVector[0.45+0.0*x] : @SVector[0.55 + 0.0*x ]
-#B = step_bottom.(SinSWE.cell_centers(grid))
 B = [x < x0 ? 0.45 : 0.55 for x in SinSWE.cell_faces(grid, interior=false)]
-
-# test_lake_at_rest(grid, B, 0.7, plot=false)
-test_lake_at_rest(grid, B, 0.7, 1, plot=false)
 
 nx_bumpy = 1024
 grid_bumpy = SinSWE.CartesianGrid(nx_bumpy; gc=2, boundary=SinSWE.PeriodicBC(), extent=[-2*pi  2*pi], )
 B_bumpy = [(cos(x)-0.5 - 1.5*(abs(x) < 1.0)) for x in SinSWE.cell_faces(grid_bumpy, interior=false)]
-test_lake_at_rest(grid_bumpy, B_bumpy, 0.7, 1, plot=false)
 
+backend_name(be) = split(match(r"{(.*?)}", string(typeof(be)))[1], '.')[end]
+
+for backend in SinSWE.get_available_backends()
+
+    @testset "lake_at_rest_$(backend_name(backend))" begin
+
+        # test_lake_at_rest(grid, B, 0.7, plot=false)
+        test_lake_at_rest(backend, grid, B, 0.7, 1, plot=false)
+
+        test_lake_at_rest(backend, grid_bumpy, B_bumpy, 0.7, 1, plot=false)
+    end
+end
 
 # bst = SinSWE.SourceTermBottom()
 # rain = SinSWE.SourceTermRain(1.0)

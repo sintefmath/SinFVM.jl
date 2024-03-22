@@ -15,7 +15,7 @@ function run_simulation()
     backend = make_cuda_backend()
     #backend = make_cpu_backend()
 
-    equation = SinSWE.ShallowWaterEquations1D(backend, grid)
+    equation = SinSWE.ShallowWaterEquations1D()
     pure_equation = SinSWE.ShallowWaterEquations1DPure()
     reconstruction = SinSWE.NoReconstruction()
     linrec = SinSWE.LinearReconstruction(1.05)

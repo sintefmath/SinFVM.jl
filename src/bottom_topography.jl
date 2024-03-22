@@ -16,8 +16,18 @@ struct BottomTopography1D{T} <: AbstractBottomTopography
         B = convert_to_backend(backend, B)
         return new{typeof(B)}(B)
     end
+
+    BottomTopography1D(B; should_never_be_called) = new{typeof(B)}(B)
 end
-Adapt.@adapt_structure BottomTopography1D
+#Adapt.@adapt_structure BottomTopography1D
+
+function Adapt.adapt_structure(
+    to,
+    topo::BottomTopography1D
+) 
+    B = Adapt.adapt_structure(to, topo.B)  
+    BottomTopography1D(B; should_never_be_called=nothing)
+end
 
 struct BottomTopography2D{T} <: AbstractBottomTopography
     B::T
@@ -46,18 +56,18 @@ end
 
 # Lookup for ConstantBottomTopography
 B_cell(B::ConstantBottomTopography, i...) = B.B
-B_face_minus(B::ConstantBottomTopography, i...) = B.B
-B_face_plus(B::ConstantBottomTopography, i...) = B.B
+B_face_left(B::ConstantBottomTopography, i...) = B.B
+B_face_right(B::ConstantBottomTopography, i...) = B.B
 
 # Lookup for BottomTopography1D
-B_cell(B::BottomTopography1D, index) = 0.5*(B.B[index] + B.B[index + 1])
-B_face_minus(B::BottomTopography1D, index) = B.B[index]
-B_face_plus(B::BottomTopography1D, index) = B.B[index + 1]
+B_cell(B::BottomTopography1D, index, dir::XDIRT=XDIR) = 0.5*(B.B[index] + B.B[index + 1])
+B_face_left(B::BottomTopography1D, index, dir::XDIRT=XDIR) = B.B[index]
+B_face_right(B::BottomTopography1D, index, dir::XDIRT=XDIR) = B.B[index + 1]
 
 # Lookup for BottomTopography2D
 B_cell(B::BottomTopography2D, x, y) = 0.25*(B.B[x, y] + B.B[x+1, y] + B.B[x, y + 1] + B.B[x + 1, y + 1])
-B_face_minus(B::BottomTopography2D, x, y, ::XDIRT) = 0.5*(B.B[x, y] + B.B[x, y + 1])
-B_face_plus(B::BottomTopography2D, x, y, ::XDIRT) = 0.5*(B.B[x + 1, y] + B.B[x + 1, y + 1])
-B_face_minus(B::BottomTopography2D, x, y, ::YDIRT) = 0.5*(B.B[x, y] + B.B[x + 1, y])
-B_face_plus(B::BottomTopography2D, x, y, ::YDIRT) = 0.5*(B.B[x, y + 1] + B.B[x + 1, y + 1])
+B_face_left(B::BottomTopography2D, x, y, ::XDIRT) = 0.5*(B.B[x, y] + B.B[x, y + 1])
+B_face_right(B::BottomTopography2D, x, y, ::XDIRT) = 0.5*(B.B[x + 1, y] + B.B[x + 1, y + 1])
+B_face_left(B::BottomTopography2D, x, y, ::YDIRT) = 0.5*(B.B[x, y] + B.B[x + 1, y])
+B_face_right(B::BottomTopography2D, x, y, ::YDIRT) = 0.5*(B.B[x, y + 1] + B.B[x + 1, y + 1])
 

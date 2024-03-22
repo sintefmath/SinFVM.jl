@@ -50,10 +50,6 @@ function is_compatible(eq::Equation, grid::Grid)
     nothing
 end
 
-function is_compatible(eq::ShallowWaterEquations1D, grid::CartesianGrid{1})
-    if grid.totalcells[1]+1 != size(eq.B)[1]
-        throw(DimensionMismatch("Equation and grid has mismatching dimensions. "*
-                                "\nGrid requires B to have dimension $(grid.totalcells .+ 1), "*
-                                "but got B with dimension $(size(eq.B))"))
-    end
+function is_compatible(eq::ShallowWaterEquations1D, grid::CartesianGrid)
+    validate(eq.B, grid)
 end
