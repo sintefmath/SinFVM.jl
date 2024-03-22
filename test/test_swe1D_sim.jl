@@ -3,9 +3,9 @@ using StaticArrays
 
 
 using SinSWE
-function run_simulation(T, backend, equation, grid)
+function run_simulation(T, backend, equation, grid; elevate=0.0)
 
-    u0 = x -> @SVector[exp.(-(x - 0.5)^2 / 0.001) .+ 1.5, 0.0 .* x]
+    u0 = x -> @SVector[exp.(-(x - 0.5)^2 / 0.001) .+ 1.5 .+ elevate, 0.0 .* x]
     
     reconstruction = SinSWE.LinearReconstruction(1.05)
     numericalflux = SinSWE.CentralUpwind(equation)
@@ -38,12 +38,16 @@ function plot_sols(ref_sol, sol, grid, test_name)
     display(f)
 end
 
-function get_test_name(backend, eq)
+function get_test_name(backend, eq::SinSWE.Equation)
     backend_name = split(match(r"{(.*?)}", string(typeof(backend)))[1], '.')[end]
     eq_name = match(r"\.(.*?){", string(typeof(eq)))[1]
     return eq_name * " " * backend_name
 end
-
+function get_test_name(backend, B::SinSWE.AbstractBottomTopography)
+    backend_name = split(match(r"{(.*?)}", string(typeof(backend)))[1], '.')[end]
+    B_name = match(r"\.(.*?){", string(typeof(B)))[1]
+    return B_name * " " * backend_name
+end
 
 nx = 1024  
 grid = SinSWE.CartesianGrid(nx; gc=2)
@@ -55,7 +59,7 @@ ref_sol = run_simulation(T, ref_backend, ref_eq, grid)
 
 for backend in SinSWE.get_available_backends()
     for eq in [SinSWE.ShallowWaterEquations1DPure(), 
-               SinSWE.ShallowWaterEquations1D(backend, grid)]
+               SinSWE.ShallowWaterEquations1D()]
         test_name = get_test_name(backend, eq)
         @testset "$(test_name)" begin
             sol = run_simulation(T, backend, eq, grid)
@@ -72,6 +76,32 @@ for backend in SinSWE.get_available_backends()
         end
     end
 end
+
+# Test the same setup but with +1 for both B and w_initial
+B_const = 1.0
+B_field = Float64[1.0 for x in SinSWE.cell_faces(grid, interior=false)]
+#for backend in SinSWE.get_available_backends()
+for backend in [SinSWE.make_cpu_backend()]
+    for B in [SinSWE.ConstantBottomTopography(B_const),
+              SinSWE.BottomTopography1D(B_field, backend, grid)]
+        test_name = get_test_name(backend, B)
+        eq = SinSWE.ShallowWaterEquations1D(B)
+        @testset "$(test_name)" begin
+            sol = run_simulation(T, backend, eq, grid; elevate=1.0)
+            #@show test_name
+            abs_diff_h  = sum(abs.((collect(ref_sol.h)) - (collect(sol.h) .-1 )))
+            abs_diff_hu = sum(abs.(collect(ref_sol.hu) - collect(sol.hu))) 
+            # @show abs_diff_h
+            # @show abs_diff_hu
+            #if abs_diff_h > 10^-6
+                # plot_sols(ref_sol, sol, grid, test_name)
+            #end
+             @test abs_diff_h  ≈ 0 atol = 10^-6
+             @test abs_diff_hu ≈ 0 atol = 10^-6
+        end
+    end
+end
+
 
 nothing
 

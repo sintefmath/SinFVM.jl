@@ -5,13 +5,15 @@ function evaluate_source_term!(::SourceTermBottom, output, current_state, cs::Co
     dx = compute_dx(cs.grid)
     
     output_hu = output.hu
-    for_each_inner_cell(cs.grid) do ileft, imiddle, iright
-        B_right = cs.equation.B[imiddle+1]
-        B_left  = cs.equation.B[imiddle  ]
-        h_right = cs.right_buffer[imiddle][1] #- B_right
-        h_left  = cs.left_buffer[ imiddle][1] #- B_left
+    B = cs.equation.B 
+    g = cs.equation.g
+    h_right = cs.right_buffer.h
+    h_left  = cs.left_buffer.h
+    @fvmloop for_each_inner_cell(cs.backend, cs.grid, XDIR) do ileft, imiddle, iright
+        B_right = B_face_right( B, imiddle)
+        B_left  = B_face_left(B, imiddle)
 
-        output_hu[imiddle] +=-cs.equation.g*((B_right - B_left)/dx)*((h_right + h_left)/2.0)
+        output_hu[imiddle] +=-g*((B_right - B_left)/dx)*((h_right[imiddle] + h_left[imiddle])/2.0)
         nothing
     end
     

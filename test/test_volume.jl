@@ -7,7 +7,7 @@ import CUDA
 for backend in get_available_backends()
     nx = 10
     grid = SinSWE.CartesianGrid(nx)
-    equation = SinSWE.ShallowWaterEquations1D(backend, grid)
+    equation = SinSWE.ShallowWaterEquations1D()
     volume = SinSWE.Volume(backend, equation, grid)
 
     CUDA.@allowscalar volume[1] = @SVector [4.0, 4.0]

@@ -22,7 +22,7 @@ grid = SinSWE.CartesianGrid(nx; gc=2)
 
 #backend = make_cuda_backend()
 for backend in SinSWE.get_available_backends() # make_cpu_backend()
-    equation = SinSWE.ShallowWaterEquations1D(backend, grid)
+    equation = SinSWE.ShallowWaterEquations1D()
     output_eval_equation = SinSWE.Volume(backend, equation, grid)
 
 
