@@ -3,6 +3,8 @@ import CUDA
 
 abstract type Backend end
 
+toint(x) = x
+toint(x::CartesianIndex{1}) = x[1]
 
 struct KernelAbstractionBackend{KABackendType} <: Backend
     backend::KABackendType
@@ -24,8 +26,10 @@ function get_available_backends()
     end
     return backends
 end
+
 @kernel function for_each_inner_cell_kernel(f, grid, direction, ghostcells, y...)
-    I = @index(Global)
+    J = @index(Global, Cartesian)
+    I = toint(J)
     f(left_cell(grid, I, direction, ghostcells), middle_cell(grid, I, direction, ghostcells), right_cell(grid, I, direction, ghostcells), y...)
 end
 
@@ -35,8 +39,8 @@ function for_each_inner_cell(f, backend::KernelAbstractionBackend{T}, grid, dire
 end
 
 @kernel function for_each_ghost_cell_kernel(f, grid, direction, y...)
-    I = @index(Global)
-    f(I, y...)
+    I = @index(Global, Cartesian)
+    f(toint(I), y...)
 end
 
 
@@ -46,8 +50,8 @@ end
 
 
 @kernel function for_each_index_value_kernel(f, values, y...)
-    I = @index(Global)
-    f(I, values[I], y...)
+    I = @index(Global, Cartesian)
+    f(toint(I), values[I], y...)
 end
 
 
