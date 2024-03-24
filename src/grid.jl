@@ -7,7 +7,7 @@ end
 
 
 dimension(::Type{<:Grid{d}}) where {d} = d
-dimension(::T) where T<:Grid = dimension(T)
+dimension(::T) where {T<:Grid} = dimension(T)
 
 struct CartesianGrid{dimension,BoundaryType,dimension2} <: Grid{dimension}
     ghostcells::SVector{dimension,Int64}
@@ -31,7 +31,7 @@ function interior_size(grid::CartesianGrid)
 end
 
 function Base.size(grid::CartesianGrid{1})
-    return (grid.totalcells[1], )
+    return (grid.totalcells[1],)
 end
 
 function Base.size(grid::CartesianGrid{2})
@@ -39,7 +39,7 @@ function Base.size(grid::CartesianGrid{2})
 end
 
 
-function CartesianGrid(nx; gc = 1, boundary = PeriodicBC(), extent = [0.0 1.0])
+function CartesianGrid(nx; gc=1, boundary=PeriodicBC(), extent=[0.0 1.0])
     domain_width = extent[1, 2] - extent[1, 1]
     Δx = domain_width / nx
     return CartesianGrid(SVector{1,Int64}([gc]),
@@ -49,7 +49,7 @@ function CartesianGrid(nx; gc = 1, boundary = PeriodicBC(), extent = [0.0 1.0])
     )
 end
 
-function CartesianGrid(nx, ny; gc = 1, boundary = PeriodicBC(), extent = [0.0 1.0; 0.0 1.0])
+function CartesianGrid(nx, ny; gc=1, boundary=PeriodicBC(), extent=[0.0 1.0; 0.0 1.0])
     domain_width = extent[1, 2] - extent[1, 1]
     domain_height = extent[2, 2] - extent[2, 1]
     Δ = SVector{2,Float64}([domain_width / nx, domain_height / ny])
@@ -64,8 +64,8 @@ function cell_faces(grid::CartesianGrid{1}; interior=true)
         return collect(LinRange(grid.extent[1], grid.extent[2], grid.totalcells[1] - 2 * grid.ghostcells[1] + 1))
     else
         dx = compute_dx(grid)
-        ghost_extend = [grid.extent[1] - grid.ghostcells[1]*dx 
-                        grid.extent[2] + grid.ghostcells[1]*dx ]
+        ghost_extend = [grid.extent[1] - grid.ghostcells[1] * dx
+            grid.extent[2] + grid.ghostcells[1] * dx]
         collect(LinRange(ghost_extend[1], ghost_extend[2], grid.totalcells[1] + 1))
     end
 end
@@ -84,14 +84,6 @@ function constant_bottom_topography(grid::CartesianGrid{1}, value)
     return ones(grid.totalcells[1] + 1) .* value
 end
 
-
-
-
-function for_each_inner_cell(f, g::CartesianGrid{1}, include_ghostcells=0)
-    for i in (g.ghostcells[1]-include_ghostcells+1):(g.totalcells[1]-g.ghostcells[1]+include_ghostcells)
-        f(i - 1, i, i + 1)
-    end
-end
 
 function inner_cells(g::CartesianGrid{1}, direction, ghostcells=g.ghostcells[direction])
     return g.totalcells[direction] - 2 * ghostcells
@@ -112,4 +104,40 @@ end
 
 function ghost_cells(g::CartesianGrid{1}, direction)
     return g.ghostcells[direction]
+end
+
+
+
+
+function inner_cells(g::CartesianGrid{2}, direction, ghostcells=g.ghostcells[direction])
+    # TODO: Review. Do we want to include the full grid in the non-active dimension?
+    dirs = directions(g)
+
+    inner_size = (dirs .!= direction) .* (g.totalcells .- 2 .* g.ghostcells) .+
+                 (dirs .== direction) .* (g.totalcells .- 2 .* ghostcells)
+    return (inner_size[1], inner_size[2])
+end
+
+# TODO: This can be done nicer (left_cell, middle_cell, right_cell)
+function left_cell(g::CartesianGrid{2}, I::CartesianIndex, direction::XDIRT, ghostcells=g.ghostcells[direction])
+    return CartesianIndex(I[1] + ghostcells - 1, I[2] + g.ghostcells[2])
+end
+
+function left_cell(g::CartesianGrid{2}, I::CartesianIndex, direction::YDIRT, ghostcells=g.ghostcells[direction])
+    return CartesianIndex(I[1] + g.ghostcells[1], I[2] + ghostcells - 1)
+end
+
+function middle_cell(g::CartesianGrid{2}, I::CartesianIndex, direction::XDIRT, ghostcells=g.ghostcells[direction])
+    return CartesianIndex(I[1] + ghostcells, I[2] + g.ghostcells[2])
+end
+
+function middle_cell(g::CartesianGrid{2}, I::CartesianIndex, direction::YDIRT, ghostcells=g.ghostcells[direction])
+    return CartesianIndex(I[1] + g.ghostcells[1], I[2] + ghostcells)
+end
+function right_cell(g::CartesianGrid{2}, I::CartesianIndex, direction::XDIRT, ghostcells=g.ghostcells[direction])
+    return CartesianIndex(I[1] + ghostcells + 1, I[2] + g.ghostcells[2])
+end
+
+function right_cell(g::CartesianGrid{2}, I::CartesianIndex, direction::YDIRT, ghostcells=g.ghostcells[direction])
+    return CartesianIndex(I[1] + g.ghostcells[1], I[2] + ghostcells + 1)
 end
