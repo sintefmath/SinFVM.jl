@@ -40,7 +40,7 @@ end
 
 @kernel function for_each_ghost_cell_kernel(f, grid, direction, y...)
     I = @index(Global, Cartesian)
-    f(toint(I), y...)
+    f(toint(middle_cell(grid, I, direction, 0)), y...)
 end
 
 

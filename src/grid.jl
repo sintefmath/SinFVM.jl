@@ -102,6 +102,20 @@ function right_cell(g::CartesianGrid{1}, I::Int64, direction, ghostcells=g.ghost
     return I + ghostcells + 1
 end
 
+
+function left_cell(g::CartesianGrid{1}, I::CartesianIndex, direction, ghostcells=g.ghostcells[direction])
+    return left_cell(g, I[1], direction, ghostcells)
+end
+
+function middle_cell(g::CartesianGrid{1}, I::CartesianIndex, direction, ghostcells=g.ghostcells[direction])
+    return middle_cell(g, I[1], direction, ghostcells)
+end
+
+
+function right_cell(g::CartesianGrid{1}, I::CartesianIndex, direction, ghostcells=g.ghostcells[direction])
+    return right_cell(g, I[1], direction, ghostcells)
+end
+
 function ghost_cells(g::CartesianGrid{1}, direction)
     return g.ghostcells[direction]
 end
@@ -140,4 +154,13 @@ end
 
 function right_cell(g::CartesianGrid{2}, I::CartesianIndex, direction::YDIRT, ghostcells=g.ghostcells[direction])
     return CartesianIndex(I[1] + g.ghostcells[1], I[2] + ghostcells + 1)
+end
+
+function ghost_cells(g::CartesianGrid{2}, ::XDIRT)
+    return (g.ghostcells[1], inner_cells(g, XDIR)[2])
+end
+
+
+function ghost_cells(g::CartesianGrid{2}, ::YDIRT)
+    return (inner_cells(g, YDIR)[1], g.ghostcells[2])
 end
