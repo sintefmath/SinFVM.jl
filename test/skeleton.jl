@@ -8,7 +8,7 @@ end
 using SinSWE
 function run_simulation()
     u0 = x -> sin.(2π * x) .+ 1.5
-    nx = 1024 * 1024
+    nx = 16 * 1024
     grid = SinSWE.CartesianGrid(nx)
     backend = make_cpu_backend()
 
@@ -30,7 +30,7 @@ function run_simulation()
 
     T = 0.7
 
-  
+
 
     swe_timesteps = 0
     count_timesteps(varargs...) = swe_timesteps += 1
@@ -47,10 +47,10 @@ function run_simulation()
         xlabel="x",
     )
 
-   
+
     lines!(ax, x, first.(initial), label=L"u_0(x)")
-    result = collect(SinSWE.current_interior_state(simulator))
-    lines!(ax, x, first.(result), linestyle=:dot, color=:red, linewidth=7, label=L"u^{\Delta x}(x, t)")
+    result = collect(SinSWE.current_interior_state(simulator).u)
+    lines!(ax, x, result, linestyle=:dot, color=:red, linewidth=7, label=L"u^{\Delta x}(x, t)")
 
     number_of_x_cells = nx
 
