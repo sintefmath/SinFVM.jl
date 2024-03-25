@@ -37,6 +37,7 @@ for backend in get_available_backends()
                 #     @info "Failed" n i output[i, n]
                 # end
                 @test output[i, n] == output[i, end-(gc-n+1)-gc+1]
+                @test output[i, end-(gc-n)] == output[i, gc+n]
             end
         end
 
@@ -46,6 +47,7 @@ for backend in get_available_backends()
                 #     @info "Failed" n i output[n, i]
                 # end
                 @test output[n, i] == output[end-(gc-n+1)-gc+1, i]
+                @test output[end-(gc-n), i] == output[gc+n, i]
             end
         end
     end
