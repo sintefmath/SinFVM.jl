@@ -27,3 +27,21 @@ function (eq::ShallowWaterEquations)(::YDIRT, h, hu, hv)
 end
 
 conserved_variable_names(::Type{T}) where {T<:ShallowWaterEquations} = (:h, :hu, :hv)
+
+function compute_eigenvalues(eq::ShallowWaterEquations, ::XDIRT, h, hu, hv)
+    g = eq.g
+    u = hu / h
+    return @SVector [u, u + sqrt(g * h), u - sqrt(g * h)]
+end
+
+
+
+function compute_eigenvalues(eq::ShallowWaterEquations, ::YDIRT, h, hu, hv)
+    g = eq.g
+    v = hv / h
+    return @SVector [v, v + sqrt(g * h), v - sqrt(g * h)]
+end
+
+function compute_max_abs_eigenvalue(eq::ShallowWaterEquations1DPure, direction, h, hu, hv)
+    return maximum(compute_eigenvalues(eq, direction, h, hu, hv))
+end
