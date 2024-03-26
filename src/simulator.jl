@@ -39,11 +39,16 @@ current_interior_state(simulator::Simulator) =
 
 
 function set_current_state!(simulator::Simulator, new_state)
-    @assert length(simulator.grid.ghostcells) == 1
-
-    gc = simulator.grid.ghostcells[1]
-    # TODO: Fix so that we don't need allowscalar
-    CUDA.@allowscalar current_state(simulator)[gc+1:end-gc] = new_state
+    # TODO: By adding the : operator to a normal volume in 2d, this should work with one line...
+    if dimension(simulator.grid) == 1
+        # TODO: Get it to work without allowscalar
+        CUDA.@allowscalar current_interior_state(simulator)[:] = new_state
+    elseif dimension(simulator.grid) == 2
+        # TODO: Get it to work without allowscalar
+        CUDA.@allowscalar current_interior_state(simulator)[:,:] = new_state
+    else
+        error("Unandled dimension")
+    end
     update_bc!(simulator, current_state(simulator))
 end
 
@@ -52,19 +57,14 @@ function set_current_state!(simulator::Simulator, new_state::Volume)
 end
 
 current_timestep(simulator::Simulator) = simulator.current_timestep[1]
-function compute_timestep(simulator::Simulator)
-    # TODO: This can be done more efficiently by doing it in the computation of the flux
 
-    wavespeed = compute_wavespeed(simulator.system, simulator.grid, current_state(simulator))
-    return simulator.cfl * compute_dx(simulator.grid) / wavespeed
-end
 
 function perform_step!(simulator::Simulator)
     for substep = 1:number_of_substeps(simulator.timestepper)
         @assert substep + 1 == 2
 
         # the line below needs fixing:
-        @assert dimension(simulator.grid) == 1
+        
         timestep_computer(wavespeed) = simulator.cfl * compute_dx(simulator.grid) / wavespeed 
         simulator.current_timestep[1] = do_substep!(
             simulator.substep_outputs[substep+1],
@@ -77,7 +77,6 @@ function perform_step!(simulator::Simulator)
             substep
         )
         update_bc!(simulator, simulator.substep_outputs[substep+1])
-        ##@info "after bc" simulator.substep_outputs[substep + 1]
     end
     simulator.substep_outputs[1], simulator.substep_outputs[end] =
         simulator.substep_outputs[end], simulator.substep_outputs[1]

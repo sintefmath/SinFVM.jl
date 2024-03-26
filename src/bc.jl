@@ -39,5 +39,5 @@ function update_bc!(backend, ::WallBC, grid::CartesianGrid{1}, ::ShallowWaterEqu
     end
 end
 
-update_bc!(backend, grid::CartesianGrid{1}, eq::Equation, data) = update_bc!(backend, grid.boundary, grid, eq, data)
+update_bc!(backend, grid::CartesianGrid, eq::Equation, data) = update_bc!(backend, grid.boundary, grid, eq, data)
 update_bc!(simulator::Simulator, data) = update_bc!(simulator.backend, simulator.grid, simulator.system.equation, data)

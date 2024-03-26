@@ -15,6 +15,9 @@ make_cpu_backend() = KernelAbstractionBackend(get_backend(ones(3)))
 const CUDABackend = KernelAbstractionBackend{CUDA.CUDAKernels.CUDABackend}
 const CPUBackend = KernelAbstractionBackend{KernelAbstractions.CPU}
 
+name(::CUDABackend) = "CUDA"
+name(::CPUBackend) = "CPU"
+
 function get_available_backends()
     backends = Any[make_cpu_backend()]
 

@@ -39,10 +39,8 @@ for j in 1:2
         @test faces_gc[end-(i-1), end-(j-1)] ≈ SVector{2, Float64}(nx+(gc-i +1), ny+ (gc-j+1)) atol = 10^-14
     end
 end
-#@test faces_gc[end-1:end, j] ≈ [11, 12] atol = 10^-14
 
 cells_gc = SinSWE.cell_centers(grid, interior=false)
-
 @test cells_gc[3:end-2, 3:end-2] ≈ centers_from_grid atol = 10^-14
 for j in 1:2
     for i in 1:2
