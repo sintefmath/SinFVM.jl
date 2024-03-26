@@ -18,6 +18,10 @@ struct CartesianGrid{dimension,BoundaryType,dimension2} <: Grid{dimension}
     Δ::SVector{dimension,Float64}
 end
 
+start_extent(grid::CartesianGrid, direction) = grid.extent[(Base.to_index(direction)-1)*2 + 1]
+end_extent(grid::CartesianGrid, direction) = grid.extent[(Base.to_index(direction)-1)*2 + 2]
+extent(grid, direction) = SVector{2, Int64}(start_extent(grid, direction), end_extent(grid, direction))
+
 directions(::Grid{1}) = (XDIR,)
 directions(::Grid{2}) = (XDIR, YDIR)
 directions(::Grid{3}) = (XDIR, YDIR, ZDIR)
@@ -28,6 +32,10 @@ end
 
 function interior_size(grid::CartesianGrid)
     return Tuple(Int64(i) for i in (grid.totalcells .- 2 .* grid.ghostcells))
+end
+
+function interior_size(grid::CartesianGrid, direction)
+    return (grid.totalcells[direction] .- 2 .* grid.ghostcells[direction])
 end
 
 function Base.size(grid::CartesianGrid{1})
@@ -70,14 +78,67 @@ function cell_faces(grid::CartesianGrid{1}; interior=true)
     end
 end
 
+function cell_faces(grid::CartesianGrid{2}; interior=true)
+    if interior
+        x_faces = LinRange(start_extent(grid, XDIR), end_extent(grid, XDIR), interior_size(grid, XDIR) + 1)
+        y_faces = LinRange(start_extent(grid, YDIR), end_extent(grid, YDIR), interior_size(grid, YDIR) + 1)
+
+        all_faces = zeros(SVector{2, Float64}, length(x_faces), length(y_faces))
+
+        for (j, y) in enumerate(y_faces)
+            for (i, x) in enumerate(x_faces)
+                all_faces[i, j] = @SVector [x, y]
+            end
+        end
+
+        return all_faces
+    else
+        dx = compute_dx(grid)
+        ghost_extend_x = [start_extent(grid, XDIR) - grid.ghostcells[1] * dx
+            end_extent(grid, XDIR)  + grid.ghostcells[1] * dx]
+        
+        x_faces = LinRange(ghost_extend_x[1], ghost_extend_x[2], grid.totalcells[1] + 1)
+
+        dy = compute_dy(grid)
+        ghost_extend_y = [start_extent(grid, YDIR) - grid.ghostcells[2] * dy
+            end_extent(grid, YDIR)  + grid.ghostcells[2] * dy]
+        
+        y_faces = LinRange(ghost_extend_y[1], ghost_extend_y[2], grid.totalcells[2] + 1)
+
+        all_faces = zeros(SVector{2, Float64}, length(x_faces), length(y_faces))
+
+        for (j, y) in enumerate(y_faces)
+            for (i, x) in enumerate(x_faces)
+                all_faces[i, j,] = @SVector [x, y]
+            end
+        end
+
+        return all_faces
+    end
+end
+
+
 function cell_centers(grid::CartesianGrid{1}; interior=true)
     xinterface = cell_faces(grid; interior)
-    xcell = xinterface[1:end-1] .+ (xinterface[2] - xinterface[1]) / 2.0
+    xcell = xinterface[1:end-1, 1:end-1] .+ (xinterface[2] - xinterface[1]) / 2.0
     return xcell
+end
+
+function cell_centers(grid::CartesianGrid{2}; interior=true)
+    xinterface = cell_faces(grid; interior)
+    dx = compute_dx(grid)
+    dy = compute_dy(grid)
+    centers = zeros(eltype(xinterface), (size(xinterface) .- 1)...)
+    for index in CartesianIndices(centers)
+        centers[index] = xinterface[index] + eltype(xinterface)(dx, dy) ./ 2
+    end
+
+    return centers
 end
 
 compute_dx(grid::CartesianGrid{1}, direction=XDIR) = grid.Δ[direction]
 compute_dx(grid::CartesianGrid{dimension}, direction=XDIR) where {dimension} = grid.Δ[direction]
+compute_dy(grid::CartesianGrid{2}) = grid.Δ[YDIR]
 
 function constant_bottom_topography(grid::CartesianGrid{1}, value)
     # TODO: Allow constant bottom topography to be represented by a scalar with arbitrary index...
