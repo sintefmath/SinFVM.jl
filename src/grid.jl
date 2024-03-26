@@ -120,7 +120,7 @@ end
 
 function cell_centers(grid::CartesianGrid{1}; interior=true)
     xinterface = cell_faces(grid; interior)
-    xcell = xinterface[1:end-1, 1:end-1] .+ (xinterface[2] - xinterface[1]) / 2.0
+    xcell = xinterface[1:end-1] .+ (xinterface[2] - xinterface[1]) / 2.0
     return xcell
 end
 
