@@ -48,8 +48,8 @@ function (centralupwind::CentralUpwind)(::ShallowWaterEquations, faceminus, face
     fluxminus = centralupwind.eq(direction, faceminus...)
     fluxplus = centralupwind.eq(direction, faceplus...)
 
-    eigenvalues_minus = compute_eigenvalues(centralupwind.eq, direction, faceminus...) # compute_max_eigenvalue(centralupwind.eq, XDIR, faceminus...)
-    eigenvalues_plus = compute_eigenvalues(centralupwind.eq, direction, faceplus...)  # compute_max_eigenvalue(centralupwind.eq, XDIR, faceplus...)
+    eigenvalues_minus = compute_eigenvalues(centralupwind.eq, direction, faceminus...)
+    eigenvalues_plus = compute_eigenvalues(centralupwind.eq, direction, faceplus...)
 
     aplus = max.(eigenvalues_plus[1], eigenvalues_minus[1], 0.0)
     aminus = min.(eigenvalues_plus[2], eigenvalues_minus[2], 0.0)
@@ -63,8 +63,8 @@ function (centralupwind::CentralUpwind)(::Equation, faceminus, faceplus, directi
     fluxminus = centralupwind.eq(direction, faceminus...)
     fluxplus = centralupwind.eq(direction, faceplus...)
 
-    eigenvalues_minus = compute_eigenvalues(centralupwind.eq, direction, faceminus...) # compute_max_eigenvalue(centralupwind.eq, XDIR, faceminus...)
-    eigenvalues_plus = compute_eigenvalues(centralupwind.eq, direction, faceplus...)  # compute_max_eigenvalue(centralupwind.eq, XDIR, faceplus...)
+    eigenvalues_minus = compute_eigenvalues(centralupwind.eq, direction, faceminus...)
+    eigenvalues_plus = compute_eigenvalues(centralupwind.eq, direction, faceplus...)
 
     aplus = max.(eigenvalues_plus[1], eigenvalues_minus[1], 0.0)
     aminus = min.(eigenvalues_plus[2], eigenvalues_minus[2], 0.0)
@@ -79,14 +79,14 @@ function (centralupwind::CentralUpwind)(::ShallowWaterEquations1D, faceminus, fa
     eigenvalues_minus = zero(faceminus)
     if faceminus[1] > centralupwind.eq.depth_cutoff
         fluxminus = centralupwind.eq(direction, faceminus...)
-        eigenvalues_minus = compute_eigenvalues(centralupwind.eq, direction, faceminus...) # compute_max_eigenvalue(centralupwind.eq, XDIR, faceminus...)
+        eigenvalues_minus = compute_eigenvalues(centralupwind.eq, direction, faceminus...)
     end
 
     fluxplus = zero(faceplus)
     eigenvalues_plus = zero(faceplus)
     if faceplus[1] > centralupwind.eq.depth_cutoff
         fluxplus = centralupwind.eq(direction, faceplus...)
-        eigenvalues_plus = compute_eigenvalues(centralupwind.eq, direction, faceplus...)  # compute_max_eigenvalue(centralupwind.eq, XDIR, faceplus...)
+        eigenvalues_plus = compute_eigenvalues(centralupwind.eq, direction, faceplus...)
     end
 
     aplus = max.(eigenvalues_plus[1], eigenvalues_minus[1], zero(eigenvalues_plus[1]))
