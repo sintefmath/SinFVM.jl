@@ -2,6 +2,7 @@ using CairoMakie
 using Cthulhu
 using StaticArrays
 using LinearAlgebra
+using Test
 
 module Correct
 include("fasit.jl")
@@ -35,6 +36,8 @@ function run_swe_2d_pure_simulation(backend)
     
     simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid)
     SinSWE.set_current_state!(simulator, initial)
+    current_simulator_state = collect(SinSWE.current_state(simulator))
+    @test !any(isnan.(current_simulator_state))
     
     initial_state = SinSWE.current_interior_state(simulator)
     hm = heatmap!(axes[1][1], collect(initial_state.h))

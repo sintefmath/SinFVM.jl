@@ -31,7 +31,7 @@ conserved_variable_names(::Type{T}) where {T<:ShallowWaterEquations} = (:h, :hu,
 function compute_eigenvalues(eq::ShallowWaterEquations, ::XDIRT, h, hu, hv)
     g = eq.g
     u = hu / h
-    return @SVector [u, u + sqrt(g * h), u - sqrt(g * h)]
+    return @SVector [u + sqrt(g * h), u - sqrt(g * h), u]
 end
 
 
@@ -39,7 +39,7 @@ end
 function compute_eigenvalues(eq::ShallowWaterEquations, ::YDIRT, h, hu, hv)
     g = eq.g
     v = hv / h
-    return @SVector [v, v + sqrt(g * h), v - sqrt(g * h)]
+    return @SVector [v + sqrt(g * h), v - sqrt(g * h), v]
 end
 
 function compute_max_abs_eigenvalue(eq::ShallowWaterEquations1DPure, direction, h, hu, hv)

@@ -14,6 +14,8 @@ Base.to_index(::XDIRT) = 1
 Base.to_index(::YDIRT) = 2
 Base.to_index(::ZDIRT) = 3
 
+const Direction = Union{XDIRT, YDIRT, ZDIRT}
+
 using StaticArrays
 using Parameters
 

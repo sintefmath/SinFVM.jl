@@ -12,7 +12,7 @@ function runonbackend(backend::SinSWE.CPUBackend, grid, numericalflux, input_eva
     for index in 2:grid.totalcells[1] - 1
         r = index + 1
         l = index - 1
-        output_eval_upwind[index], wavespeed = numericalflux(input_eval_equation[r], input_eval_equation[l])
+        output_eval_upwind[index], wavespeed = numericalflux(input_eval_equation[r], input_eval_equation[l], XDIR)
     end
 end
 
@@ -47,7 +47,7 @@ for backend in SinSWE.get_available_backends() # make_cpu_backend()
     
     # Test flux
     SinSWE.@fvmloop SinSWE.for_each_inner_cell(backend, grid, XDIR) do l, index, r
-        output_eval_upwind[index], dontusethis = numericalflux(input_eval_equation[r], input_eval_equation[l])
+        output_eval_upwind[index], dontusethis = numericalflux(input_eval_equation[r], input_eval_equation[l], XDIR)
     end
 
 
