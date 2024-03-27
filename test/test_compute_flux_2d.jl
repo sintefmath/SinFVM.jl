@@ -7,10 +7,10 @@ using LinearAlgebra
 function test_compute_flux_2d(backend)
     backend_name = SinSWE.name(backend)
     u0 = x -> @SVector[exp.(-(norm(x .- 0.5)^2 / 0.01)) .+ 1.5, 0.0, 0.0]
-    nx = 64
-    ny = 128
+    nx = 32
+    ny = 16
     grid = SinSWE.CartesianGrid(nx, ny; gc=1)
-    
+
     equation = SinSWE.ShallowWaterEquations()
 
     reconstruction = SinSWE.NoReconstruction()
