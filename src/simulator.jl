@@ -11,7 +11,7 @@ struct Simulator{BackendType,SystemType,TimeStepperType,GridType,StateType,Float
     cfl::FloatType
 end
 
-function Simulator(backend, system, timestepper, grid; cfl = 0.25)
+function Simulator(backend, system, timestepper, grid; cfl=0.25)
     # TODO: Get cfl from reconstruction
     return Simulator{
         typeof(backend),
@@ -45,7 +45,7 @@ function set_current_state!(simulator::Simulator, new_state)
         CUDA.@allowscalar current_interior_state(simulator)[:] = new_state
     elseif dimension(simulator.grid) == 2
         # TODO: Get it to work without allowscalar
-        CUDA.@allowscalar current_interior_state(simulator)[:,:] = new_state
+        CUDA.@allowscalar current_interior_state(simulator)[:, :] = new_state
     else
         error("Unandled dimension")
     end
@@ -64,8 +64,8 @@ function perform_step!(simulator::Simulator)
         @assert substep + 1 == 2
 
         # the line below needs fixing:
-        
-        timestep_computer(wavespeed) = simulator.cfl * compute_dx(simulator.grid) / wavespeed 
+
+        timestep_computer(wavespeed) = simulator.cfl * compute_dx(simulator.grid) / wavespeed
         simulator.current_timestep[1] = do_substep!(
             simulator.substep_outputs[substep+1],
             simulator.timestepper,
@@ -85,20 +85,20 @@ end
 function simulate_to_time(
     simulator::Simulator,
     endtime;
-    t = 0.0,
-    callback = nothing,
-    show_progress = true,
+    t=0.0,
+    callback=nothing,
+    show_progress=true,
 )
-    prog = ProgressMeter.ProgressThresh(
-        0.0;
-        desc = "Remaining time:",
-        enabled = show_progress,
-        dt = 2.0,
+    prog = ProgressMeter.Progress(100;
+        enabled=show_progress,
+        desc="Simulating",
+        dt=2.0,
     )
     while t <= endtime
         perform_step!(simulator)
         t += current_timestep(simulator)
-        ProgressMeter.update!(prog, abs(endtime - t))
+        ProgressMeter.update!(prog, ceil(Int64, t / endtime * 100),
+            showvalues=[(:t, t), (:dt, current_timestep(simulator))])
         if !isnothing(callback)
             callback(t, simulator)
         end
