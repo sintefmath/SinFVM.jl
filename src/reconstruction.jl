@@ -29,7 +29,7 @@ function minmod_slope(left, center, right, theta)
     return minmod.(theta .* forward_diff, central_diff, theta .* backward_diff)
 
 end
-function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, direction::XDIRT)
+function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, direction::Direction)
     @assert grid.ghostcells[1] > 1
 
     # NOTE: dx cancel, as the slope depends on 1/dx and face values depend on dx*slope
@@ -39,11 +39,11 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
         output_right[imiddle] = input_conserved[imiddle] .+ 0.5 .* slope
     end
 end
-function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, ::Equation, direction::XDIRT)
+function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, ::Equation, direction::Direction)
     reconstruct!(backend, linRec, output_left, output_right, input_conserved, grid, direction)
 end
 
-function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, eq::ShallowWaterEquations1D, direction::XDIRT)
+function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, eq::ShallowWaterEquations1D, direction::Direction)
     @assert grid.ghostcells[1] > 1
 
     w_input = input_conserved.h

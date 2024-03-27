@@ -14,11 +14,11 @@ function run_swe_2d_pure_simulation(backend)
     u0 = x -> @SVector[exp.(-(norm(x .- 0.5)^2 / 0.01)) .+ 1.5, 0.0, 0.0]
     nx = 64
     ny = 64
-    grid = SinSWE.CartesianGrid(nx, ny; gc=1)
+    grid = SinSWE.CartesianGrid(nx, ny; gc=2)
     
     equation = SinSWE.ShallowWaterEquations()
 
-    reconstruction = SinSWE.NoReconstruction()
+    reconstruction = SinSWE.LinearReconstruction()
     numericalflux = SinSWE.CentralUpwind(equation)
 
     conserved_system =
@@ -51,22 +51,39 @@ function run_swe_2d_pure_simulation(backend)
     @time SinSWE.simulate_to_time(simulator, T)
     
     result = SinSWE.current_interior_state(simulator)
+    h = collect(result.h)
+    hu = collect(result.hu)
+    hv = collect(result.hv)
 
-    hm = heatmap!(axes[2][1], collect(result.h))
-    if !any(isnan.(collect(result.h)))
+    hm = heatmap!(axes[2][1], h)
+    if !any(isnan.(h))
         Colorbar(f[1, 4], hm)
     end
-    hm = heatmap!(axes[2][2], collect(result.hu))
-    if !any(isnan.(collect(result.hu)))
+    hm = heatmap!(axes[2][2], hu)
+    if !any(isnan.(hu))
         Colorbar(f[2, 4], hm)
     end
     
-    hm = heatmap!(axes[2][3], collect(result.hv))
-    if !any(isnan.(collect(result.hv)))
+    hm = heatmap!(axes[2][3], hv)
+    if !any(isnan.(hv))
         Colorbar(f[3, 4], hm)
     end
     display(f)
 
+    # Test symmetry (field[x, y])
+    tolerance = 10^-13
+    xleft = Int(floor(nx/3))
+    xright = nx - xleft + 1
+    ylower = Int(floor(ny/3))
+    yupper = ny - ylower + 1
+    @show xleft, xright
+
+    @test maximum(h[xleft,:] - h[xright,:]) ≈ 0 atol=tolerance
+    @test maximum(h[:, ylower] - h[:, yupper]) ≈ 0 atol=tolerance
+    @test maximum(hu[xleft,:] + hu[xright,:]) ≈ 0 atol=tolerance
+    @test maximum(hu[:, ylower] - hu[:, yupper]) ≈ 0 atol=tolerance
+    @test maximum(hv[xleft,:] - hv[xright,:]) ≈ 0 atol=tolerance
+    @test maximum(hv[:, ylower] + hv[:, yupper]) ≈ 0 atol=tolerance
 end
 
 for backend in get_available_backends()
