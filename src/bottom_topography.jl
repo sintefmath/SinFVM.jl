@@ -19,7 +19,6 @@ struct BottomTopography1D{T} <: AbstractBottomTopography
 
     BottomTopography1D(B; should_never_be_called) = new{typeof(B)}(B)
 end
-#Adapt.@adapt_structure BottomTopography1D
 
 function Adapt.adapt_structure(
     to,
@@ -36,8 +35,16 @@ struct BottomTopography2D{T} <: AbstractBottomTopography
         B = convert_to_backend(backend, B)
         return new{typeof(B)}(B)
     end
+    BottomTopography2D(B, should_never_be_called) = new{typeof(B)}(B)
 end
-Adapt.@adapt_structure BottomTopography2D
+
+function Adapt.adapt_structure(
+    to,
+    topo::BottomTopography2D
+) 
+    B = Adapt.adapt_structure(to, topo.B)  
+    BottomTopography2D(B; should_never_be_called=nothing)
+end
 
 ## Validate
 function validate(::ConstantBottomTopography, ::Grid)
@@ -71,3 +78,8 @@ B_face_right(B::BottomTopography2D, x, y, ::XDIRT) = 0.5*(B.B[x + 1, y] + B.B[x 
 B_face_left(B::BottomTopography2D, x, y, ::YDIRT) = 0.5*(B.B[x, y] + B.B[x + 1, y])
 B_face_right(B::BottomTopography2D, x, y, ::YDIRT) = 0.5*(B.B[x, y + 1] + B.B[x + 1, y + 1])
 
+# Lookup for 2D with Cartesian indices
+# TODO: Clearify assumption: These functions assume that I already accounts for ghost cells
+B_cell(B::BottomTopography2D, I::CartesianIndex) = B_cell(B, I[1], I[2])
+B_face_left(B::BottomTopography2D, I::CartesianIndex, dir) = B_face_left(B, I[1], I[2], dir)
+B_face_right(B::BottomTopography2D, I::CartesianIndex, dir) = B_face_right(B, I[1], I[2], dir)
