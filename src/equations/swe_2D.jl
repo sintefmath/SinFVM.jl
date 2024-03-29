@@ -1,28 +1,46 @@
 
 struct ShallowWaterEquations{T} <: Equation
+    B::S
     ρ::T
     g::T
+    depth_cutoff::T
+    desingularizing_kappa::T
+    ShallowWaterEquations(B::BottomType=ConstantBottomTopography(); ρ=1.0, g=9.81, depth_cutoff=10^-5, desingularizing_kappa=10^-5) where {BottomType <: AbstractBottomTopography} = new{typeof(g), typeof(B)}(B, ρ, g, depth_cutoff, desingularizing_kappa)
 end
-
-ShallowWaterEquations() = ShallowWaterEquations(1.0, 9.81)
+function Adapt.adapt_structure(
+    to,
+    swe::ShallowWaterEquations{T, S}
+) where {T, S}
+    B = Adapt.adapt_structure(to, swe.B)
+    ρ = Adapt.adapt_structure(to, swe.ρ)
+    g = Adapt.adapt_structure(to, swe.g)
+    depth_cutoff = Adapt.adapt_structure(to, swe.depth_cutoff)
+    desingularizing_kappa = Adapt.adapt_structure(to, swe.desingularizing_kappa)
+    
+    ShallowWaterEquations(B; ρ=ρ, g=g, depth_cutoff=depth_cutoff, desingularizing_kappa=desingularizing_kappa)
+end
 
 function (eq::ShallowWaterEquations)(::XDIRT, h, hu, hv)
     ρ = eq.ρ
     g = eq.g
+    u = desingularize(eq, h, hu)
+    v = desingularize(eq, h, hv)
     return @SVector [
-        ρ * hu,
-        ρ * hu * hu / h + 0.5 * ρ * g * h^2,
-        ρ * hu * hv / h
+        ρ * h * u,
+        ρ * h * u * u + 0.5 * ρ * g * h^2,
+        ρ * h * u * v 
     ]
 end
 
 function (eq::ShallowWaterEquations)(::YDIRT, h, hu, hv)
     ρ = eq.ρ
     g = eq.g
+    u = desingularize(eq, h, hu)
+    v = desingularize(eq, h, hv)
     return @SVector [
-        ρ * hv,
-        ρ * hu * hv / h,
-        ρ * hv * hv / h + 0.5 * ρ * g * h^2,
+        ρ * h * v,
+        ρ * h * u * v,
+        ρ * h * v * v + 0.5 * ρ * g * h^2,
     ]
 end
 
@@ -30,7 +48,7 @@ conserved_variable_names(::Type{T}) where {T<:ShallowWaterEquations} = (:h, :hu,
 
 function compute_eigenvalues(eq::ShallowWaterEquations, ::XDIRT, h, hu, hv)
     g = eq.g
-    u = hu / h
+    u = desingularize(eq, h, hu)
     return @SVector [u + sqrt(g * h), u - sqrt(g * h), u]
 end
 
@@ -38,10 +56,10 @@ end
 
 function compute_eigenvalues(eq::ShallowWaterEquations, ::YDIRT, h, hu, hv)
     g = eq.g
-    v = hv / h
+    v = desingularize(eq, h, hv)
     return @SVector [v + sqrt(g * h), v - sqrt(g * h), v]
 end
 
 function compute_max_abs_eigenvalue(eq::ShallowWaterEquations, direction, h, hu, hv)
-    return maximum(compute_eigenvalues(eq, direction, h, hu, hv))
+    return maximum(abs.(compute_eigenvalues(eq, direction, h, hu, hv)))
 end
