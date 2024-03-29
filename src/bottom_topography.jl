@@ -10,7 +10,7 @@ Adapt.@adapt_structure ConstantBottomTopography
 
 struct BottomTopography1D{T} <: AbstractBottomTopography
     B::T
-    function BottomTopography1D(B, backend, grid)
+    function BottomTopography1D(B, backend, grid::CartesianGrid{1})
         # TODO: If B is only defined for interior, should we then extend B?
         validate_bottom_topography(B, grid)
         B = convert_to_backend(backend, B)
@@ -30,12 +30,12 @@ end
 
 struct BottomTopography2D{T} <: AbstractBottomTopography
     B::T
-    function BottomTopography2D(B, backend, grid)
+    function BottomTopography2D(B, backend, grid::CartesianGrid{2})
         validate_bottom_topography(B, grid)
         B = convert_to_backend(backend, B)
         return new{typeof(B)}(B)
     end
-    BottomTopography2D(B, should_never_be_called) = new{typeof(B)}(B)
+    BottomTopography2D(B; should_never_be_called) = new{typeof(B)}(B)
 end
 
 function Adapt.adapt_structure(

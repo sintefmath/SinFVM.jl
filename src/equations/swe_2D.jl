@@ -1,5 +1,5 @@
 
-struct ShallowWaterEquations{T} <: Equation
+struct ShallowWaterEquations{T, S} <: Equation
     B::S
     ρ::T
     g::T
