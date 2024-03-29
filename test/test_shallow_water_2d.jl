@@ -16,7 +16,7 @@ function run_swe_2d_pure_simulation(backend)
     ny = 64
     grid = SinSWE.CartesianGrid(nx, ny; gc=2)
     
-    equation = SinSWE.ShallowWaterEquations()
+    equation = SinSWE.ShallowWaterEquationsPure()
 
     reconstruction = SinSWE.LinearReconstruction()
     numericalflux = SinSWE.CentralUpwind(equation)

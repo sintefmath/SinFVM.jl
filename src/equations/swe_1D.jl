@@ -20,27 +20,6 @@ function Adapt.adapt_structure(
     ShallowWaterEquations1D(B; ρ=ρ, g=g, depth_cutoff=depth_cutoff, desingularizing_kappa=desingularizing_kappa)
 end
 
-function desingularize(eq::ShallowWaterEquations1D, h, hu)
-    # The different desingularizations are taken from 
-    # Brodtkorb and Holm (2021), Coastal ocean forecasting on the GPU using a two-dimensional finite-volume scheme.  
-    # Tellus A: Dynamic Meteorology and Oceanography,  73(1), p.1876341.DOI: https://doi.org/10.1080/16000870.2021.1876341
-    # and the equation numbers refere to that paper
-
-    # Eq (23):
-    # h_star = (sqrt(h^4 + max(h^4, eq.desingularizing_kappa^4)))/(sqrt(2)*h)
-
-    # Eq (24):
-    # h_star = (h^2 + eq.desingularizing_kappa^2)/h
-
-    # Eq (25):
-    # h_star = (h^2 + max(h^2, eq.desingularizing_kappa^2))/(2*h)
-
-    # Eq (26):
-    h_star = sign(h)*max(abs(h), min(h^2/(2*eq.desingularizing_kappa) + eq.desingularizing_kappa/2.0, eq.desingularizing_kappa))
-
-    return hu/h_star
-end
-
 
 function (eq::ShallowWaterEquations1D)(::XDIRT, h, hu)
     ρ = eq.ρ

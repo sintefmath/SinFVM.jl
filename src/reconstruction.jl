@@ -43,7 +43,7 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
     reconstruct!(backend, linRec, output_left, output_right, input_conserved, grid, direction)
 end
 
-function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, eq::ShallowWaterEquations1D, direction::Direction)
+function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, eq::AllPracticalSWE, direction::Direction)
     @assert grid.ghostcells[1] > 1
 
     w_input = input_conserved.h

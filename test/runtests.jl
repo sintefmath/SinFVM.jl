@@ -1,6 +1,8 @@
 using SinSWE
 using Test
 
+# TODO: Go through tests and check they do not take longer time than necessary
+
 @testset "SinSWE tests" begin
     # Run all scripts in test/test_*.jl
     ls_test = readdir("test")

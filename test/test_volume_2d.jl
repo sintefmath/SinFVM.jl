@@ -8,7 +8,7 @@ for backend in get_available_backends()
     nx = 10
     ny = 15
     grid = SinSWE.CartesianGrid(nx, ny)
-    equation = SinSWE.ShallowWaterEquations()
+    equation = SinSWE.ShallowWaterEquationsPure()
     @debug "Creating volume"
     volume = SinSWE.Volume(backend, equation, grid)
     @debug "Setting volume"

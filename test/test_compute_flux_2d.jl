@@ -11,7 +11,7 @@ function test_compute_flux_2d(backend)
     ny = 16
     grid = SinSWE.CartesianGrid(nx, ny; gc=1)
 
-    equation = SinSWE.ShallowWaterEquations()
+    equation = SinSWE.ShallowWaterEquationsPure()
 
     reconstruction = SinSWE.NoReconstruction()
     numericalflux = SinSWE.CentralUpwind(equation)
