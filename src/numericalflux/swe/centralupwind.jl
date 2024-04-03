@@ -1,37 +1,3 @@
-
-struct Rusanov{EquationType<:Equation} <: NumericalFlux
-    eq::EquationType
-end
-
-function (rus::Rusanov)(faceminus, faceplus, direction)
-    fluxminus = rus.eq(XDIR, faceminus...)
-    fluxplus = rus.eq(XDIR, faceplus...)
-
-    eigenvalue_minus = compute_max_abs_eigenvalue(rus.eq, XDIR, faceminus...)
-    eigenvalue_plus = compute_max_abs_eigenvalue(rus.eq, XDIR, faceplus...)
-
-    eigenvalue_max = max(eigenvalue_minus, eigenvalue_plus)
-
-    F = 0.5 .* (fluxminus .+ fluxplus) .- 0.5 * eigenvalue_max .* (faceplus .- faceminus)
-
-    return F, eigenvalue_max
-end
-
-
-struct Godunov{EquationType<:Equation} <: NumericalFlux
-    eq::EquationType
-end
-
-function (god::Godunov)(faceminus, faceplus, direction)
-    f(u) = god.eq(XDIR, u...)
-    fluxminus = f(max.(faceminus, zero(faceminus)))
-    fluxplus = f(min.(faceplus, zero(faceplus)))
-
-    F = max.(fluxminus, fluxplus)
-    return F, max(compute_max_abs_eigenvalue(god.eq, XDIR, faceminus...),
-        compute_max_abs_eigenvalue(god.eq, XDIR, faceplus...))
-end
-
 struct CentralUpwind{E<:AllSWE} <: NumericalFlux
     eq::E #ShallowWaterEquations1D{T, S}
 end
@@ -86,17 +52,3 @@ function (centralupwind::CentralUpwind)(::AllPracticalSWE, faceminus, faceplus, 
     return F, max(abs(aplus), abs(aminus))
 end
 
-
-function compute_flux!(backend, F::NumericalFlux, output, left, right, wavespeeds, grid, equation::Equation, direction)
-    Δx = compute_dx(grid, direction)
-
-    @fvmloop for_each_inner_cell(backend, grid, direction) do ileft, imiddle, iright
-        F_right, speed_right = F(right[imiddle], left[iright], direction)
-        F_left, speed_left = F(right[ileft], left[imiddle], direction)
-        output[imiddle] -= 1 / Δx * (F_right - F_left)
-        wavespeeds[imiddle] = max(speed_right, speed_left)
-        nothing
-    end
-
-    return maximum(wavespeeds)
-end
