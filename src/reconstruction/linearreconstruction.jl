@@ -1,17 +1,9 @@
 
-struct NoReconstruction <: Reconstruction end
 struct LinearReconstruction <: Reconstruction
     theta::Float64
     LinearReconstruction(theta=1.2) = new(theta)
 end
 
-
-function reconstruct!(backend, ::NoReconstruction, output_left, output_right, input_conserved, grid::Grid, equation::Equation, direction)
-    @fvmloop for_each_cell(backend, grid) do middle
-        output_left[middle] = input_conserved[middle]
-        output_right[middle] = input_conserved[middle]
-    end
-end
 
 function minmod(a, b, c)
     if (a > 0) && (b > 0) && (c > 0)
