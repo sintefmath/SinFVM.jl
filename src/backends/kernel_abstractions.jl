@@ -88,7 +88,7 @@ end
 
 
 @kernel function for_each_cell_kernel(f, grid, y...)
-    I = @index(Global)
+    I = @index(Global, Cartesian)
     f(I, y...)
 end
 

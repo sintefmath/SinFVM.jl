@@ -3,8 +3,8 @@ using CUDA
 using Test
 
 for backend in get_available_backends()
-    nx = 10
-    ny = 9
+    nx = 64
+    ny = 32
     grid = SinSWE.CartesianGrid(nx, ny)
     @test SinSWE.compute_dx(grid, XDIR) == 1.0 / nx
     @test SinSWE.compute_dx(grid, YDIR) == 1.0 / ny
@@ -117,3 +117,6 @@ for backend in get_available_backends()
         end
     end
 end
+
+
+
