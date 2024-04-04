@@ -1,6 +1,5 @@
 
 
-
 struct ForwardEulerStepper <: TimeStepper
 end
 
@@ -45,5 +44,4 @@ function do_substep!(output, ts::TimeStepper, system::System, eq::ShallowWaterEq
     end
     return dt
 end
-
 
