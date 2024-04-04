@@ -61,17 +61,13 @@ current_timestep(simulator::Simulator) = simulator.current_timestep[1]
 
 function perform_step!(simulator::Simulator)
     for substep = 1:number_of_substeps(simulator.timestepper)
-        @assert substep + 1 == 2
-
-        # the line below needs fixing:
-
         timestep_computer(wavespeed) = simulator.cfl * compute_dx(simulator.grid) / wavespeed
         simulator.current_timestep[1] = do_substep!(
             simulator.substep_outputs[substep+1],
             simulator.timestepper,
             simulator.system,
             simulator.system.equation,
-            simulator.substep_outputs[substep],
+            simulator.substep_outputs,
             simulator.current_timestep[1],
             timestep_computer,
             substep
@@ -94,7 +90,7 @@ function simulate_to_time(
         desc="Simulating",
         dt=2.0,
     )
-    while t <= endtime
+    while t < endtime
         perform_step!(simulator)
         t += current_timestep(simulator)
         ProgressMeter.update!(prog, ceil(Int64, t / endtime * 100),

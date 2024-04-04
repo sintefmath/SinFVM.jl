@@ -5,8 +5,10 @@ end
 
 number_of_substeps(::ForwardEulerStepper) = 1
 
-function do_substep!(output, ::ForwardEulerStepper, system::System, current_state, dt, timestep_computer, substep_number)
+function do_substep!(output, ::ForwardEulerStepper, system::System, states, dt, timestep_computer, substep_number)
     # Reset to zero
+
+    current_state = states[substep_number]
     @fvmloop for_each_cell(system.backend, system.grid) do index
         output[index] = zero(output[index])
     end
