@@ -93,8 +93,8 @@ for backend in SinSWE.get_available_backends()
     
    @testset "lake_at_rest_$(backend_name(backend))" begin
 
-        test_lake_at_rest(backend, grid, B, 0.7, 1, plot=false)
-        test_lake_at_rest(backend, grid_bumpy, B_bumpy, 0.7, 1, plot=false)
+        test_lake_at_rest(backend, grid, B, 0.7, 0.01, plot=false)
+        test_lake_at_rest(backend, grid_bumpy, B_bumpy, 0.7, 0.01, plot=false)
    end
 end
 
@@ -104,4 +104,4 @@ end
 
 # v_st::Vector{SinSWE.SourceTerm} = [bst, rain, infl]
 # @show(v_st)
-#@show maximum(B)
+#@show maximum(B)  

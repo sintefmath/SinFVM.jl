@@ -45,7 +45,8 @@ function set_current_state!(simulator::Simulator, new_state)
         CUDA.@allowscalar current_interior_state(simulator)[:] = new_state
     elseif dimension(simulator.grid) == 2
         # TODO: Get it to work without allowscalar
-        CUDA.@allowscalar current_interior_state(simulator)[1:end, 1:end] = new_state
+        CUDA.@allowscalar current_interior_state(simulator)[:, :] = new_state
+        # CUDA.@allowscalar current_interior_state(simulator)[1:end, 1:end] = new_state
     else
         error("Unandled dimension")
     end

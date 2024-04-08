@@ -11,22 +11,32 @@ using SinSWE
 function run_swe_2d_pure_simulation(backend)
 
     backend_name = SinSWE.name(backend)
-    u0 = x -> @SVector[exp.(-(norm(x .- 0.5)^2 / 0.01)) .+ 1.5, 0.0, 0.0]
-    nx = 64
-    ny = 64
+    nx = 256
+    ny = 32
     grid = SinSWE.CartesianGrid(nx, ny; gc=2)
     
     equation = SinSWE.ShallowWaterEquationsPure()
-
     reconstruction = SinSWE.LinearReconstruction()
     numericalflux = SinSWE.CentralUpwind(equation)
 
     conserved_system =
         SinSWE.ConservedSystem(backend, reconstruction, numericalflux, equation, grid)
     timestepper = SinSWE.ForwardEulerStepper()
-    x = SinSWE.cell_centers(grid)
-    initial = u0.(x)
+    simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid)
     T = 0.05
+    
+    # Two ways for setting initial conditions:
+    # 1) Directly
+    x = SinSWE.cell_centers(grid)
+    u0 = x -> @SVector[exp.(-(norm(x .- 0.5)^2 / 0.01)) .+ 1.5, 0.0, 0.0]
+    initial = u0.(x)
+    SinSWE.set_current_state!(simulator, initial)
+    
+    # 2) Via volumes:
+    init_volume = SinSWE.Volume(backend, equation, grid)
+    CUDA.@allowscalar SinSWE.InteriorVolume(init_volume)[:, :] = [SVector{3, Float64}(exp.(-(norm(x .- 0.5)^2 / 0.01)) .+ 1.5, 0.0, 0.0) for x in x]
+    SinSWE.set_current_state!(simulator, init_volume)
+
 
     f = Figure(size=(1600, 1200), fontsize=24)
     names = [L"h", L"hu", L"hv"]
@@ -34,8 +44,6 @@ function run_swe_2d_pure_simulation(backend)
     axes = [[Axis(f[i, 2*j - 1], ylabel=L"y", xlabel=L"x", title="$(titles[j])\n$(names[i])") for i in 1:3 ] for j in 1:2]
     
     
-    simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid)
-    SinSWE.set_current_state!(simulator, initial)
     current_simulator_state = collect(SinSWE.current_state(simulator))
     @test !any(isnan.(current_simulator_state))
     
@@ -76,7 +84,7 @@ function run_swe_2d_pure_simulation(backend)
     xright = nx - xleft + 1
     ylower = Int(floor(ny/3))
     yupper = ny - ylower + 1
-    @show xleft, xright
+    # @show xleft, xright
 
     @test maximum(h[xleft,:] - h[xright,:]) ≈ 0 atol=tolerance
     @test maximum(h[:, ylower] - h[:, yupper]) ≈ 0 atol=tolerance
