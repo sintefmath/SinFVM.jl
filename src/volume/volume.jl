@@ -21,8 +21,8 @@ struct Volume{
             eltype(buffer),
             typeof(buffer),
             typeof(backend),
-            dimension(grid),
             number_of_conserved_variables(equation),
+            dimension(grid),
         }(
             buffer,
             grid,
@@ -40,8 +40,8 @@ struct Volume{
             eltype(data),
             typeof(data),
             Nothing,
-            dimension(grid),
             number_of_conserved_variables(EquationType),
+            dimension(grid),
         }(
             data,
             grid,
