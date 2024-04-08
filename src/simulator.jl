@@ -45,7 +45,7 @@ function set_current_state!(simulator::Simulator, new_state)
         CUDA.@allowscalar current_interior_state(simulator)[:] = new_state
     elseif dimension(simulator.grid) == 2
         # TODO: Get it to work without allowscalar
-        CUDA.@allowscalar current_interior_state(simulator)[:, :] = new_state
+        CUDA.@allowscalar current_interior_state(simulator)[1:end, 1:end] = new_state
     else
         error("Unandled dimension")
     end
@@ -61,7 +61,10 @@ current_timestep(simulator::Simulator) = simulator.current_timestep[1]
 
 function perform_step!(simulator::Simulator)
     for substep = 1:number_of_substeps(simulator.timestepper)
-        timestep_computer(wavespeed) = simulator.cfl * compute_dx(simulator.grid) / wavespeed
+        function timestep_computer(wavespeed) 
+            directional_dt = [compute_dx(simulator.grid, direction) / wavespeed[direction] for direction in directions(simulator.grid)]
+            return simulator.cfl * minimum(directional_dt)
+        end
         simulator.current_timestep[1] = do_substep!(
             simulator.substep_outputs[substep+1],
             simulator.timestepper,

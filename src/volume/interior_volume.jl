@@ -44,7 +44,7 @@ end
 
 function interior2full(grid::CartesianGrid{2}, index)
     nx = grid.totalcells[1]
-    nx_without_ghostcells = nx - grid.ghostcells[1]
+    nx_without_ghostcells = nx - 2 * grid.ghostcells[1]
     i = (index - 1) % nx_without_ghostcells
     j = (index - 1) ÷ nx_without_ghostcells
 
@@ -153,7 +153,7 @@ function Base.setindex!(vol::InteriorVolume, values::Container, indices::UnitRan
     end
 end
 
-function Base.setindex!(vol::InteriorVolume, values::Container, indices1::UnitRange{Int64}, indices2::UnitRange{Int64}) where {Container<:AbstractMatrix{<:AbstractVector}}
+function Base.setindex!(vol::InteriorVolume, values::Container, indices1::UnitRange{Int64}, indices2::UnitRange{Int64}) where {Container<:Union{Volume, AbstractMatrix{<:AbstractVector}}}
     # TODO: Move this for loop to the inner kernel...
     for variable_index in 1:number_of_variables(vol._volume)
         proper_volume = vol._volume
