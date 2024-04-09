@@ -32,7 +32,17 @@ for backend in SinSWE.get_available_backends()
 
     B1_bad_data = [x for x in SinSWE.cell_faces(grid)]
     @test_throws DomainError SinSWE.BottomTopography1D(B1_bad_data, backend, grid)
-    
+
+    atol = 10^-14
+    @test SinSWE.collect_topography_intersections(B1, grid; interior=false) == B1_data
+    @test SinSWE.collect_topography_intersections(B1, grid) == B1_data[3:end-2]
+    @test SinSWE.collect_topography_cells(B1, grid; interior=false) ≈ [x for x in SinSWE.cell_centers(grid, interior=false)] atol=atol
+    @test SinSWE.collect_topography_cells(B1, grid) ≈ [x for x in SinSWE.cell_centers(grid)] atol=atol
+
+    @test SinSWE.collect_topography_intersections(B_const, grid; interior=false) == [3.14 for x in SinSWE.cell_faces(grid, interior=false)]
+    @test SinSWE.collect_topography_intersections(B_const, grid) == [3.14 for x in SinSWE.cell_faces(grid, interior=true)]
+    @test SinSWE.collect_topography_cells(B_const, grid; interior=false) == [3.14 for x in SinSWE.cell_centers(grid, interior=false)] 
+    @test SinSWE.collect_topography_cells(B_const, grid) == [3.14 for x in SinSWE.cell_centers(grid)]
 end
 
 
@@ -70,8 +80,18 @@ for backend in get_available_backends()
     
     CUDA.@allowscalar @test SinSWE.B_face_right(bottom2d, 3, 4, XDIR) ≈ SinSWE.B_face_left( bottom2d, 4, 4, XDIR) atol=tol 
     CUDA.@allowscalar @test SinSWE.B_face_right(bottom2d, 4, 3, YDIR) ≈ SinSWE.B_face_left( bottom2d, 4, 4, YDIR) atol=tol 
+
+    atol = 10^-14
+    @test SinSWE.collect_topography_intersections(bottom2d, grid2D; interior=false) == B2_data
+    @test SinSWE.collect_topography_intersections(bottom2d, grid2D) == B2_data[3:end-2, 3:end-2]
+    @test SinSWE.collect_topography_cells(bottom2d, grid2D; interior=false) ≈ [x[1] + x[2] for x in SinSWE.cell_centers(grid2D, interior=false)] atol=atol
+    @test SinSWE.collect_topography_cells(bottom2d, grid2D) ≈ [x[1] + x[2] for x in SinSWE.cell_centers(grid2D)] atol=atol
+
+    @test SinSWE.collect_topography_intersections(B_const, grid2D; interior=false) == [3.14 for x in SinSWE.cell_faces(grid2D, interior=false)]
+    @test SinSWE.collect_topography_intersections(B_const, grid2D) == [3.14 for x in SinSWE.cell_faces(grid2D, interior=true)]
+    @test SinSWE.collect_topography_cells(B_const, grid2D; interior=false) == [3.14 for x in SinSWE.cell_centers(grid2D, interior=false)] 
+    @test SinSWE.collect_topography_cells(B_const, grid2D) == [3.14 for x in SinSWE.cell_centers(grid2D)]
+
 end
-
-
 
 

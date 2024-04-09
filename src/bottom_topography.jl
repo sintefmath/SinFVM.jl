@@ -83,3 +83,50 @@ B_face_right(B::BottomTopography2D, x, y, ::YDIRT) = 0.5*(B.B[x, y + 1] + B.B[x 
 B_cell(B::BottomTopography2D, I::CartesianIndex) = B_cell(B, I[1], I[2])
 B_face_left(B::BottomTopography2D, I::CartesianIndex, dir) = B_face_left(B, I[1], I[2], dir)
 B_face_right(B::BottomTopography2D, I::CartesianIndex, dir) = B_face_right(B, I[1], I[2], dir)
+
+
+# Collect all cell/face values
+function collect_topography_cells(B::ConstantBottomTopography, grid::CartesianGrid; interior=true)
+    dims = interior ? interior_size(grid) : size(grid)
+    return ones(dims)*B.B
+end
+function collect_topography_intersections(B::ConstantBottomTopography, grid::CartesianGrid; interior=true)
+    dims = interior ? interior_size(grid) .+1 : size(grid) .+1
+    return ones(dims)*B.B
+end
+
+function collect_topography_cells(B::BottomTopography1D, grid::CartesianGrid{1}; interior=true) 
+    topo_intersections = collect(B.B)
+    topo = 0.5.*(topo_intersections[1:end-1] + topo_intersections[2:end]) 
+    if interior
+        return topo[grid.ghostcells[1] + 1 : end - grid.ghostcells[1]]
+    else
+        return topo
+    end
+end
+function collect_topography_intersections(B::BottomTopography1D, grid::CartesianGrid{1}; interior=true)
+    if interior
+        return collect(B.B)[grid.ghostcells[1] + 1 : end - grid.ghostcells[1]]
+    else
+        return collect(B.B)
+    end
+end
+
+function collect_topography_cells(B::BottomTopography2D, grid::CartesianGrid{2}; interior=true) 
+    topo_intersections = collect(B.B)
+    topo_y = 0.5.*(topo_intersections[1:end-1, :] .+ topo_intersections[2:end, :]) 
+    topo = 0.5.*(topo_y[:, 1:end-1] .+ topo_y[:, 2:end]) 
+    if interior
+        return topo[grid.ghostcells[1] + 1 : end - grid.ghostcells[1], grid.ghostcells[2] + 1 : end - grid.ghostcells[2]]
+    else
+        return topo
+    end
+end
+
+function collect_topography_intersections(B::BottomTopography2D, grid::CartesianGrid{2}; interior=true)
+    if interior
+        return collect(B.B)[grid.ghostcells[1] + 1 : end - grid.ghostcells[1], grid.ghostcells[2] + 1 : end - grid.ghostcells[2]]
+    else
+        return collect(B.B)
+    end
+end
