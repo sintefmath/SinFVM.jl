@@ -202,14 +202,16 @@ function compare_swashes(sw::Swashes41x, nx, t)
     display(f)
 end
     
-function compare_swashes_in2d(sw::Swashes41x, nx, t; do_plot=true, backend=make_cpu_backend(), timestepper = SinSWE.ForwardEulerStepper())
+function compare_swashes_in2d(sw::Swashes41x, nx, t; 
+                              do_plot=true, do_test=true, 
+                              backend=make_cpu_backend(), timestepper = SinSWE.ForwardEulerStepper())
     extent = getExtent(sw)
     ny = 3
     grid_x = SinSWE.CartesianGrid(nx, ny; gc=2, boundary=SinSWE.WallBC(), extent=[extent[1] extent[2]; 0.0 5], )
     grid_y = SinSWE.CartesianGrid(ny, nx; gc=2, boundary=SinSWE.WallBC(), extent=[0.0 5; extent[1] extent[2]], )
     grid = SinSWE.CartesianGrid(nx; gc=2, boundary=SinSWE.WallBC(), extent=getExtent(sw), )
     eq_2D = SinSWE.ShallowWaterEquations(;depth_cutoff=10^-7, desingularizing_kappa=10^-7)
-    eq_1D = SinSWE.ShallowWaterEquations1D()
+    eq_1D = SinSWE.ShallowWaterEquations1D(;depth_cutoff=10^-7, desingularizing_kappa=10^-7)
     rec = SinSWE.LinearReconstruction(1.2)
     flux_2D = SinSWE.CentralUpwind(eq_2D)
     flux_1D = SinSWE.CentralUpwind(eq_1D)
@@ -294,16 +296,19 @@ function compare_swashes_in2d(sw::Swashes41x, nx, t; do_plot=true, backend=make_
         display(f)
     end
     
-    @test hv_x == zero(hv_x) 
-    @test hu_y == zero(hu_y)
+    if do_test
+        @test hv_x == zero(hv_x) 
+        @test hu_y == zero(hu_y)
 
-    @test v_y == u_x
-    @test h_y == h_x
-    @test u_1D == u_x
-    @test h_1D == h_x
-    
-    @test simulator_x.current_timestep[1] == simulator_y.current_timestep[1]
-    @test simulator_x.current_timestep[1] == simulator_1D.current_timestep[1]
+        @test v_y == u_x
+        @test h_y == h_x
+        @test u_1D == u_x
+        @test h_1D == h_x
+        
+        @test simulator_x.current_timestep[1] == simulator_1D.current_timestep[1]
+        @test simulator_x.current_timestep[1] == simulator_y.current_timestep[1]
+    end
+    return nothing
 end
 
 # plot_ref_solution(swashes411, grid, 0:2:10)
@@ -314,9 +319,11 @@ end
 println("\n\n")
 
 # compare_swashes(swashes412, 512, 2.0)
-# compare_swashes_in2d(swashes412, 32, 2.0; do_plot=true)
+#compare_swashes_in2d(swashes412, 512, 4.0; do_plot=true, do_test=true)
 
 
 for backend in SinSWE.get_available_backends()
     compare_swashes_in2d(swashes411, 512, 6.0; do_plot=false, backend=backend)
+    compare_swashes_in2d(swashes412, 512, 4.0; do_plot=false, backend=backend)
 end
+

@@ -70,11 +70,15 @@ function perform_step!(simulator::Simulator)
             simulator.substep_outputs[substep+1],
             simulator.timestepper,
             simulator.system,
-            simulator.system.equation,
             simulator.substep_outputs,
             simulator.current_timestep[1],
             timestep_computer,
             substep
+        )
+        post_proc_substep!(
+            simulator.substep_outputs[substep+1], 
+            simulator.system, 
+            simulator.system.equation
         )
         update_bc!(simulator, simulator.substep_outputs[substep+1])
     end
