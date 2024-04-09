@@ -31,5 +31,9 @@ function desingularize(eq::AllPracticalSWE, h, momentum)
 
     # Eq (26):
     h_star = copysign(1, h)*max(abs(h), min(h^2/(2*eq.desingularizing_kappa) + eq.desingularizing_kappa/2.0, eq.desingularizing_kappa))
+    # h_star = sign(h)*max(abs(h), min(h^2/(2*eq.desingularizing_kappa) + eq.desingularizing_kappa/2.0, eq.desingularizing_kappa))
+    # if h < 0.0
+    #     h_star = 0.5*eq.desingularizing_kappa
+    # end
     return momentum/h_star
 end
