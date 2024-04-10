@@ -53,17 +53,20 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
     @fvmloop for_each_inner_cell(backend, grid, direction; ghostcells=1) do ileft, imiddle, iright
         # 1) Obtain slope of (w, hu)
         slope = minmod_slope.(input_conserved[ileft], input_conserved[imiddle], input_conserved[iright], linRec.theta)
+        B_left = B_face_left(eq.B, imiddle, direction)
+        B_right = B_face_right(eq.B, imiddle, direction)
+        w = w_input[imiddle]
 
         # 2) Adjust slope of water
-        if (w_input[imiddle] - 0.5 * slope[1] < B_face_left(eq.B, imiddle, direction))
+        if (w - 0.5 * slope[1] < B_left)
             # Negative h on left face
             #TODO: uncomment and fix
-            slope = fix_slope(slope, 2.0 * (w_input[imiddle] - B_face_left(eq.B, imiddle, direction)), eq)
+            slope = fix_slope(slope, 2.0 * (w - B_left), eq)
             #slope[1] = 2.0*(w_input[imiddle] - eq.B[imiddle])
-        elseif (w_input[imiddle] + 0.5 * slope[1] < B_face_right(eq.B, imiddle, direction))
+        elseif (w + 0.5 * slope[1] < B_right)
             # Negative h on right face
             #TODO:uncomment and fix
-            slope = fix_slope(slope, 2.0 * (B_face_right(eq.B, imiddle, direction) - w_input[imiddle]), eq)
+            slope = fix_slope(slope, 2.0 * (B_right - w), eq)
             #slope[1] = 2.0*(eq.B[imiddle] - w_input[imiddle])
         end
 
@@ -72,8 +75,8 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
         output_right[imiddle] = input_conserved[imiddle] .+ 0.5 .* slope
 
         # 4) Return face values (h, hu)
-        h_left[imiddle] -= B_face_left(eq.B, imiddle, direction)
-        h_right[imiddle] -= B_face_right(eq.B, imiddle, direction)
+        h_left[imiddle] -= B_left
+        h_right[imiddle] -= B_right
     end
     nothing
 end
