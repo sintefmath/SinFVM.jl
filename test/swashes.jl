@@ -141,7 +141,8 @@ function get_reference_solution(sw::Swashes421, grid::CartesianGrid, t, eq::SinS
         B_right = b(x + 0.5*dx)
         B_center = 0.5*(B_left + B_right)
         # return get_h(x) + B_center
-        return get_h(x) + b(x)
+        w = max(get_h(x) + B_center, B_center)
+        return w
     end
     function get_u(x)
         if x < x1 || x > x2
