@@ -6,17 +6,20 @@ B_const_default = SinSWE.ConstantBottomTopography()
 @test SinSWE.B_cell(B_const_default, 45) == 0
 @test SinSWE.B_face_left(B_const_default, 45, 12) == 0
 @test SinSWE.B_face_right(B_const_default, 45) == 0
+@test SinSWE.is_zero(B_const_default)
 
 B_const = SinSWE.ConstantBottomTopography(3.14)
 @test B_const.B == 3.14
 @test SinSWE.B_cell(B_const, 45) == 3.14
 @test SinSWE.B_face_left(B_const, 45, 12) == 3.14
 @test SinSWE.B_face_right(B_const, 45) == 3.14
+@test !SinSWE.is_zero(B_const)
 
 nx = 10
 grid = SinSWE.CartesianGrid(nx; gc=2, extent=[0.0  10] )
 
 B1_data = [x for x in SinSWE.cell_faces(grid, interior=false)]
+B1_data_zero = [0.0 for x in SinSWE.cell_faces(grid, interior=false)]
 # @show(B1_data)
 
 for backend in SinSWE.get_available_backends()
@@ -43,6 +46,10 @@ for backend in SinSWE.get_available_backends()
     @test SinSWE.collect_topography_intersections(B_const, grid) == [3.14 for x in SinSWE.cell_faces(grid, interior=true)]
     @test SinSWE.collect_topography_cells(B_const, grid; interior=false) == [3.14 for x in SinSWE.cell_centers(grid, interior=false)] 
     @test SinSWE.collect_topography_cells(B_const, grid) == [3.14 for x in SinSWE.cell_centers(grid)]
+
+    B1_zero = SinSWE.BottomTopography1D(B1_data_zero, backend, grid)
+    @test SinSWE.is_zero(B1_zero)
+    @test !SinSWE.is_zero(B1)
 end
 
 
@@ -54,6 +61,7 @@ grid2D = SinSWE.CartesianGrid(nx, ny; gc=2, extent=[0.0 12.0; 0.0 20.0])
 intersections = SinSWE.cell_faces(grid2D, interior=false)
 #@show intersections
 B2_data = zeros(nx + 5, ny + 5)
+B2_data_zero = zeros(nx + 5, ny + 5)
 for i in range(1,nx+5)
     for j in range(1, ny+5)
         B2_data[i, j] = intersections[i,j][1] + intersections[i,j][2]
@@ -92,6 +100,7 @@ for backend in get_available_backends()
     @test SinSWE.collect_topography_cells(B_const, grid2D; interior=false) == [3.14 for x in SinSWE.cell_centers(grid2D, interior=false)] 
     @test SinSWE.collect_topography_cells(B_const, grid2D) == [3.14 for x in SinSWE.cell_centers(grid2D)]
 
+    bottom2d_zero = SinSWE.BottomTopography2D(B2_data_zero, backend, grid2D)
+    @test SinSWE.is_zero(bottom2d_zero)
+    @test !SinSWE.is_zero(bottom2d)
 end
-
-

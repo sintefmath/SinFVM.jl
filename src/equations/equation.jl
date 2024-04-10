@@ -37,3 +37,21 @@ function desingularize(eq::AllPracticalSWE, h, momentum)
     # end
     return momentum/h_star
 end
+
+
+
+function is_compatible(eq::Equation, source_terms::Vector)
+    nothing
+end
+
+function is_compatible(eq::AllPracticalSWE, source_terms::Vector)
+    if is_zero(eq.B) 
+        return nothing 
+    end
+    for source_term in source_terms
+        if typeof(source_term) == SourceTermBottom
+            return nothing
+        end
+    end
+    throw(ArgumentError("Found non-zero bottom topography in equation, but no corresponding source term. Did you forget to add a source term to your system?"))
+end

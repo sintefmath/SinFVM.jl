@@ -61,6 +61,8 @@ function validate_bottom_topography(B, grid::Grid)
     end
 end
 
+is_zero(B::AbstractBottomTopography) = all(B.B .== 0.0)
+
 # Lookup for ConstantBottomTopography
 B_cell(B::ConstantBottomTopography, i...) = B.B
 B_face_left(B::ConstantBottomTopography, i...) = B.B
