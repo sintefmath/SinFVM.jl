@@ -17,9 +17,8 @@ abstract type Swashes1D <:Swashes end
 abstract type Swashes41x <: Swashes1D end
 
 # Other useful tests:
-# struct Swashes421 <: Swashes1D end
-# abstract struct Swashes2D <: Swashes end
-# struct Swashes422 <: Swashes2D end
+abstract type Swashes2D <: Swashes end
+abstract type Swashes422x <: Swashes2D end
 
 
 struct Swashes411 <: Swashes41x
@@ -65,9 +64,48 @@ struct Swashes421 <: Swashes1D
     ) = new(a, L, g, h0, period, offset, id, name)
 end
 
-function getExtent(sw::Swashes1D)
-    return [0.0  sw.L]
+struct Swashes422a <: Swashes422x
+    a::Float64
+    L::Float64
+    g::Float64
+    h0::Float64
+    r0::Float64
+    ω::Float64
+    period::Float64
+    A::Float64
+    offset::Float64
+    id::String
+    name::String
+    function Swashes422a(;a=1.0, L=4.0, g=9.81, h0=0.1, r0=0.8, offset=0.0,
+                id="4.2.2.a", name="2D radially-symmetrical paraboloid")
+        ω = sqrt(8*g*h0)/a
+        period = 3*2*pi/ω
+        A = (a^2 - r0^2)/(a^2 + r0^2)
+        return new(a, L, g, h0, r0, ω, period, A, offset, id, name)
+    end
 end
+
+struct Swashes422b <: Swashes422x
+    a::Float64
+    L::Float64
+    g::Float64
+    h0::Float64
+    η::Float64
+    ω::Float64
+    period::Float64
+    offset::Float64
+    id::String
+    name::String
+    function Swashes422b(;a=1.0, L=4.0, g=9.81, h0=0.1, η=0.5, offset=0.0,
+                id="4.2.2.b", name="2D planar surface in a paraboloid")
+        omega = sqrt(8*g*h0)/a
+        period = 3*2*π/omega
+        return new(a, L, g, h0, η, omega, period, offset, id, name)
+    end
+end
+
+getExtent(sw::Swashes1D) = [0.0  sw.L]
+getExtent(sw::Swashes2D) = [0.0  sw.L; 0.0 sw.L]
 
 function get_reference_solution(sw::Swashes41x, grid::CartesianGrid, t, eq::SinSWE.AllPracticalSWE=SinSWE.ShallowWaterEquations1D(), backend=SinSWE.make_cpu_backend(); dir=1, dim=1)
     xA = sw.x0 - t*sqrt(sw.g*sw.hl)
@@ -122,12 +160,13 @@ function get_reference_solution(sw::Swashes41x, grid::CartesianGrid, t, eq::SinS
     end
 end
 
+
+
 function get_reference_solution(sw::Swashes421, grid::CartesianGrid, t, eq::SinSWE.AllPracticalSWE=SinSWE.ShallowWaterEquations1D(), backend=SinSWE.make_cpu_backend(); momentum=true, dir=1, dim=1)
     B = sqrt(2.0*sw.g*sw.h0)/(2.0*sw.a)
     x1 = -0.5*cos(2*B*t) - sw.a + sw.L/2.0
     x2 = -0.5*cos(2*B*t) + sw.a + sw.L/2.0
     dx = SinSWE.compute_dx(grid)
-    b = x -> sw.h0*((1/sw.a^2)*(x - sw.L/2.0)^2 - 1.0) + sw.offset
     function get_h(x)
         if x < x1 || x > x2
             return 0.0
@@ -137,8 +176,8 @@ function get_reference_solution(sw::Swashes421, grid::CartesianGrid, t, eq::SinS
         return -sw.h0*((term1 + term2)^2 - 1)
     end
     function get_w(x)
-        B_left  = b(x - 0.5*dx)
-        B_right = b(x + 0.5*dx)
+        B_left  = b_value(sw, x - 0.5*dx)
+        B_right = b_value(sw, x + 0.5*dx)
         B_center = 0.5*(B_left + B_right)
         # return get_h(x) + B_center
         w = max(get_h(x) + B_center, B_center)
@@ -165,21 +204,97 @@ function get_reference_solution(sw::Swashes421, grid::CartesianGrid, t, eq::SinS
 end
 
 
+function get_reference_solution(sw::Swashes422a, grid::CartesianGrid, t, eq::ShallowWaterEquations=SinSWE.ShallowWaterEquations2D(), backend=SinSWE.make_cpu_backend())
+    h_term1 = (sqrt(1 - sw.A^2)/(1 - sw.A*cos(sw.ω*t))) - 1.0
+    h_term2 = ((1 - sw.A^2)/(1 - sw.A*cos(sw.ω*t))^2) - 1.0
+    velocity_term = (1.0/(1 - sw.A*cos(sw.ω*t)))*(0.5*sw.ω*sw.A*sin(sw.ω*t))
+    dx = SinSWE.compute_dx(grid)
+    dy = SinSWE.compute_dx(grid)
+    function get_B_cell(x, y)
+        return 0.25*(b_value(sw, sw_r(sw, x - 0.5*dx, y - 0.5*dy)) +  
+                     b_value(sw, sw_r(sw, x - 0.5*dx, y + 0.5*dy)) +
+                     b_value(sw, sw_r(sw, x + 0.5*dx, y - 0.5*dy)) +  
+                     b_value(sw, sw_r(sw, x + 0.5*dx, y + 0.5*dy)))
+    end
+    function get_w(x, y)
+        r = sw_r(sw, x, y)
+        w = sw.h0*(h_term1 - (r^2/sw.a^2)*h_term2)
+        return max(w, get_B_cell(x, y))
+    end
+    function get_h(x, y)
+        return get_w(x, y) - get_B_cell(x, y)        
+    end
+    function get_hu(x, y)
+        return velocity_term*(x - sw.L/2.0)*get_h(x, y)
+    end
+    function get_hv(x, y)
+        return velocity_term*(y - sw.L/2.0)*get_h(x, y)
+    end
+    all_x = SinSWE.cell_centers(grid)
+    ref_state = SinSWE.Volume(backend, eq, grid)
+    CUDA.@allowscalar SinSWE.InteriorVolume(ref_state)[:] = [SVector{3, Float64}(get_w(x[1], x[2]), get_hu(x[1], x[2]), get_hv(x[1], x[2])) for x in all_x]
+    return ref_state   
+end
+
+function get_reference_solution(sw::Swashes422b, grid::CartesianGrid, t, eq::ShallowWaterEquations=SinSWE.ShallowWaterEquations2D(), backend=SinSWE.make_cpu_backend())
+    cos_term = cos(sw.ω*t)
+    sin_term = sin(sw.ω*t)
+    u = -sw.η*sw.ω*sin_term
+    v =  sw.η*sw.ω*cos_term
+    dx = SinSWE.compute_dx(grid)
+    dy = SinSWE.compute_dx(grid)
+    function get_B_cell(x, y)
+        return 0.25*(b_value(sw, sw_r(sw, x - 0.5*dx, y - 0.5*dy)) +  
+                     b_value(sw, sw_r(sw, x - 0.5*dx, y + 0.5*dy)) +
+                     b_value(sw, sw_r(sw, x + 0.5*dx, y - 0.5*dy)) +  
+                     b_value(sw, sw_r(sw, x + 0.5*dx, y + 0.5*dy)))
+    end
+    function get_w(x, y)
+        w = (sw.η*sw.h0/sw.a^2)*(2*(x - sw.L/2.0)*cos_term + 2*(y - sw.L/2.0)*sin_term - sw.η)
+        return max(w, get_B_cell(x, y))
+    end
+    function get_h(x, y)
+        return get_w(x, y) - get_B_cell(x, y)        
+    end
+    function get_hu(x, y)
+        return u*get_h(x, y)
+    end
+    function get_hv(x, y)
+        return v*get_h(x, y)
+    end
+    all_x = SinSWE.cell_centers(grid)
+    ref_state = SinSWE.Volume(backend, eq, grid)
+    CUDA.@allowscalar SinSWE.InteriorVolume(ref_state)[:] = [SVector{3, Float64}(get_w(x[1], x[2]), get_hu(x[1], x[2]), get_hv(x[1], x[2])) for x in all_x]
+    return ref_state   
+end
+
+
+sw_r(sw::Swashes422x, x, y) = sqrt((x - sw.L/2)^2 + (y - sw.L/2)^2)
+
 function get_bottom_topography(::Swashes, ::CartesianGrid, backend)
     return SinSWE.ConstantBottomTopography()
 end
 
+b_value(sw::Swashes421, x) = sw.h0*((1/sw.a^2)*(x - sw.L/2.0)^2 - 1.0) + sw.offset
 function get_bottom_topography(sw::Swashes421, grid::CartesianGrid, backend)
-    b = x -> sw.h0*((1/sw.a^2)*(x - sw.L/2.0)^2 - 1.0) + sw.offset
-    B_data = [b(x) for x in SinSWE.cell_faces(grid, interior=false)]
+    # b = x -> sw.h0*((1/sw.a^2)*(x - sw.L/2.0)^2 - 1.0) + sw.offset
+    B_data = [b_value(sw, x) for x in SinSWE.cell_faces(grid, interior=false)]
     return SinSWE.BottomTopography1D(B_data, backend, grid)
 end
 
-    
+b_value(sw::Swashes422x, r) = -sw.h0*(1 - (r^2/sw.a^2))
+function get_bottom_topography(sw::Swashes422x, grid::CartesianGrid{2}, backend)
+    # b = (r) -> -sw.h0*(1 - (r^2/sw.a^2))
+    B_data = [b_value(sw, sw_r(sw, x[1], x[2])) for x in SinSWE.cell_faces(grid, interior=false)]
+    return SinSWE.BottomTopography2D(B_data, backend, grid)
+end   
 
 
-function get_initial_conditions(sw::Swashes, grid, eq::SinSWE.AllPracticalSWE, backend; dir=1, dim=1)
+function get_initial_conditions(sw::Swashes1D, grid, eq::SinSWE.AllPracticalSWE, backend; dir=1, dim=1)
     return get_reference_solution(sw, grid, 0.0, eq, backend; dir=dir, dim=dim)
+end
+function get_initial_conditions(sw::Swashes2D, grid, eq::SinSWE.AllPracticalSWE, backend)
+    return get_reference_solution(sw, grid, 0.0, eq, backend)
 end
 
 function plot_ref_solution(sw::Swashes1D, nx, T)
