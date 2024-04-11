@@ -30,6 +30,10 @@ for j in 1:(ny)
     end
 end
 
+@test x_faces == SinSWE.cell_faces(grid, XDIR)
+@test y_faces == SinSWE.cell_faces(grid, YDIR)
+@test x_cellcenters == SinSWE.cell_centers(grid, XDIR)
+@test y_cellcenters == SinSWE.cell_centers(grid, YDIR)
 
 faces_gc = SinSWE.cell_faces(grid, interior=false)
 @test faces_gc[3:end-2, 3:end-2] ≈ faces_from_grid atol = 10^-14 # Got machine epsilon round-off errors
