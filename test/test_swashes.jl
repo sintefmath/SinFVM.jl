@@ -49,7 +49,7 @@ function compare_swashes(sw::Swashes41x, nx, t)
     lines!(ax_h, x, collect(ref_sol.h), label="swashes")
     lines!(ax_u, x, collect(ref_sol.hu), label="swashes")
 
-    
+    @show SinSWE.current_timestep(simulator)
     our_sol = SinSWE.current_interior_state(simulator)
     hu = collect(our_sol.hu)
     h  = collect(our_sol.h) 
@@ -144,6 +144,7 @@ function compare_swashes(sw::Swashes421, nx, t)
 
     SinSWE.simulate_to_time(simulator, t)
     #SinSWE.simulate_to_time(simulator, 0.000001)
+    @show SinSWE.current_timestep(simulator)
 
     plot_simulator_state(simulator)
     # return nothing
@@ -220,11 +221,11 @@ function compare_swashes_in2d(sw::Swashes41x, nx, t;
     SinSWE.set_current_state!(simulator_1D, initial_1D)
    
     println("2D x-direction,  grid: [512, 3]")
-    @time SinSWE.simulate_to_time(simulator_x, t, show_progress=false)
+    @time SinSWE.simulate_to_time(simulator_x, t, show_progress=true)
     println("2D y-direction,  grid: [3, 512]")
-    @time SinSWE.simulate_to_time(simulator_y, t, show_progress=false)
+    @time SinSWE.simulate_to_time(simulator_y, t, show_progress=true)
     println("1D med 512 celler")
-    @time SinSWE.simulate_to_time(simulator_1D, t, show_progress=false)
+    @time SinSWE.simulate_to_time(simulator_1D, t, show_progress=true)
     #SinSWE.simulate_to_time(simulator, 0.000001)
 
     
@@ -295,6 +296,9 @@ function compare_swashes_in2d(sw::Swashes41x, nx, t;
         @test simulator_x.current_timestep[1] == simulator_1D.current_timestep[1]
         @test simulator_x.current_timestep[1] == simulator_y.current_timestep[1]
     end
+    @show simulator_x.current_timestep[1] 
+    @show simulator_y.current_timestep[1] 
+    @show simulator_1D.current_timestep[1]
     return nothing
 end
 
@@ -308,17 +312,16 @@ nx = 512
 # plot_ref_solution(swashes412, nx, 0:2:10)
 # plot_ref_solution(swashes421, nx, 0:1:5)
 
-#  compare_swashes(swashes411, nx, 8.0)
+# compare_swashes(swashes411, nx, 8.0)
 # compare_swashes(swashes412, nx, 6.0)
-compare_swashes(swashes421, nx, swashes421.period*5)
+# compare_swashes(swashes421, nx, swashes421.period*1)
 # println("\n\n")
 
 # compare_swashes(swashes412, nx, 2.0)
 # compare_swashes_in2d(swashes412, nx, 4.0; do_plot=true, do_test=true, timestepper=SinSWE.RungeKutta2())
 
 
-# for backend in SinSWE.get_available_backends()
-#     compare_swashes_in2d(swashes411, nx, 6.0; do_plot=false, backend=backend)
-#     compare_swashes_in2d(swashes412, nx, 4.0; do_plot=false, backend=backend)
-# end
-
+for backend in SinSWE.get_available_backends()
+    compare_swashes_in2d(swashes411, nx, 6.0; do_plot=false, backend=backend)
+    compare_swashes_in2d(swashes412, nx, 4.0; do_plot=false, backend=backend)
+end
