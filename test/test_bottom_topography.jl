@@ -60,13 +60,14 @@ ny = 2
 grid2D = SinSWE.CartesianGrid(nx, ny; gc=2, extent=[0.0 12.0; 0.0 20.0])
 intersections = SinSWE.cell_faces(grid2D, interior=false)
 #@show intersections
-B2_data = zeros(nx + 5, ny + 5)
+# B2_data = zeros(nx + 5, ny + 5)
 B2_data_zero = zeros(nx + 5, ny + 5)
-for i in range(1,nx+5)
-    for j in range(1, ny+5)
-        B2_data[i, j] = intersections[i,j][1] + intersections[i,j][2]
-    end
-end
+# for i in range(1,nx+5)
+#     for j in range(1, ny+5)
+#         B2_data[i, j] = intersections[i,j][1] + intersections[i,j][2]
+#     end
+# end
+B2_data = [x[1] + x[2] for x in SinSWE.cell_faces(grid2D, interior=false)]
 
 tol = 10^-10
 for backend in get_available_backends()
@@ -104,3 +105,4 @@ for backend in get_available_backends()
     @test SinSWE.is_zero(bottom2d_zero)
     @test !SinSWE.is_zero(bottom2d)
 end
+
