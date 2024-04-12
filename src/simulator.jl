@@ -39,6 +39,9 @@ current_interior_state(simulator::Simulator) =
 
 
 function set_current_state!(simulator::Simulator, new_state)
+    # TODO: Implement validation:
+    # validate_state(new_state, simulator.grid) # Throw expection if dimensions of state don't match dimension of grid
+    # validate_state!(new_state, simulator.equation) # Ensure that we don't initialize negative water depth
     # TODO: By adding the : operator to a normal volume in 2d, this should work with one line...
     if dimension(simulator.grid) == 1
         # TODO: Get it to work without allowscalar
