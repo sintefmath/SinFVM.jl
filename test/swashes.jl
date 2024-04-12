@@ -98,7 +98,7 @@ struct Swashes422b <: Swashes422x
     name::String
     function Swashes422b(;a=1.0, L=4.0, g=9.81, h0=0.1, η=0.5, offset=0.0,
                 id="4.2.2.b", name="2D planar surface in a paraboloid")
-        omega = sqrt(8*g*h0)/a
+        omega = sqrt(2*g*h0)/a
         period = 3*2*π/omega
         return new(a, L, g, h0, η, omega, period, offset, id, name)
     end

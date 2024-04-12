@@ -28,6 +28,16 @@ function compare_swashes(sw::Swashes2D, t_periods, nx, ny=nx; cross_sec=0.5)
     @time SinSWE.simulate_to_time(simulator, t)
     plot_crossection(sw, simulator, t, cross_sec)
     # plot_surfaces(sw, simulator, t)
+
+    initial_interior = SinSWE.InteriorVolume(initial)
+    init_h = collect(initial_interior.h)
+    our_h = collect(SinSWE.current_interior_state(simulator).h)
+    b_cells = SinSWE.collect_topography_cells(eq.B, grid; interior=true)
+
+    @show sum(our_h - b_cells)
+    @show sum(init_h - b_cells)
+    @show sum(our_h - b_cells) - sum(init_h - b_cells)
+    nothing
 end
 
 function plot_crossection(sw::Swashes2D, simulator, t, cross_sec)
@@ -134,5 +144,5 @@ swashes422b = Swashes422b()
 
 nx = 128
 
-# compare_swashes(swashes422a, 0.4, nx; cross_sec=0.3)
-compare_swashes(swashes422b, 0.05, nx, cross_sec=0.55)
+# compare_swashes(swashes422a, 1, nx; cross_sec=0.3)
+compare_swashes(swashes422b, 1, nx, cross_sec=0.5)
