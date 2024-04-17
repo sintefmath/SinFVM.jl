@@ -3,14 +3,14 @@ using StaticArrays
 
 
 using SinSWE
-function run_simulation(T, backend, equation, grid; elevate=0.0)
+function run_simulation(T, backend, equation, grid; elevate=0.0, source_terms = [])
 
     u0 = x -> @SVector[exp.(-(x - 0.5)^2 / 0.001) .+ 1.5 .+ elevate, 0.0 .* x]
     
     reconstruction = SinSWE.LinearReconstruction(1.05)
     numericalflux = SinSWE.CentralUpwind(equation)
     timestepper = SinSWE.ForwardEulerStepper()
-    conserved_system = SinSWE.ConservedSystem(backend, reconstruction, numericalflux, equation, grid)
+    conserved_system = SinSWE.ConservedSystem(backend, reconstruction, numericalflux, equation, grid, source_terms)
     simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid, cfl=0.2)
     
     x = SinSWE.cell_centers(grid)
@@ -80,6 +80,7 @@ end
 # Test the same setup but with +1 for both B and w_initial
 B_const = 1.0
 B_field = Float64[1.0 for x in SinSWE.cell_faces(grid, interior=false)]
+source_terms = [SinSWE.SourceTermBottom()]
 #for backend in SinSWE.get_available_backends()
 for backend in [SinSWE.make_cpu_backend()]
     for B in [SinSWE.ConstantBottomTopography(B_const),
@@ -87,7 +88,7 @@ for backend in [SinSWE.make_cpu_backend()]
         test_name = get_test_name(backend, B)
         eq = SinSWE.ShallowWaterEquations1D(B)
         @testset "$(test_name)" begin
-            sol = run_simulation(T, backend, eq, grid; elevate=1.0)
+            sol = run_simulation(T, backend, eq, grid; elevate=1.0, source_terms=source_terms)
             #@show test_name
             abs_diff_h  = sum(abs.((collect(ref_sol.h)) - (collect(sol.h) .-1 )))
             abs_diff_hu = sum(abs.(collect(ref_sol.hu) - collect(sol.hu))) 
