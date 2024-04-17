@@ -16,12 +16,14 @@ function runonbackend(backend::SinSWE.CPUBackend, grid, numericalflux, input_eva
     end
 end
 
-u0 = x -> @SVector[exp.(-(x - 0.5)^2 / 0.001) .*0, 0.0 .* x]
-nx = 8
-grid = SinSWE.CartesianGrid(nx; gc=2)
+
 
 #backend = make_cuda_backend()
-for backend in SinSWE.get_available_backends() # make_cpu_backend()
+for backend in SinSWE.get_available_backends() 
+
+    u0 = x -> @SVector[exp.(-(x - 0.5)^2 / 0.001) .*0, 0.0 .* x]
+    nx = 8
+    grid = SinSWE.CartesianGrid(nx; gc=2)
     equation = SinSWE.ShallowWaterEquations1D()
     output_eval_equation = SinSWE.Volume(backend, equation, grid)
 

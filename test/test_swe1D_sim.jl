@@ -49,15 +49,15 @@ function get_test_name(backend, B::SinSWE.AbstractBottomTopography)
     return B_name * " " * backend_name
 end
 
-nx = 1024  
-grid = SinSWE.CartesianGrid(nx; gc=2)
-T = 0.05
-
-ref_backend = make_cpu_backend()
-ref_eq = SinSWE.ShallowWaterEquations1DPure()
-ref_sol = run_simulation(T, ref_backend, ref_eq, grid)
-
 for backend in SinSWE.get_available_backends()
+    nx = 1024  
+    grid = SinSWE.CartesianGrid(nx; gc=2)
+    T = 0.05
+
+    ref_backend = make_cpu_backend()
+    ref_eq = SinSWE.ShallowWaterEquations1DPure()
+    ref_sol = run_simulation(T, ref_backend, ref_eq, grid)
+
     for eq in [SinSWE.ShallowWaterEquations1DPure(), 
                SinSWE.ShallowWaterEquations1D()]
         test_name = get_test_name(backend, eq)
@@ -75,30 +75,29 @@ for backend in SinSWE.get_available_backends()
              @test abs_diff_hu ≈ 0 atol = 10^-7
         end
     end
-end
 
-# Test the same setup but with +1 for both B and w_initial
-B_const = 1.0
-B_field = Float64[1.0 for x in SinSWE.cell_faces(grid, interior=false)]
-source_terms = [SinSWE.SourceTermBottom()]
-#for backend in SinSWE.get_available_backends()
-for backend in [SinSWE.make_cpu_backend()]
-    for B in [SinSWE.ConstantBottomTopography(B_const),
-              SinSWE.BottomTopography1D(B_field, backend, grid)]
-        test_name = get_test_name(backend, B)
-        eq = SinSWE.ShallowWaterEquations1D(B)
-        @testset "$(test_name)" begin
-            sol = run_simulation(T, backend, eq, grid; elevate=1.0, source_terms=source_terms)
-            #@show test_name
-            abs_diff_h  = sum(abs.((collect(ref_sol.h)) - (collect(sol.h) .-1 )))
-            abs_diff_hu = sum(abs.(collect(ref_sol.hu) - collect(sol.hu))) 
-            # @show abs_diff_h
-            # @show abs_diff_hu
-            #if abs_diff_h > 10^-6
-                # plot_sols(ref_sol, sol, grid, test_name)
-            #end
-             @test abs_diff_h  ≈ 0 atol = 10^-6
-             @test abs_diff_hu ≈ 0 atol = 10^-6
+    if backend isa SinSWE.CPUBackend
+        # Test the same setup but with +1 for both B and w_initial
+        B_const = 1.0
+        B_field = Float64[1.0 for x in SinSWE.cell_faces(grid, interior=false)]
+        source_terms = [SinSWE.SourceTermBottom()]
+        for B in [SinSWE.ConstantBottomTopography(B_const),
+                SinSWE.BottomTopography1D(B_field, backend, grid)]
+            test_name = get_test_name(backend, B)
+            eq = SinSWE.ShallowWaterEquations1D(B)
+            @testset "$(test_name)" begin
+                sol = run_simulation(T, backend, eq, grid; elevate=1.0, source_terms=source_terms)
+                #@show test_name
+                abs_diff_h  = sum(abs.((collect(ref_sol.h)) - (collect(sol.h) .-1 )))
+                abs_diff_hu = sum(abs.(collect(ref_sol.hu) - collect(sol.hu))) 
+                # @show abs_diff_h
+                # @show abs_diff_hu
+                #if abs_diff_h > 10^-6
+                    # plot_sols(ref_sol, sol, grid, test_name)
+                #end
+                @test abs_diff_h  ≈ 0 atol = 10^-6
+                @test abs_diff_hu ≈ 0 atol = 10^-6
+            end
         end
     end
 end

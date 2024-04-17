@@ -302,12 +302,6 @@ function compare_swashes_in2d(sw::Swashes41x, nx, t;
     return nothing
 end
 
-
-swashes411 = Swashes411()
-swashes412 = Swashes412()
-swashes421 = Swashes421(offset=0.3)
-
-nx = 512
 # plot_ref_solution(swashes411, nx, 0:2:10)
 # plot_ref_solution(swashes412, nx, 0:2:10)
 # plot_ref_solution(swashes421, nx, 0:1:5)
@@ -322,6 +316,11 @@ nx = 512
 
 
 for backend in SinSWE.get_available_backends()
+    swashes411 = Swashes411()
+    swashes412 = Swashes412()
+    swashes421 = Swashes421(offset=0.3)
+
+    nx = 512
     compare_swashes_in2d(swashes411, nx, 6.0; do_plot=false, backend=backend)
     compare_swashes_in2d(swashes412, nx, 4.0; do_plot=false, backend=backend)
 end

@@ -75,23 +75,21 @@ function test_lake_at_rest(backend, grid, B_data, w0, t=0.001; plot=true)
     @test maximum(abs.(w[1] - w0)) ≈ 0.0 atol=10^-14
 end
 
-nx = 64
-ny = 64
-grid = SinSWE.CartesianGrid(nx, ny; gc=2, boundary=SinSWE.WallBC(), extent=[0.0  10.0; 0.0 10.0], )
-x0 = 5.0
-y0 = 5.0
-B = [x[1] < x0 && x[2] < y0 ? 0.45 : 0.55 for x in SinSWE.cell_faces(grid, interior=false)]
-
-nx_bumpy = 124
-ny_bumpy = 124
-grid_bumpy = SinSWE.CartesianGrid(nx_bumpy, ny_bumpy; gc=2, boundary=SinSWE.WallBC(), extent=[-2*pi  2*pi; -2*pi 2*pi], )
-B_bumpy = [(cos(x[1] + x[2])-0.5 - 1.5*(norm(x) < 1.0)) for x in SinSWE.cell_faces(grid_bumpy, interior=false)]
-
-backend_name(be) = split(match(r"{(.*?)}", string(typeof(be)))[1], '.')[end]
 
 for backend in SinSWE.get_available_backends()
-    
-   @testset "lake_at_rest_$(backend_name(backend))" begin
+    nx = 64
+    ny = 64
+    grid = SinSWE.CartesianGrid(nx, ny; gc=2, boundary=SinSWE.WallBC(), extent=[0.0  10.0; 0.0 10.0], )
+    x0 = 5.0
+    y0 = 5.0
+    B = [x[1] < x0 && x[2] < y0 ? 0.45 : 0.55 for x in SinSWE.cell_faces(grid, interior=false)]
+
+    nx_bumpy = 124
+    ny_bumpy = 124
+    grid_bumpy = SinSWE.CartesianGrid(nx_bumpy, ny_bumpy; gc=2, boundary=SinSWE.WallBC(), extent=[-2*pi  2*pi; -2*pi 2*pi], )
+    B_bumpy = [(cos(x[1] + x[2])-0.5 - 1.5*(norm(x) < 1.0)) for x in SinSWE.cell_faces(grid_bumpy, interior=false)]
+
+   @testset "lake_at_rest_$(SinSWE.name(backend))" begin
 
         test_lake_at_rest(backend, grid, B, 0.7, 0.01, plot=false)
         test_lake_at_rest(backend, grid_bumpy, B_bumpy, 0.7, 0.01, plot=false)

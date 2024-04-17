@@ -1,7 +1,6 @@
 using Test
 using SinSWE
 using StaticArrays
-@show get_available_backends()
 
 for backend in get_available_backends()
     values = collect(1:10)

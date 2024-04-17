@@ -1,28 +1,30 @@
 using SinSWE
 import CUDA
 
-B_const_default = SinSWE.ConstantBottomTopography()
-@test B_const_default.B == 0
-@test SinSWE.B_cell(B_const_default, 45) == 0
-@test SinSWE.B_face_left(B_const_default, 45, 12) == 0
-@test SinSWE.B_face_right(B_const_default, 45) == 0
-@test SinSWE.is_zero(B_const_default)
 
-B_const = SinSWE.ConstantBottomTopography(3.14)
-@test B_const.B == 3.14
-@test SinSWE.B_cell(B_const, 45) == 3.14
-@test SinSWE.B_face_left(B_const, 45, 12) == 3.14
-@test SinSWE.B_face_right(B_const, 45) == 3.14
-@test !SinSWE.is_zero(B_const)
+for backend in get_available_backends()
+    B_const_default = SinSWE.ConstantBottomTopography()
+    @test B_const_default.B == 0
+    @test SinSWE.B_cell(B_const_default, 45) == 0
+    @test SinSWE.B_face_left(B_const_default, 45, 12) == 0
+    @test SinSWE.B_face_right(B_const_default, 45) == 0
+    @test SinSWE.is_zero(B_const_default)
 
-nx = 10
-grid = SinSWE.CartesianGrid(nx; gc=2, extent=[0.0  10] )
+    B_const = SinSWE.ConstantBottomTopography(3.14)
+    @test B_const.B == 3.14
+    @test SinSWE.B_cell(B_const, 45) == 3.14
+    @test SinSWE.B_face_left(B_const, 45, 12) == 3.14
+    @test SinSWE.B_face_right(B_const, 45) == 3.14
+    @test !SinSWE.is_zero(B_const)
 
-B1_data = [x for x in SinSWE.cell_faces(grid, interior=false)]
-B1_data_zero = [0.0 for x in SinSWE.cell_faces(grid, interior=false)]
-# @show(B1_data)
+    nx = 10
+    grid = SinSWE.CartesianGrid(nx; gc=2, extent=[0.0  10] )
 
-for backend in SinSWE.get_available_backends()
+    B1_data = [x for x in SinSWE.cell_faces(grid, interior=false)]
+    B1_data_zero = [0.0 for x in SinSWE.cell_faces(grid, interior=false)]
+    # @show(B1_data)
+
+
     B1 = SinSWE.BottomTopography1D(B1_data, backend, grid)
     @test size(B1.B) == (nx + 5, )
 
@@ -50,27 +52,23 @@ for backend in SinSWE.get_available_backends()
     B1_zero = SinSWE.BottomTopography1D(B1_data_zero, backend, grid)
     @test SinSWE.is_zero(B1_zero)
     @test !SinSWE.is_zero(B1)
-end
 
+    # TODO Test 2D
+    nx = 2
+    ny = 2
+    grid2D = SinSWE.CartesianGrid(nx, ny; gc=2, extent=[0.0 12.0; 0.0 20.0])
+    intersections = SinSWE.cell_faces(grid2D, interior=false)
+    #@show intersections
+    # B2_data = zeros(nx + 5, ny + 5)
+    B2_data_zero = zeros(nx + 5, ny + 5)
+    # for i in range(1,nx+5)
+    #     for j in range(1, ny+5)
+    #         B2_data[i, j] = intersections[i,j][1] + intersections[i,j][2]
+    #     end
+    # end
+    B2_data = [x[1] + x[2] for x in SinSWE.cell_faces(grid2D, interior=false)]
 
-
-# TODO Test 2D
-nx = 2
-ny = 2
-grid2D = SinSWE.CartesianGrid(nx, ny; gc=2, extent=[0.0 12.0; 0.0 20.0])
-intersections = SinSWE.cell_faces(grid2D, interior=false)
-#@show intersections
-# B2_data = zeros(nx + 5, ny + 5)
-B2_data_zero = zeros(nx + 5, ny + 5)
-# for i in range(1,nx+5)
-#     for j in range(1, ny+5)
-#         B2_data[i, j] = intersections[i,j][1] + intersections[i,j][2]
-#     end
-# end
-B2_data = [x[1] + x[2] for x in SinSWE.cell_faces(grid2D, interior=false)]
-
-tol = 10^-10
-for backend in get_available_backends()
+    tol = 10^-10
     bottom2d = SinSWE.BottomTopography2D(B2_data, SinSWE.make_cpu_backend(), grid2D)
     CUDA.@allowscalar @test SinSWE.B_cell(bottom2d, 3, 3) ≈ 8 atol=tol
     CUDA.@allowscalar @test SinSWE.B_cell(bottom2d, 3, 4) ≈ 18 atol=tol
