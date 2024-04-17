@@ -11,8 +11,8 @@ function post_proc_substep!(output, system::System, eq::ShallowWaterEquations1D)
     @fvmloop for_each_cell(system.backend, system.grid) do index       
         b_in_cell = B_cell(eq.B, index)
         if output[index][1] - b_in_cell < eq.depth_cutoff
-            output[index] = typeof(output[index])(output[index][1], 0.0)
-            output[index] = typeof(output[index])(output[index][1], 0.0) 
+            output[index] = typeof(output[index])(max(output[index][1], b_in_cell), 0.0)
+            # output[index] = typeof(output[index])(output[index][1], 0.0) 
         end
     end
     return nothing
@@ -23,8 +23,8 @@ function post_proc_substep!(output, system::System, eq::ShallowWaterEquations)
     @fvmloop for_each_cell(system.backend, system.grid) do index       
         b_in_cell = B_cell(eq.B, index)
         if output[index][1] - b_in_cell < eq.depth_cutoff
-            output[index] = typeof(output[index])(output[index][1], 0.0, 0.0)
-            output[index] = typeof(output[index])(output[index][1], 0.0, 0.0) 
+            output[index] = typeof(output[index])(max(output[index][1], b_in_cell), 0.0, 0.0)
+            # output[index] = typeof(output[index])(output[index][1], 0.0, 0.0) 
         end
     end
     return nothing

@@ -15,6 +15,7 @@ struct ConservedSystem{BackendType,ReconstructionType,NumericalFluxType,Equation
     source_terms::Vector{SourceTerm}
     function ConservedSystem(backend, reconstruction, numericalflux, equation, grid, source_terms=SourceTerm[])
         is_compatible(equation, grid)
+        is_compatible(equation, source_terms)
         left_buffer = create_volume(backend, grid, equation)
         right_buffer = create_volume(backend, grid, equation)
         wavespeeds = create_scalar(backend, grid, equation)
@@ -55,6 +56,6 @@ function is_compatible(eq::Equation, grid::Grid)
     nothing
 end
 
-function is_compatible(eq::ShallowWaterEquations1D, grid::CartesianGrid)
+function is_compatible(eq::AllPracticalSWE, grid::CartesianGrid)
     validate(eq.B, grid)
 end

@@ -78,49 +78,45 @@ function cell_faces(grid::CartesianGrid{1}; interior=true)
     end
 end
 
-function cell_faces(grid::CartesianGrid{2}; interior=true)
+function cell_faces(grid::CartesianGrid{2}, dir::Direction; interior=true)
     if interior
-        x_faces = LinRange(start_extent(grid, XDIR), end_extent(grid, XDIR), interior_size(grid, XDIR) + 1)
-        y_faces = LinRange(start_extent(grid, YDIR), end_extent(grid, YDIR), interior_size(grid, YDIR) + 1)
-
-        all_faces = zeros(SVector{2, Float64}, length(x_faces), length(y_faces))
-
-        for (j, y) in enumerate(y_faces)
-            for (i, x) in enumerate(x_faces)
-                all_faces[i, j] = @SVector [x, y]
-            end
-        end
-
-        return all_faces
+        faces = LinRange(start_extent(grid, dir), end_extent(grid, dir), interior_size(grid, dir) + 1)
+        return faces
     else
-        dx = compute_dx(grid)
-        ghost_extend_x = [start_extent(grid, XDIR) - grid.ghostcells[1] * dx
-            end_extent(grid, XDIR)  + grid.ghostcells[1] * dx]
+        dx = compute_dx(grid, dir)
+        ghost_extend = [start_extent(grid, dir) - grid.ghostcells[dir] * dx
+            end_extent(grid, dir)  + grid.ghostcells[dir] * dx]
         
-        x_faces = LinRange(ghost_extend_x[1], ghost_extend_x[2], grid.totalcells[1] + 1)
-
-        dy = compute_dy(grid)
-        ghost_extend_y = [start_extent(grid, YDIR) - grid.ghostcells[2] * dy
-            end_extent(grid, YDIR)  + grid.ghostcells[2] * dy]
-        
-        y_faces = LinRange(ghost_extend_y[1], ghost_extend_y[2], grid.totalcells[2] + 1)
-
-        all_faces = zeros(SVector{2, Float64}, length(x_faces), length(y_faces))
-
-        for (j, y) in enumerate(y_faces)
-            for (i, x) in enumerate(x_faces)
-                all_faces[i, j,] = @SVector [x, y]
-            end
-        end
-
-        return all_faces
+        faces = LinRange(ghost_extend[1], ghost_extend[2], grid.totalcells[dir] + 1)
+        return faces
     end
 end
+
+function cell_faces(grid::CartesianGrid{2}; interior=true)
+    x_faces = cell_faces(grid, XDIR; interior=interior)
+    y_faces = cell_faces(grid, YDIR; interior=interior)
+    
+    all_faces = zeros(SVector{2, Float64}, length(x_faces), length(y_faces))
+    for (j, y) in enumerate(y_faces)
+        for (i, x) in enumerate(x_faces)
+            all_faces[i, j] = @SVector [x, y]
+        end
+    end
+
+    return all_faces
+end
+   
 
 
 function cell_centers(grid::CartesianGrid{1}; interior=true)
     xinterface = cell_faces(grid; interior)
     xcell = xinterface[1:end-1] .+ (xinterface[2] - xinterface[1]) / 2.0
+    return xcell
+end
+
+function cell_centers(grid::CartesianGrid{2}, dir::Direction; interior=true)
+    faces = cell_faces(grid, dir; interior)
+    xcell = faces[1:end-1] .+ (faces[2] - faces[1]) / 2.0
     return xcell
 end
 

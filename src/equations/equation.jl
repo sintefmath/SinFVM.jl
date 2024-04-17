@@ -31,5 +31,27 @@ function desingularize(eq::AllPracticalSWE, h, momentum)
 
     # Eq (26):
     h_star = copysign(1, h)*max(abs(h), min(h^2/(2*eq.desingularizing_kappa) + eq.desingularizing_kappa/2.0, eq.desingularizing_kappa))
+    # h_star = sign(h)*max(abs(h), min(h^2/(2*eq.desingularizing_kappa) + eq.desingularizing_kappa/2.0, eq.desingularizing_kappa))
+    # if h < 0.0
+    #     h_star = 0.5*eq.desingularizing_kappa
+    # end
     return momentum/h_star
+end
+
+
+
+function is_compatible(eq::Equation, source_terms::Vector)
+    nothing
+end
+
+function is_compatible(eq::AllPracticalSWE, source_terms::Vector)
+    if is_zero(eq.B) 
+        return nothing 
+    end
+    for source_term in source_terms
+        if typeof(source_term) == SourceTermBottom
+            return nothing
+        end
+    end
+    throw(ArgumentError("Found non-zero bottom topography in equation, but no corresponding source term. Did you forget to add a source term to your system?"))
 end

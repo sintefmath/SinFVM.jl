@@ -39,14 +39,17 @@ current_interior_state(simulator::Simulator) =
 
 
 function set_current_state!(simulator::Simulator, new_state)
+    # TODO: Implement validation:
+    # validate_state(new_state, simulator.grid) # Throw expection if dimensions of state don't match dimension of grid
+    # validate_state!(new_state, simulator.equation) # Ensure that we don't initialize negative water depth
     # TODO: By adding the : operator to a normal volume in 2d, this should work with one line...
     if dimension(simulator.grid) == 1
         # TODO: Get it to work without allowscalar
         CUDA.@allowscalar current_interior_state(simulator)[:] = new_state
     elseif dimension(simulator.grid) == 2
         # TODO: Get it to work without allowscalar
-        CUDA.@allowscalar current_interior_state(simulator)[:, :] = new_state
-        # CUDA.@allowscalar current_interior_state(simulator)[1:end, 1:end] = new_state
+        #CUDA.@allowscalar current_interior_state(simulator)[:, :] = new_state
+        CUDA.@allowscalar current_interior_state(simulator)[1:end, 1:end] = convert_to_backend(simulator.backend, new_state)
     else
         error("Unandled dimension")
     end

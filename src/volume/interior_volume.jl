@@ -14,6 +14,7 @@ struct InteriorVolume{EquationType,
     NumberOfConservedVariables,
     Dimension,}
 end
+Adapt.@adapt_structure InteriorVolume
 
 variable_names(::Type{InteriorVolume{EquationType,
 GridType,
@@ -153,7 +154,7 @@ function Base.setindex!(vol::InteriorVolume, values::Container, indices::UnitRan
     end
 end
 
-function Base.setindex!(vol::InteriorVolume, values::Container, indices1::UnitRange{Int64}, indices2::UnitRange{Int64}) where {Container<:Union{Volume, AbstractMatrix{<:AbstractVector}}}
+function Base.setindex!(vol::InteriorVolume, values::Container, indices1::UnitRange{Int64}, indices2::UnitRange{Int64}) where {Container<:Union{Volume, InteriorVolume, AbstractMatrix{<:AbstractVector}}}
     # TODO: Move this for loop to the inner kernel...
     for variable_index in 1:number_of_variables(vol._volume)
         proper_volume = vol._volume

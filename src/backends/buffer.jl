@@ -1,7 +1,8 @@
 import CUDA
 
-convert_to_backend(backend, array) = array
-convert_to_backend(backend::CUDABackend, array) = CUDA.CuArray(array)
+convert_to_backend(backend, array::AbstractArray) = array
+convert_to_backend(backend::CUDABackend, array::AbstractArray) = CUDA.CuArray(array)
+
 # TODO: Do one for KA?
 
 function create_buffer(backend, number_of_variables::Int64, spatial_resolution)
