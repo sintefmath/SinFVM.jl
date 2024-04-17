@@ -13,7 +13,7 @@ SinSWE.create_volume(backend, grid, cs::SimpleSystem) = SinSWE.create_volume(bac
 function SinSWE.add_time_derivative!(output, system::SimpleSystem, state)
     CUDA.@allowscalar output[2] += state[2]
 
-    return 1.0 
+    return [1.0]
 end
 
 function run_without_simulator(dt, steppertype, backend)
