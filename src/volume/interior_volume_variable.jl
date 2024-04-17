@@ -23,7 +23,7 @@ struct InteriorVolumeVariable{EquationType,
 
 end
 
-
+Adapt.@adapt_structure InteriorVolumeVariable
 
 @inline function Base.propertynames(::Type{T}) where {T<:InteriorVolume}
     return variable_names(T)
