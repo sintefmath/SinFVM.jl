@@ -89,7 +89,7 @@ for backend in get_available_backends()
         all_elements = []
         for (n, element) in enumerate(volume)
             @test element isa SVector{2}
-            
+
             push!(all_elements, element)
         end
         @test length(all_elements) == length(volume)

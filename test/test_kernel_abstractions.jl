@@ -116,35 +116,42 @@ function for_inner_each_cell(f, x, backend, grid, y...)
     ev = for_each_cell_kernel(backend, 64)(f, x, grid, y..., ndrange=size(x))
     #synchronize(backend)
 end
-N = 1000000
-Δx = 1 / N
-x = CUDA.cu(ones(N))
-y = CUDA.cu(ones(N))
-output = CUDA.cu(zeros(N))
-right = CUDA.cu(collect(1:N)) * Δx
-left = CUDA.cu(collect(0:N-1)) * Δx
 
-# x = ones(N)
-# y = ones(N)
-# output = zeros(N)
-# right = collect(1:N) * Δx
-# left = collect(0:N-1) * Δx
-F = Godunov(Burgers())
+function run_ka_test()
+    N = 1000000
+    Δx = 1 / N
+    x = CUDA.cu(ones(N))
+    y = CUDA.cu(ones(N))
+    output = CUDA.cu(zeros(N))
+    right = CUDA.cu(collect(1:N)) * Δx
+    left = CUDA.cu(collect(0:N-1)) * Δx
 
-function call_me_in_a_loop()
-    @for_each_cell_macro for_inner_each_cell(x, get_backend(x), nothing) do ileft, imiddle, iright
-        output[imiddle] -= 1 / Δx * (F(right[imiddle], left[iright]) - F(right[ileft], left[imiddle]))
-        return nothing
+    # x = ones(N)
+    # y = ones(N)
+    # output = zeros(N)
+    # right = collect(1:N) * Δx
+    # left = collect(0:N-1) * Δx
+    F = Godunov(Burgers())
+
+    function call_me_in_a_loop()
+        @for_each_cell_macro for_inner_each_cell(x, get_backend(x), nothing) do ileft, imiddle, iright
+            output[imiddle] -= 1 / Δx * (F(right[imiddle], left[iright]) - F(right[ileft], left[imiddle]))
+            return nothing
+        end
     end
+
+    function loop_me()
+        for _ in 1:10000
+            call_me_in_a_loop()
+        end
+    end
+
+    loop_me()
+    @time loop_me()
+
+
 end
 
-function loop_me()
-    for _ in 1:10000
-        call_me_in_a_loop()
-    end
-end
-
-loop_me()
-@time loop_me()
+run_ka_test()
 
 #@show output
