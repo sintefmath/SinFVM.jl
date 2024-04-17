@@ -3,6 +3,7 @@ using Cthulhu
 using StaticArrays
 using LinearAlgebra
 using Test
+import CUDA
 
 module Correct
 include("fasit.jl")
