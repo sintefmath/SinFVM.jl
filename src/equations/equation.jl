@@ -11,10 +11,11 @@ include("swe_2D.jl")
 
 AllSWE = Union{ShallowWaterEquations1D,ShallowWaterEquations1DPure,ShallowWaterEquationsPure, ShallowWaterEquations}
 AllPracticalSWE = Union{ShallowWaterEquations1D, ShallowWaterEquations}
+AllPureSWE = Union{ShallowWaterEquations1DPure,ShallowWaterEquationsPure}
 AllSWE1D = Union{ShallowWaterEquations1D, ShallowWaterEquations1DPure}
 AllSWE2D = Union{ShallowWaterEquations, ShallowWaterEquationsPure}
 
-function desingularize(eq::AllPracticalSWE, h, momentum)
+function desingularize(eq::AllPracticalSWE, h)
     # The different desingularizations are taken from 
     # Brodtkorb and Holm (2021), Coastal ocean forecasting on the GPU using a two-dimensional finite-volume scheme.  
     # Tellus A: Dynamic Meteorology and Oceanography,  73(1), p.1876341.DOI: https://doi.org/10.1080/16000870.2021.1876341
@@ -35,9 +36,13 @@ function desingularize(eq::AllPracticalSWE, h, momentum)
     # if h < 0.0
     #     h_star = 0.5*eq.desingularizing_kappa
     # end
-    return momentum/h_star
+    return h_star
 end
 
+function desingularize(eq::AllPracticalSWE, h, momentum)
+    h_star = desingularize(eq, h)
+    return momentum/h_star
+end
 
 
 function is_compatible(eq::Equation, source_terms::Vector)
@@ -55,3 +60,6 @@ function is_compatible(eq::AllPracticalSWE, source_terms::Vector)
     end
     throw(ArgumentError("Found non-zero bottom topography in equation, but no corresponding source term. Did you forget to add a source term to your system?"))
 end
+
+B_cell(::AllPureSWE, index) = 0.0
+B_cell(eq::AllPracticalSWE, index) = B_cell(eq.bottom_topography, index)
