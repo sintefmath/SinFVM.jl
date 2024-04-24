@@ -1,6 +1,6 @@
 using SinSWE
 import CUDA
-
+using Test
 
 for backend in get_available_backends()
     B_const_default = SinSWE.ConstantBottomTopography()

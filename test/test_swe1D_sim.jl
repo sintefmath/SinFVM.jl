@@ -18,6 +18,8 @@ function run_simulation(T, backend, equation, grid; elevate=0.0, source_terms = 
     SinSWE.set_current_state!(simulator, initial)
     
     SinSWE.simulate_to_time(simulator, T)
+    @test simulator.t[1] - simulator.current_timestep[1] < T
+    @test simulator.t[1] > T
     
     return SinSWE.current_interior_state(simulator)
 end

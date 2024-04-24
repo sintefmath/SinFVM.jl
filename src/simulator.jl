@@ -9,9 +9,10 @@ struct Simulator{BackendType,SystemType,TimeStepperType,GridType,StateType,Float
     substep_outputs::Vector{StateType}
     current_timestep::MVector{1,FloatType}
     cfl::FloatType
+    t::MVector{1,FloatType}
 end
 
-function Simulator(backend, system, timestepper, grid; cfl=0.25)
+function Simulator(backend, system, timestepper, grid; cfl=0.25, t0=0.0)
     # TODO: Get cfl from reconstruction
     return Simulator{
         typeof(backend),
@@ -28,6 +29,7 @@ function Simulator(backend, system, timestepper, grid; cfl=0.25)
         [create_volume(backend, grid, system) for _ = 1:number_of_substeps(timestepper)+1],
         MVector{1,Float64}([0]),
         cfl,
+        MVector{1,Float64}([t0]),
     )
 end
 
@@ -87,6 +89,7 @@ function perform_step!(simulator::Simulator)
     end
     simulator.substep_outputs[1], simulator.substep_outputs[end] =
         simulator.substep_outputs[end], simulator.substep_outputs[1]
+    simulator.t[1] += simulator.current_timestep[1]
 end
 
 function simulate_to_time(
