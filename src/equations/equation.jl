@@ -15,6 +15,8 @@ AllPureSWE = Union{ShallowWaterEquations1DPure,ShallowWaterEquationsPure}
 AllSWE1D = Union{ShallowWaterEquations1D, ShallowWaterEquations1DPure}
 AllSWE2D = Union{ShallowWaterEquations, ShallowWaterEquationsPure}
 
+desingularize(::AllPureSWE, h) = h # TODO: Do we want to something more here?
+
 function desingularize(eq::AllPracticalSWE, h)
     # The different desingularizations are taken from 
     # Brodtkorb and Holm (2021), Coastal ocean forecasting on the GPU using a two-dimensional finite-volume scheme.  
@@ -39,7 +41,7 @@ function desingularize(eq::AllPracticalSWE, h)
     return h_star
 end
 
-function desingularize(eq::AllPracticalSWE, h, momentum)
+function desingularize(eq, h, momentum)
     h_star = desingularize(eq, h)
     return momentum/h_star
 end
@@ -62,4 +64,4 @@ function is_compatible(eq::AllPracticalSWE, source_terms::Vector)
 end
 
 B_cell(::AllPureSWE, index) = 0.0
-B_cell(eq::AllPracticalSWE, index) = B_cell(eq.bottom_topography, index)
+B_cell(eq::AllPracticalSWE, index) = B_cell(eq.B, index)
