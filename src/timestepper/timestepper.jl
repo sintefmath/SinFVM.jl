@@ -29,3 +29,7 @@ function post_proc_substep!(output, system::System, eq::ShallowWaterEquations)
     end
     return nothing
 end
+
+function implicit_substep!(output, previous_state, system, dt)
+    return nothing
+end

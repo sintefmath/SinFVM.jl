@@ -1,7 +1,7 @@
 create_volume(backend, grid, equation) = Volume(backend, equation, grid)
 create_scalar(backend, grid, equation) = convert_to_backend(backend, zeros(size(grid)))
 
-struct ConservedSystem{BackendType,ReconstructionType,NumericalFluxType,EquationType,GridType,BufferType,ScalarBufferType} <: System
+struct ConservedSystem{BackendType,ReconstructionType,NumericalFluxType,EquationType,GridType,BufferType,ScalarBufferType, ImplicitSourceTermType} <: System
     backend::BackendType
     reconstruction::ReconstructionType
     numericalflux::NumericalFluxType
@@ -13,7 +13,8 @@ struct ConservedSystem{BackendType,ReconstructionType,NumericalFluxType,Equation
     wavespeeds::ScalarBufferType
 
     source_terms::Vector{SourceTerm}
-    function ConservedSystem(backend, reconstruction, numericalflux, equation, grid, source_terms=SourceTerm[])
+    implicit_source_term::ImplicitSourceTermType
+    function ConservedSystem(backend, reconstruction, numericalflux, equation, grid, source_terms=SourceTerm[], implicit_source_term=nothing)
         is_compatible(equation, grid)
         is_compatible(equation, source_terms)
         left_buffer = create_volume(backend, grid, equation)
@@ -26,8 +27,9 @@ struct ConservedSystem{BackendType,ReconstructionType,NumericalFluxType,Equation
             typeof(equation),
             typeof(grid),
             typeof(left_buffer),
-            typeof(wavespeeds)
-        }(backend, reconstruction, numericalflux, equation, grid, left_buffer, right_buffer, wavespeeds, source_terms)
+            typeof(wavespeeds),
+            typeof(implicit_source_term)
+        }(backend, reconstruction, numericalflux, equation, grid, left_buffer, right_buffer, wavespeeds, source_terms, implicit_source_term)
     end
 end
 
@@ -58,4 +60,11 @@ end
 
 function is_compatible(eq::AllPracticalSWE, grid::CartesianGrid)
     validate(eq.B, grid)
+end
+
+
+implicit_substep!(output, previous_state, system, backend, implicit_source_term::Nothing, equation, dt) = nothing
+function implicit_substep!(output, previous_state, system::ConservedSystem, dt)
+    implicit_substep!(output, previous_state, system, system.backend, system.implicit_source_term, system.equation, dt)
+    return nothing
 end

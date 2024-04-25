@@ -82,6 +82,13 @@ function perform_step!(simulator::Simulator, max_dt)
             substep,
             simulator.t[1]
         )
+
+        implicit_substep!(simulator.substep_outputs[substep+1],
+            simulator.substep_outputs[substep],
+            simulator.system,
+            simulator.current_timestep[1],
+            )
+
         post_proc_substep!(
             simulator.substep_outputs[substep+1], 
             simulator.system, 
