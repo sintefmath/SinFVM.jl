@@ -14,12 +14,8 @@ abstract type TimeStepper end
 abstract type SourceTerm end
 
 struct SourceTermBottom <: SourceTerm end
-struct SourceTermRain <: SourceTerm 
-    R
-end
-struct SourceTermInfiltration <: SourceTerm 
-    I
-end
+abstract type SourceTermRain <: SourceTerm end
+abstract type SourceTermInfiltration <: SourceTerm end
 
 # TODO: Define AbstractSimulator as well?
 
