@@ -58,8 +58,7 @@ function run_swe_2d_pure_simulation(backend)
 
     t = 0.0
     @time SinSWE.simulate_to_time(simulator, T)
-    @test simulator.t[1] - simulator.current_timestep[1] < T
-    @test simulator.t[1] > T
+    @test SinSWE.current_time(simulator) == T
 
     result = SinSWE.current_interior_state(simulator)
     h = collect(result.h)

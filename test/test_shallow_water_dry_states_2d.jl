@@ -57,6 +57,7 @@ function run_swe_2d_pure_simulation(backend)
     Colorbar(f[3, 2], hm)
     display(f)
     @time SinSWE.simulate_to_time(simulator, T)
+    @test SinSWE.current_time(simulator) == T
     
     result = SinSWE.current_interior_state(simulator)
     h = collect(result.h)
