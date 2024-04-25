@@ -37,7 +37,7 @@ end
 
 create_volume(backend, grid, cs::ConservedSystem) = create_volume(backend, grid, cs.equation)
 
-function add_time_derivative!(output, cs::ConservedSystem, current_state)
+function add_time_derivative!(output, cs::ConservedSystem, current_state, t)
     maximum_wavespeed = zeros(dimension(cs.grid))
     for direction in directions(cs.grid)
         reconstruct!(cs.backend, cs.reconstruction, cs.left_buffer, cs.right_buffer, current_state, cs.grid, cs.equation, direction)
@@ -47,7 +47,7 @@ function add_time_derivative!(output, cs::ConservedSystem, current_state)
         end
     end
     for source_term in cs.source_terms
-        evaluate_source_term!(source_term, output, current_state, cs)
+        evaluate_source_term!(source_term, output, current_state, cs, t)
     end
     return maximum_wavespeed
 end

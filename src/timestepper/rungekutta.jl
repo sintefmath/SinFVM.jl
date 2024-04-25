@@ -3,13 +3,13 @@ end
 
 number_of_substeps(::RungeKutta2) = 2
 
-function do_substep!(output, ::RungeKutta2, system::System, states, dt, timestep_computer, substep_number)
+function do_substep!(output, ::RungeKutta2, system::System, states, dt, timestep_computer, substep_number, t)
     # Reset to zero
     @fvmloop for_each_cell(system.backend, system.grid) do index
         output[index] = zero(output[index])
     end
     
-    wavespeed = add_time_derivative!(output, system, states[substep_number])
+    wavespeed = add_time_derivative!(output, system, states[substep_number], t)
 
     if substep_number == 1
         dt = timestep_computer(wavespeed)

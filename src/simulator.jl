@@ -63,13 +63,14 @@ function set_current_state!(simulator::Simulator, new_state::Volume)
 end
 
 current_timestep(simulator::Simulator) = simulator.current_timestep[1]
+current_time(simulator::Simulator) = simulator.t[1]
 
 
-function perform_step!(simulator::Simulator)
+function perform_step!(simulator::Simulator, max_dt)
     for substep = 1:number_of_substeps(simulator.timestepper)
         function timestep_computer(wavespeed) 
             directional_dt = [compute_dx(simulator.grid, direction) / wavespeed[direction] for direction in directions(simulator.grid)]
-            return simulator.cfl * minimum(directional_dt)
+            return min(simulator.cfl * minimum(directional_dt), max_dt)
         end
         simulator.current_timestep[1] = do_substep!(
             simulator.substep_outputs[substep+1],
@@ -78,7 +79,8 @@ function perform_step!(simulator::Simulator)
             simulator.substep_outputs,
             simulator.current_timestep[1],
             timestep_computer,
-            substep
+            substep,
+            simulator.t[1]
         )
         post_proc_substep!(
             simulator.substep_outputs[substep+1], 
@@ -89,13 +91,12 @@ function perform_step!(simulator::Simulator)
     end
     simulator.substep_outputs[1], simulator.substep_outputs[end] =
         simulator.substep_outputs[end], simulator.substep_outputs[1]
-    simulator.t[1] += simulator.current_timestep[1]
 end
 
 function simulate_to_time(
     simulator::Simulator,
     endtime;
-    t=0.0,
+    match_endtime=true,
     callback=nothing,
     show_progress=true,
 )
@@ -104,13 +105,15 @@ function simulate_to_time(
         desc="Simulating",
         dt=2.0,
     )
-    while t < endtime
-        perform_step!(simulator)
-        t += current_timestep(simulator)
-        ProgressMeter.update!(prog, ceil(Int64, t / endtime * 100),
-            showvalues=[(:t, t), (:dt, current_timestep(simulator))])
+    t = simulator.t
+    while t[1] < endtime
+        max_dt = match_endtime ? endtime - t[1] : Inf
+        perform_step!(simulator, max_dt)
+        t[1] += simulator.current_timestep[1]
+        ProgressMeter.update!(prog, ceil(Int64, t[1] / endtime * 100),
+            showvalues=[(:t, t[1]), (:dt, current_timestep(simulator))])
         if !isnothing(callback)
-            callback(t, simulator)
+            callback(t[1], simulator)
         end
     end
 end

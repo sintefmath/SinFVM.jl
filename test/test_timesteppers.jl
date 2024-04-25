@@ -10,7 +10,7 @@ struct SimpleSystem <: SinSWE.System
 end
 SinSWE.create_volume(backend, grid, cs::SimpleSystem) = SinSWE.create_volume(backend, grid, cs.equation)
 
-function SinSWE.add_time_derivative!(output, system::SimpleSystem, state)
+function SinSWE.add_time_derivative!(output, system::SimpleSystem, state, t)
     CUDA.@allowscalar output[2] += state[2]
 
     return [1.0]
@@ -29,7 +29,7 @@ function run_without_simulator(dt, steppertype, backend)
 
     while t < T
         for substep in 1:SinSWE.number_of_substeps(stepper)
-            SinSWE.do_substep!(buffers[substep+1], stepper, system, buffers, dt, compute_timestep, substep)
+            SinSWE.do_substep!(buffers[substep+1], stepper, system, buffers, dt, compute_timestep, substep, t)
         end
         buffers[end], buffers[1] = buffers[1], buffers[end]
         t += dt
