@@ -136,6 +136,8 @@ compute_dx(grid::CartesianGrid{1}, direction=XDIR) = grid.Δ[direction]
 compute_dx(grid::CartesianGrid{dimension}, direction=XDIR) where {dimension} = grid.Δ[direction]
 compute_dy(grid::CartesianGrid{2}) = grid.Δ[YDIR]
 
+compute_cell_size(grid::CartesianGrid) = prod(grid.Δ)
+
 function constant_bottom_topography(grid::CartesianGrid{1}, value)
     # TODO: Allow constant bottom topography to be represented by a scalar with arbitrary index...
     return ones(grid.totalcells[1] + 1) .* value
