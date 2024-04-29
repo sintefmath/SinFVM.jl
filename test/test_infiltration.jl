@@ -31,30 +31,33 @@ function plain_infiltration(backend, infiltration, grid, T; t0=0.0)
     return collect(results.h)
 end
 
+function test_infiltration()
+    grid = SinSWE.CartesianGrid(10, 10; gc=2, extent=[0 100; 0 100])
+    backend = SinSWE.make_cpu_backend()
+    test_inf = SinSWE.HortonInfiltration(grid, backend)
+    @test all(test_inf.factor .== 1.0)
+    @test size(test_inf.factor) ==  size(grid)
+    @test SinSWE.compute_infiltration(test_inf, 0.0, CartesianIndex(1, 1)) == test_inf.f0
+    @test SinSWE.compute_infiltration(test_inf, 1e6, CartesianIndex(1, 1)) == test_inf.fc
 
-grid = SinSWE.CartesianGrid(10, 10; gc=2, extent=[0 100; 0 100])
-backend = SinSWE.make_cpu_backend()
-test_inf = SinSWE.HortonInfiltration(grid, backend)
-@test all(test_inf.factor .== 1.0)
-@test size(test_inf.factor) ==  size(grid)
-@test SinSWE.compute_infiltration(test_inf, 0.0, CartesianIndex(1, 1)) == test_inf.f0
-@test SinSWE.compute_infiltration(test_inf, 1e6, CartesianIndex(1, 1)) == test_inf.fc
+    factor_bad_size = [1.0 for x in SinSWE.cell_centers(grid)]
+    @test_throws DomainError SinSWE.HortonInfiltration(SinSWE.CartesianGrid(2,2), backend; factor=factor_bad_size)
 
-factor_bad_size = [1.0 for x in SinSWE.cell_centers(grid)]
-@test_throws DomainError SinSWE.HortonInfiltration(SinSWE.CartesianGrid(2,2), backend; factor=factor_bad_size)
+    cuda_backend = SinSWE.make_cuda_backend()
+    infiltration_cuda = SinSWE.HortonInfiltration(grid, cuda_backend)
 
-cuda_backend = SinSWE.make_cuda_backend()
-infiltration_cuda = SinSWE.HortonInfiltration(grid, cuda_backend)
+    h_cpu = plain_infiltration(backend, test_inf, grid, 1000; t0=1e6)
+    @test maximum(h_cpu) .≈ ( 1.0 - test_inf.fc*1000) atol=1e-10
+    @test minimum(h_cpu) .≈ ( 1.0 - test_inf.fc*1000) atol=1e-10
 
-h_cpu = plain_infiltration(backend, test_inf, grid, 1000; t0=1e6)
-@test maximum(h_cpu) .≈ ( 1.0 - test_inf.fc*1000) atol=1e-10
-@test minimum(h_cpu) .≈ ( 1.0 - test_inf.fc*1000) atol=1e-10
-
-h_cuda = plain_infiltration(cuda_backend, infiltration_cuda, grid, 1000; t0=1e6)
-@test maximum(h_cpu) .≈ ( 1.0 - infiltration_cuda.fc*1000) atol=1e-10
-@test minimum(h_cpu) .≈ ( 1.0 - infiltration_cuda.fc*1000) atol=1e-10
+    h_cuda = plain_infiltration(cuda_backend, infiltration_cuda, grid, 1000; t0=1e6)
+    @test maximum(h_cpu) .≈ ( 1.0 - infiltration_cuda.fc*1000) atol=1e-10
+    @test minimum(h_cpu) .≈ ( 1.0 - infiltration_cuda.fc*1000) atol=1e-10
 
 
-# grid_case1 = SinSWE.CartesianGrid(2000, 10;  gc=2, boundary=SinSWE.WallBC(), extent=[0.0 4000.0; 0.0 20.0])
+    # grid_case1 = SinSWE.CartesianGrid(2000, 10;  gc=2, boundary=SinSWE.WallBC(), extent=[0.0 4000.0; 0.0 20.0])
+end
+
+test_infiltration()
 
 
