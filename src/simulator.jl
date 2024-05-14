@@ -68,7 +68,7 @@ current_time(simulator::Simulator) = simulator.t[1]
 
 function perform_step!(simulator::Simulator, max_dt)
     for substep = 1:number_of_substeps(simulator.timestepper)
-        function timestep_computer(wavespeed) 
+        function timestep_computer(wavespeed)
             directional_dt = [compute_dx(simulator.grid, direction) / wavespeed[direction] for direction in directions(simulator.grid)]
             return min(simulator.cfl * minimum(directional_dt), max_dt)
         end
@@ -87,11 +87,11 @@ function perform_step!(simulator::Simulator, max_dt)
             simulator.substep_outputs[substep],
             simulator.system,
             simulator.current_timestep[1],
-            )
+        )
 
         post_proc_substep!(
-            simulator.substep_outputs[substep+1], 
-            simulator.system, 
+            simulator.substep_outputs[substep+1],
+            simulator.system,
             simulator.system.equation
         )
         update_bc!(simulator, simulator.substep_outputs[substep+1])
@@ -106,6 +106,7 @@ function simulate_to_time(
     match_endtime=true,
     callback=nothing,
     show_progress=true,
+    maximum_timestep=nothing,
 )
     prog = ProgressMeter.Progress(100;
         enabled=show_progress,
@@ -115,6 +116,9 @@ function simulate_to_time(
     t = simulator.t
     while t[1] < endtime
         max_dt = match_endtime ? endtime - t[1] : Inf
+        if !isnothing(maximum_timestep)
+            max_dt = min(max_dt, maximum_timestep)
+        end
         perform_step!(simulator, max_dt)
         t[1] += simulator.current_timestep[1]
         ProgressMeter.update!(prog, ceil(Int64, t[1] / endtime * 100),

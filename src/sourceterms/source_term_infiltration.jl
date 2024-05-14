@@ -50,7 +50,15 @@ function compute_infiltration(f::HortonInfiltration, t, index::CartesianIndex)
 end
 
 
+struct ConstantInfiltration{S} <: SourceTermInfiltration
+    infiltration_rate::S
+end
 
+
+
+function compute_infiltration(f::ConstantInfiltration, t, index::CartesianIndex)
+    return f.infiltration_rate
+end
 
 function evaluate_source_term!(infiltration::SourceTermInfiltration, output, current_state, cs::ConservedSystem, t)
     output_h = output.h
