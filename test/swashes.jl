@@ -50,6 +50,19 @@ struct Swashes412 <: Swashes41x
                 ) =  new(x0, L, g, hr, hl, cm, id, name)
 end
 
+struct Swashes413 <: Swashes1D
+x0::Float64
+L::Float64
+g::Float64
+hl::Float64
+C::Float64
+id::String
+name::String
+Swashes413(;x0=5.0, L=10.0, g=9.81, hl=0.005, C=0.0,
+            id="4.1.3", name="Dressler's dam break with friction"
+            ) =  new(x0, L, g, hl, C, id, name)
+end
+
 struct Swashes421 <: Swashes1D
     a::Float64
     L::Float64
@@ -63,6 +76,7 @@ struct Swashes421 <: Swashes1D
                 id="4.2.1", name="Planar surface in a parabola without friction"
     ) = new(a, L, g, h0, period, offset, id, name)
 end
+
 
 struct Swashes422a <: Swashes422x
     a::Float64
@@ -159,6 +173,47 @@ function get_reference_solution(sw::Swashes41x, grid::CartesianGrid, t, eq::SinS
         return u0.(all_x)    
     end
 end
+
+
+
+function get_reference_solution(sw::Swashes413, grid::CartesianGrid, t, eq::SinSWE.AllPracticalSWE=SinSWE.ShallowWaterEquations1D(), backend=SinSWE.make_cpu_backend(); dir=1, dim=1)
+    
+    function alpha_1(x) 
+        p = 2 - ((x - sw.x0)/t*sqrt(sw.g*sw.hl))
+        return (6/(5*p)) - 2/3 + (4*sqrt(3)/135)*sqrt(p)^3
+    end
+    function alpha_2(x) 
+        p = 2 - ((x - sw.x0)/t*sqrt(sw.g*sw.hl))
+        return 12/p - 8/3 + (8*sqrt(3)/189)*sqrt(p)^3 - 108/(7*p^2)
+    end
+    function h_co(x)
+        return ((2*sqrt(sw.g*sw.hl)/3)  - ((x-sw.x0)/(3*t)) + g^2*alpha_1(x)*t/sw.C^2 )^2/sw.g    
+    end
+    function u_co(x)
+        return (2*sqrt(sw.g*sw.hl)/3)  - (2*(x-sw.x0)/(3*t)) + g^2*alpha_2(x)*t/sw.C^2
+    end
+
+    
+    
+    all_x = SinSWE.cell_centers(grid)
+    if (dir == 2) @assert dim == 2 end
+    
+    ref_state = SinSWE.Volume(backend, eq, grid)
+    if dir == 1 && dim == 1
+        CUDA.@allowscalar SinSWE.InteriorVolume(ref_state)[:] = [SVector{2, Float64}(get_h(sw, x), get_u(sw, x)) for x in all_x]
+        return ref_state
+    elseif dir == 1 && dim == 2
+        u0 = x ->  @SVector[get_h(sw, x[1]), get_u(sw, x[1]), 0.0]
+        return u0.(all_x)    
+        # tmp =  [SVector{3, Float64}(get_h(sw, x[1]), get_u(sw, x[1]), 0.0) for x in all_x]
+        # CUDA.@allowscalar SinSWE.InteriorVolume(ref_state)[:, :] = tmp
+        # return ref_state
+    elseif dir == 2 && dim == 2
+        u0 = x ->  @SVector[get_h(sw, x[2]), 0.0, get_u(sw, x[2])]
+        return u0.(all_x)    
+    end
+end
+
 
 
 
