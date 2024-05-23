@@ -3,7 +3,7 @@ using Test
 using StaticArrays
 using CairoMakie
 
-using GLMakie
+# using GLMakie
 
 function tsunami(;T=10, dt=1, w0_height=1.0, bump=false)
 
@@ -21,7 +21,7 @@ function tsunami(;T=10, dt=1, w0_height=1.0, bump=false)
 
     backend = make_cpu_backend()
     B = SinSWE.BottomTopography1D(B_data, backend, grid)
-    eq = SinSWE.ShallowWaterEquations1D(B)
+    eq = SinSWE.ShallowWaterEquations1D(B; depth_cutoff=10^-3, desingularizing_kappa=10^-3)
     rec = SinSWE.LinearReconstruction(2)
     flux = SinSWE.CentralUpwind(eq)
     bst = SinSWE.SourceTermBottom()
@@ -43,7 +43,7 @@ function tsunami(;T=10, dt=1, w0_height=1.0, bump=false)
     all_h = []
     all_hu = []
     t = 0.0
-    while t < T
+    @time while t < T
         t += dt
         SinSWE.simulate_to_time(simulator, dt)
         
