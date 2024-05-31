@@ -4,6 +4,8 @@ end
 struct WallBC <: BoundaryCondition
 end
 
+struct NeumannBC <: BoundaryCondition
+end
 
 
 dimension(::Type{<:Grid{d}}) where {d} = d
