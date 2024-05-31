@@ -135,7 +135,7 @@ for backend in [SinSWE.make_cpu_backend(), SinSWE.make_cuda_backend()]
     upper_corner = Float64.(size(terrain))
     coarsen_times = 2
     terrain_original = terrain
-    terrain = terrain# coarsen(terrain, coarsen_times)
+    terrain = coarsen(terrain, coarsen_times)
     mkpath("figs/bay/")
 
     with_theme(theme_latexfonts()) do
@@ -150,12 +150,12 @@ for backend in [SinSWE.make_cpu_backend(), SinSWE.make_cuda_backend()]
     end
 
     grid_size = size(terrain) .- (5, 5)
-    grid = SinSWE.CartesianGrid(grid_size...; gc=2, boundary=SinSWE.WallBC(), extent=[0 upper_corner[1]; 0 upper_corner[2]])
+    grid = SinSWE.CartesianGrid(grid_size...; gc=2, boundary=SinSWE.NeumannBC(), extent=[0 upper_corner[1]; 0 upper_corner[2]])
     infiltration = SinSWE.HortonInfiltration(grid, backend)
     #infiltration = SinSWE.ConstantInfiltration(15 / (1000.0) / 3600.0)
     bottom = SinSWE.BottomTopography2D(terrain, backend, grid)
     bottom_source = SinSWE.SourceTermBottom()
-    equation = SinSWE.ShallowWaterEquations(bottom)
+    equation = SinSWE.ShallowWaterEquations(bottom; depth_cutoff=8e-2)
     reconstruction = SinSWE.LinearReconstruction()
     numericalflux = SinSWE.CentralUpwind(equation)
     constant_rain = SinSWE.ConstantRain(15 / (1000.0))
@@ -193,11 +193,11 @@ for backend in [SinSWE.make_cpu_backend(), SinSWE.make_cuda_backend()]
     SinSWE.set_current_state!(simulator, initial)
     SinSWE.current_state(simulator).h[1:end, 1:end] = bottom_per_cell(bottom)
     T = 24 * 60 * 60.0
-    callback_to_simulator = IntervalWriter(step=0.1, writer=(t, s) -> callback(terrain, SinSWE.name(backend), t, s))
+    callback_to_simulator = IntervalWriter(step=10., writer=(t, s) -> callback(terrain, SinSWE.name(backend), t, s))
 
     total_water_writer = TotalWaterVolume(bottom_topography=bottom)
     total_water_writer(0.0, simulator)
-    total_water_writer_interval_writer = total_water_writer
+    total_water_writer_interval_writer = IntervalWriter(step=10., writer=total_water_writer)
 
     SinSWE.simulate_to_time(simulator, T; maximum_timestep=60.0, callback=MultipleCallbacks([callback_to_simulator, total_water_writer_interval_writer]))
 end
