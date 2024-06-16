@@ -1,4 +1,5 @@
 import ProgressMeter
+import ForwardDiff
 interior(state) = InteriorVolume(state)
 struct Simulator{BackendType,SystemType,TimeStepperType,GridType,StateType,FloatType}
     backend::BackendType
@@ -122,7 +123,7 @@ function simulate_to_time(
         perform_step!(simulator, max_dt)
         t[1] += simulator.current_timestep[1]
         ProgressMeter.update!(prog, ceil(Int64, t[1] / endtime * 100),
-            showvalues=[(:t, t[1]), (:dt, current_timestep(simulator))])
+            showvalues=[(:t, ForwardDiff.value(t[1])), (:dt, ForwardDiff.value(current_timestep(simulator)))])
         if !isnothing(callback)
             callback(t[1], simulator)
         end
