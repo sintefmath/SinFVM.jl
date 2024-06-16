@@ -6,8 +6,11 @@ abstract type Backend end
 toint(x) = x
 toint(x::CartesianIndex{1}) = x[1]
 
-struct KernelAbstractionBackend{KABackendType} <: Backend
+struct KernelAbstractionBackend{KABackendType, RealType} <: Backend
     backend::KABackendType
+    realtype::Type{RealType}
+
+    KernelAbstractionBackend(backend; realtype=Float64) =  new{typeof(backend), realtype}(backend, realtype)
 end
 
 make_cuda_backend() = KernelAbstractionBackend(get_backend(CUDA.cu(ones(3))))

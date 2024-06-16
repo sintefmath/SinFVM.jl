@@ -1,7 +1,7 @@
 create_volume(backend, grid, equation) = Volume(backend, equation, grid)
-create_scalar(backend, grid, equation) = convert_to_backend(backend, zeros(size(grid)))
+create_scalar(backend, grid, equation) = convert_to_backend(backend, zeros(backend.realtype, size(grid)))
 
-struct ConservedSystem{BackendType,ReconstructionType,NumericalFluxType,EquationType,GridType,BufferType,ScalarBufferType, ImplicitSourceTermType} <: System
+struct ConservedSystem{BackendType,ReconstructionType,NumericalFluxType,EquationType,GridType,BufferType,ScalarBufferType,ImplicitSourceTermType} <: System
     backend::BackendType
     reconstruction::ReconstructionType
     numericalflux::NumericalFluxType
@@ -40,7 +40,7 @@ end
 create_volume(backend, grid, cs::ConservedSystem) = create_volume(backend, grid, cs.equation)
 
 function add_time_derivative!(output, cs::ConservedSystem, current_state, t)
-    maximum_wavespeed = zeros(dimension(cs.grid))
+    maximum_wavespeed = zeros(cs.backend.realtype, dimension(cs.grid))
     for direction in directions(cs.grid)
         reconstruct!(cs.backend, cs.reconstruction, cs.left_buffer, cs.right_buffer, current_state, cs.grid, cs.equation, direction)
         maximum_wavespeed[direction] = compute_flux!(cs.backend, cs.numericalflux, output, cs.left_buffer, cs.right_buffer, cs.wavespeeds, cs.grid, cs.equation, direction)

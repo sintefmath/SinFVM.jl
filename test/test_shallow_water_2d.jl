@@ -34,8 +34,10 @@ function run_swe_2d_pure_simulation(backend)
     SinSWE.set_current_state!(simulator, initial)
     
     # 2) Via volumes:
+    @show size(x)
+    @show size(grid)
     init_volume = SinSWE.Volume(backend, equation, grid)
-    CUDA.@allowscalar SinSWE.InteriorVolume(init_volume)[:, :] = [SVector{3, Float64}(exp.(-(norm(x .- 0.5)^2 / 0.01)) .+ 1.5, 0.0, 0.0) for x in x]
+    CUDA.@allowscalar SinSWE.InteriorVolume(init_volume)[1:end, 1:end] = [SVector{3, Float64}(exp.(-(norm(xi .- 0.5)^2 / 0.01)) .+ 1.5, 0.0, 0.0) for xi in x]
     SinSWE.set_current_state!(simulator, init_volume)
 
 

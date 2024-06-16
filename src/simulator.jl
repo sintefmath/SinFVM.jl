@@ -20,7 +20,7 @@ function Simulator(backend, system, timestepper, grid; cfl=0.25, t0=0.0)
         typeof(timestepper),
         typeof(grid),
         typeof(create_volume(backend, grid, system)),
-        Float64,
+        backend.realtype,
     }(
         backend,
         system,
