@@ -3,8 +3,6 @@ using Test
 using StaticArrays
 using CairoMakie
 
-using GLMakie
-
 function tsunami(;T=10, dt=1, w0_height=1.0, bump=false)
 
     nx = 1024
@@ -45,7 +43,7 @@ function tsunami(;T=10, dt=1, w0_height=1.0, bump=false)
     t = 0.0
     while t < T
         t += dt
-        SinSWE.simulate_to_time(simulator, dt)
+        SinSWE.simulate_to_time(simulator, t)
         
         state = SinSWE.current_interior_state(simulator)
         push!(all_h, collect(state.h))
