@@ -7,11 +7,11 @@ import CUDA
 using ForwardDiff
 import KernelAbstractions
 using SinSWE
+import ForwardDiff
 
-function run_swe_2d_ad_simulation(height_of_wall)
+function run_swe_2d_ad_simulation(height_and_position)
     # Here we say that we want to have one derivative (height_of_wall)
-    ADType = ForwardDiff.Dual{ForwardDiff.Tag{:swe,Float64},Float64,1}
-    Partials = ForwardDiff.Partials{1,Float64}
+    ADType = eltype(height_and_position)
 
     backend = SinSWE.KernelAbstractionBackend(KernelAbstractions.get_backend(ones(3)); realtype=ADType)
 
@@ -33,15 +33,16 @@ function run_swe_2d_ad_simulation(height_of_wall)
         bottom_topography_array[I] = 1.0 .- dx * I[1]
     end
 
-    xposition_of_wall = 0.2
-    yposition_of_wall = 0.2
+    height = height_and_position[1]
+    xposition_of_wall = height_and_position[2]
+    yposition_of_wall = height_and_position[3]
     @show xposition_of_wall / dx
     iposition_of_wall = ceil(Int64, xposition_of_wall / dx)
     jposition_of_wall = ceil(Int64, yposition_of_wall / dy)
     # Now we place the wall:
     for j in 1:width_of_wall
         for i in 1:length_of_wall
-            bottom_topography_array[i+iposition_of_wall, j+jposition_of_wall] += ADType(height_of_wall, Partials((1.0,)))
+            bottom_topography_array[i+iposition_of_wall, j+jposition_of_wall] += height
         end
     end
 
@@ -114,6 +115,8 @@ function run_swe_2d_ad_simulation(height_of_wall)
     hm = heatmap!(ax, derivative)
     Colorbar(f[1, 2], hm)
     display(f)
+
+    return sum(collect(result.h))
 end
 
-run_swe_2d_ad_simulation(2.0)
+@show ForwardDiff.gradient(run_swe_2d_ad_simulation, [2.0, 0.2, 0.2])
