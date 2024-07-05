@@ -1,33 +1,34 @@
 abstract type AbstractFriction end
 
-struct ImplicitFriction{Real, FrictionType} <: AbstractFriction # TODO: Better name?
+struct ImplicitFriction{Real,FrictionType} <: AbstractFriction # TODO: Better name?
     Cz::Real
     friction_function::FrictionType
-    ImplicitFriction(;Cz= 0.03^2, friction_function=friction_bh2021) = new{typeof(Cz), typeof(friction_function)}(Cz, friction_function) # TODO: Correct default value?
+    ImplicitFriction(; Cz=0.03^2, friction_function=friction_bh2021) = new{typeof(Cz),typeof(friction_function)}(Cz, friction_function) # TODO: Correct default value?
 end
 
 
 function friction_bsa2012(c, h, speed)
-    denom = cbrt(h)*h
-    return -c*speed/denom
+    denom = cbrt(h) * h
+    return -c * speed / denom
 end
 
 function friction_fcg2016(c, h, speed)
-    denom = cbrt(h)*h*h
-    return -c*speed/denom
+    denom = cbrt(h) * h * h
+    return -c * speed / denom
 end
 
 function friction_bh2021(c, h, speed)
-    denom = h*h
-    return -c*speed/denom
+    denom = h * h
+    return -c * speed / denom
 end
 
 function implicit_friction(friction::ImplicitFriction, equation::AllSWE1D, state, output, Bm, dt)
     h_star = desingularize(equation, state[1] - Bm)
     u = state[2] / h_star
     speed = sqrt(u^2)
-    friction_factor = friction.friction_function(friction.Cz, h_star, speed)
-    return output/(1 - dt * friction_factor)
+    friction_factor = @SVector [0.0, friction.friction_function(friction.Cz, h_star, speed)]
+
+    return output ./ (1 .- dt .* friction_factor)
 end
 
 function implicit_friction(friction::ImplicitFriction, equation::AllSWE2D, state, output, Bm, dt)
@@ -35,8 +36,9 @@ function implicit_friction(friction::ImplicitFriction, equation::AllSWE2D, state
     u = state[2] / h_star
     v = state[3] / h_star
     speed = sqrt(u^2 + v^2)
-    friction_factor = friction.friction_function(friction.Cz, h_star, speed)
-    return output/(1 - dt * friction_factor)
+    friction_scalar = friction.friction_function(friction.Cz, h_star, speed)
+    friction_factor = @SVector [0.0, friction_scalar, friction_scalar]
+    return output ./ (1 .- dt .* friction_factor)
 end
 
 function implicit_substep!(output, previous_state, system, backend, friction::ImplicitFriction, equation::AllSWE, dt)
