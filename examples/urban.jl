@@ -86,7 +86,8 @@ for backend in [SinSWE.make_cpu_backend(), SinSWE.make_cuda_backend()]
     upper_corner = Float64.(size(terrain))
     coarsen_times = 2
     terrain_original = terrain
-    #terrain = coarsen(terrain, coarsen_times)
+    terrain = coarsen(terrain, coarsen_times)
+
     mkpath("figs/bay/")
 
     with_theme(theme_latexfonts()) do
@@ -102,19 +103,36 @@ for backend in [SinSWE.make_cpu_backend(), SinSWE.make_cuda_backend()]
 
     grid_size = size(terrain) .- (5, 5)
     grid = SinSWE.CartesianGrid(grid_size...; gc=2, boundary=SinSWE.NeumannBC(), extent=[0 upper_corner[1]; 0 upper_corner[2]])
+    factor_cpu = bottom_per_cell(coarsen(Float64.(permeable_mask) .* (1.0 .- (Float64.(building_mask) .!= 0.0)), coarsen_times))
 
-    factor_cpu = bottom_per_cell(Float64.(permeable_mask) .* (1.0 .- (Float64.(building_mask) .!= 0.0)))
     factor = SinSWE.convert_to_backend(backend, factor_cpu)
 
-    infiltration = SinSWE.HortonInfiltration(grid, backend; factor=factor)
-    #infiltration = SinSWE.ConstantInfiltration(15 / (1000.0) / 3600.0)
+    # with_theme(theme_latexfonts()) do
+    #     f = Figure(size=(3*800, 600))
+    #     ax1 = Axis(f[1, 1])
+    #     ax2 = Axis(f[1, 2])
+    #     ax3 = Axis(f[1, 3])
+
+    #     buildings_avg = bottom_per_cell(with_buildings)
+    #     buildings_avg_nonzero = bottom_per_cell(with_buildings .- grid_dtm)
+    #     heatmap!(ax1, factor_cpu, title="Infiltration")
+    #     heatmap!(ax2, buildings_avg_nonzero, title="Terrain")
+    #     hm = heatmap!(ax3, factor_cpu - buildings_avg_nonzero, title="Diff")
+    #     Colorbar(f[1,4], hm)
+    #     display(f)
+    # end
+
+    #infiltration = SinSWE.HortonInfiltration(grid, backend; factor=factor)
+    infiltration = SinSWE.ConstantInfiltration(15 / (1000.0) / 3600.0)
     bottom = SinSWE.BottomTopography2D(terrain, backend, grid)
     bottom_source = SinSWE.SourceTermBottom()
-    equation = SinSWE.ShallowWaterEquations(bottom; depth_cutoff=8e-2)
-    reconstruction = SinSWE.LinearReconstruction()
+    equation = SinSWE.ShallowWaterEquations(bottom; depth_cutoff=8e-2, desingularizing_kappa=8e-2)
+    #reconstruction = SinSWE.LinearReconstruction()
+    reconstruction = SinSWE.NoReconstruction()
     numericalflux = SinSWE.CentralUpwind(equation)
     constant_rain = SinSWE.ConstantRain(15 / (1000.0))
-    friction = SinSWE.ImplicitFriction()
+    #friction = SinSWE.ImplicitFriction()
+    friction = SinSWE.ImplicitFriction(friction_function=SinSWE.friction_bsa2012)
 
     with_theme(theme_latexfonts()) do
         f = Figure(xlabel="Time", ylabel="Infiltration")
@@ -138,8 +156,8 @@ for backend in [SinSWE.make_cpu_backend(), SinSWE.make_cuda_backend()]
                 bottom_source
             ],
             friction)
-    timestepper = SinSWE.ForwardEulerStepper()
-    simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid)
+    timestepper = SinSWE.RungeKutta2()
+    simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid; cfl=0.1)
 
     u0 = x -> @SVector[0.0, 0.0, 0.0]
     x = SinSWE.cell_centers(grid)
@@ -154,5 +172,5 @@ for backend in [SinSWE.make_cpu_backend(), SinSWE.make_cuda_backend()]
     total_water_writer(0.0, simulator)
     total_water_writer_interval_writer = IntervalWriter(step=10.0, writer=total_water_writer)
 
-    SinSWE.simulate_to_time(simulator, T; maximum_timestep=60.0, callback=MultipleCallbacks([callback_to_simulator, total_water_writer_interval_writer]))
+    SinSWE.simulate_to_time(simulator, T; maximum_timestep=1.0, callback=MultipleCallbacks([callback_to_simulator, total_water_writer_interval_writer]))
 end
