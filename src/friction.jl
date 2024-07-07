@@ -49,7 +49,7 @@ function implicit_friction(friction::ImplicitFriction, equation::AllSWE2D, state
     # In essence, if the speed is zero, we don't want any friction,
     # so setting speed to zero will also make the derivative of speed zero.
     if speed == 0.0
-        speed = 0.0
+        speed = zero(speed)
     end
     friction_scalar = friction.friction_function(friction.Cz, h_star, speed)
     friction_factor = @SVector [0.0, friction_scalar, friction_scalar]
