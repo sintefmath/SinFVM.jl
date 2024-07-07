@@ -122,7 +122,7 @@ function simulate_to_time(
         end
         perform_step!(simulator, max_dt)
         t[1] += simulator.current_timestep[1]
-        ProgressMeter.update!(prog, ceil(Int64, t[1] / endtime * 100),
+        ProgressMeter.update!(prog, floor(Int64, t[1] / endtime * 100),
             showvalues=[(:t, ForwardDiff.value(t[1])), (:dt, ForwardDiff.value(current_timestep(simulator)))])
         if !isnothing(callback)
             callback(t[1], simulator)
