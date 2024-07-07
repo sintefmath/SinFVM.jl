@@ -26,6 +26,14 @@ function implicit_friction(friction::ImplicitFriction, equation::AllSWE1D, state
     h_star = desingularize(equation, state[1] - Bm)
     u = state[2] / h_star
     speed = sqrt(u^2)
+
+    # This looks weird, but basically fixes the AD issue.
+    # In essence, if the speed is zero, we don't want any friction,
+    # so setting speed to zero will also make the derivative of speed zero.
+    if speed == 0.0
+        speed = 0.0
+    end
+
     friction_factor = @SVector [0.0, friction.friction_function(friction.Cz, h_star, speed)]
 
     return output ./ (1 .- dt .* friction_factor)
@@ -36,8 +44,16 @@ function implicit_friction(friction::ImplicitFriction, equation::AllSWE2D, state
     u = state[2] / h_star
     v = state[3] / h_star
     speed = sqrt(u^2 + v^2)
+
+    # This looks weird, but basically fixes the AD issue.
+    # In essence, if the speed is zero, we don't want any friction,
+    # so setting speed to zero will also make the derivative of speed zero.
+    if speed == 0.0
+        speed = 0.0
+    end
     friction_scalar = friction.friction_function(friction.Cz, h_star, speed)
     friction_factor = @SVector [0.0, friction_scalar, friction_scalar]
+
     return output ./ (1 .- dt .* friction_factor)
 end
 
