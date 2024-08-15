@@ -51,8 +51,8 @@ function test_infiltration()
     @test minimum(h_cpu) .≈ ( 1.0 - test_inf.fc*1000) atol=1e-10
 
     h_cuda = plain_infiltration(cuda_backend, infiltration_cuda, grid, 1000; t0=1e6)
-    @test maximum(h_cpu) .≈ ( 1.0 - infiltration_cuda.fc*1000) atol=1e-10
-    @test minimum(h_cpu) .≈ ( 1.0 - infiltration_cuda.fc*1000) atol=1e-10
+    @test maximum(h_cuda) .≈ ( 1.0 - infiltration_cuda.fc*1000) atol=1e-10
+    @test minimum(h_cuda) .≈ ( 1.0 - infiltration_cuda.fc*1000) atol=1e-10
 
 
     # grid_case1 = SinSWE.CartesianGrid(2000, 10;  gc=2, boundary=SinSWE.WallBC(), extent=[0.0 4000.0; 0.0 20.0])
