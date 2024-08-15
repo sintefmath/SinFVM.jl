@@ -34,6 +34,18 @@ function compute_rain(rain::TimeDependentRain, t, i...)
 end
 
 
+struct FunctionalRain{T<:Function, G<:Grid}<: SourceTermRain
+    rain_function::T
+    grid::G
+    FunctionalRain(rain_function, grid) = new{typeof(rain_function), typeof(grid)}(rain_function, grid)
+end
+Adapt.@adapt_structure FunctionalRain
+
+
+function compute_rain(rain::FunctionalRain, t, index)
+    x, y = cell_center(rain.grid, index)
+    rain.rain_function(t, x, y)
+end
 
 
 function evaluate_source_term!(rain::SourceTermRain, output, current_state, cs::ConservedSystem, t)
