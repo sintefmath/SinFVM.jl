@@ -109,6 +109,10 @@ function simulate_to_time(
     show_progress=true,
     maximum_timestep=nothing,
 )
+
+    # TODO: Find a pragmatic and practical solution for the case where 
+    # you have no water (meaning directional_dt = Inf), 
+    # and you step to endtime in a single iteration 
     prog = ProgressMeter.Progress(100;
         enabled=show_progress,
         desc="Simulating",
