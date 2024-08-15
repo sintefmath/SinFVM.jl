@@ -94,6 +94,12 @@ function cell_faces(grid::CartesianGrid{2}, dir::Direction; interior=true)
     end
 end
 
+function cell_center(grid::CartesianGrid{2}, I::CartesianIndex)
+    x = start_extent(grid, XDIR) + compute_dx(grid)*(I[1] - 0.5 - grid.ghostcells[XDIR]) 
+    y = start_extent(grid, YDIR) + compute_dy(grid)*(I[2] - 0.5 - grid.ghostcells[YDIR]) 
+    return (x, y)
+end
+
 function cell_faces(grid::CartesianGrid{2}; interior=true)
     x_faces = cell_faces(grid, XDIR; interior=interior)
     y_faces = cell_faces(grid, YDIR; interior=interior)
