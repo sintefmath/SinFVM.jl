@@ -47,6 +47,24 @@ end
     bottom_topography
 end
 
+function bottom_per_cell(bottom_topography::SinSWE.BottomTopography2D)
+    bottom_per_cell(bottom_topography.B)
+end
+
+function bottom_per_cell(bottom_topography::Array)
+    dimensions = size(bottom_topography) .- (1, 1)
+    data = zeros(dimensions)
+
+    bottom_topography = SinSWE.BottomTopography2D(collect(bottom_topography); should_never_be_called=1)
+    for j in 1:dimensions[2]
+        for i in 1:dimensions[1]
+            data[i, j] = SinSWE.B_cell(bottom_topography, i, j)
+        end
+    end
+
+    return data
+end
+
 function bottom_per_cell(bottom_topography)
     dimensions = size(bottom_topography.B) .- (1, 1)
     data = zeros(dimensions)
