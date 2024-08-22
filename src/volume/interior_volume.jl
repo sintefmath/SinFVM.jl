@@ -156,6 +156,7 @@ end
 
 function Base.setindex!(vol::InteriorVolume, values::Container, indices1::UnitRange{Int64}, indices2::UnitRange{Int64}) where {Container<:Union{Volume, InteriorVolume, AbstractMatrix{<:AbstractVector}}}
     # TODO: Move this for loop to the inner kernel...
+    values = convert_to_backend(vol._volume._backend, values)
     for variable_index in 1:number_of_variables(vol._volume)
         proper_volume = vol._volume
         @fvmloop for_each_index_value_2d(vol._volume._backend, indices1, indices2) do i_source, j_source, i_target, j_target
