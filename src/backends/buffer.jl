@@ -2,6 +2,7 @@ import CUDA
 
 convert_to_backend(backend, array::AbstractArray) = array
 convert_to_backend(backend::CUDABackend, array::AbstractArray) = CUDA.CuArray(array)
+convert_to_backend(backend::CPUBackend, array::CUDA.CuArray) = collect(array)
 
 # TODO: Do one for KA?
 
