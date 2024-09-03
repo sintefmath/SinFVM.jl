@@ -22,6 +22,7 @@ using Parameters
 include("abstract_types.jl")
 include("meta/staticvectors.jl")
 include("grid.jl")
+include("grid_with_boundary.jl")
 include("backends/kernel_abstractions_cuda.jl")
 
 include("meta/loops.jl")
