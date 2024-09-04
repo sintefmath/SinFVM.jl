@@ -145,8 +145,11 @@ NumberOfConservedVariables,
 Dimension,} = RealType
 Base.length(vol::InteriorVolumeVariable) = length(vol._volume)
 Base.size(vol::InteriorVolumeVariable) = size(vol._volume)
-collect_interior(d::AbstractArray{T, 2}, grid, index) where {T} = collect(d[(grid.ghostcells[1]+1):(end-grid.ghostcells[1]), index])
-function collect_interior(d::AbstractArray{T, 3}, grid, index) where {T}
+
+collect_interior(d::AbstractArray, grid::CartesianGridWithBoundary, index) = collect_interior(d, grid.grid, index)
+
+collect_interior(d::AbstractArray{T, 2}, grid::CartesianGrid, index) where {T} = collect(d[(grid.ghostcells[1]+1):(end-grid.ghostcells[1]), index])
+function collect_interior(d::AbstractArray{T, 3}, grid::CartesianGrid, index) where {T}
     start_x = grid.ghostcells[1] + 1
     end_x = grid.ghostcells[1]
     start_y = grid.ghostcells[2] + 1

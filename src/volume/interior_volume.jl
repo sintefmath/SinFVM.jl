@@ -42,7 +42,6 @@ function interior2full(grid::CartesianGrid{1}, index)
     return index + grid.ghostcells[1]
 end
 
-
 function interior2full(grid::CartesianGrid{2}, index)
     nx = grid.totalcells[1]
     nx_without_ghostcells = nx - 2 * grid.ghostcells[1]
@@ -53,7 +52,7 @@ function interior2full(grid::CartesianGrid{2}, index)
     return i + grid.ghostcells[1] + (j + grid.ghostcells[2]) * nx + 1
 end
 
-
+interior2full(grid::CartesianGridWithBoundary, index) = interior2full(grid.grid, index)
 
 function interior2full(volume::Volume, index)
     interior2full(volume._grid, index)
@@ -62,6 +61,8 @@ end
 function interior2full(grid::CartesianGrid{2}, i_inner, j_inner)
     return CartesianIndex(i_inner + grid.ghostcells[1], j_inner +  grid.ghostcells[2])
 end
+
+interior2full(grid::CartesianGridWithBoundary, i, j) = interior2full(grid.grid, i, j)
 
 
 function interior2full(volume::Volume, i, j)

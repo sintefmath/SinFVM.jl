@@ -1,5 +1,5 @@
 function create_buffer(backend, grid::Grid, equation::Equation)
-    create_buffer(backend, number_of_conserved_variables(equation), grid.totalcells)
+    create_buffer(backend, number_of_conserved_variables(equation), size(grid))
 end
 struct Volume{
     EquationType<:Equation,

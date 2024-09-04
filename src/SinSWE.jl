@@ -39,6 +39,6 @@ include("simulator.jl")
 
 include("sourceterms/source_terms.jl")
 include("friction.jl")
-include("bc.jl")
+include("bc/bc.jl")
 export XDIR, YDIR, ZDIR, ShallowWaterEquations, Burgers, CartesianGrid, make_cpu_backend, make_cuda_backend, Volume, get_available_backends
 end

@@ -22,7 +22,9 @@ function minmod_slope(left, center, right, theta)
 
 end
 function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, direction::Direction)
-    @assert grid.ghostcells[1] > 1
+    if grid isa CartesianGrid
+        @assert grid.ghostcells[1] > 1
+    end
 
     # NOTE: dx cancel, as the slope depends on 1/dx and face values depend on dx*slope
     @fvmloop for_each_inner_cell(backend, grid, direction; ghostcells=1) do ileft, imiddle, iright
@@ -36,7 +38,9 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
 end
 
 function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, eq::AllPracticalSWE, direction::Direction)
-    @assert grid.ghostcells[1] > 1
+    if grid isa CartesianGrid
+        @assert grid.ghostcells[1] > 1
+    end
 
     w_input = input_conserved.h
     h_left = output_left.h

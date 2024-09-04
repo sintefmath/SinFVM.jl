@@ -1,5 +1,7 @@
 struct GridWithBoundary{GridType, dimension} <: Grid{dimension}
     grid::GridType
+
+    GridWithBoundary(grid) = new{typeof(grid), dimension(grid)}(grid)
 end
 
 const CartesianGridWithBoundary{dimension} = GridWithBoundary{<:CartesianGrid, dimension} where dimension
