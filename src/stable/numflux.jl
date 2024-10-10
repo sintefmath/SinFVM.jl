@@ -1,31 +1,4 @@
-struct CentralUpwind{E} <: NumericalFlux
-    eq::E #ShallowWaterEquations1D{T, S}
-end
-
-Adapt.@adapt_structure CentralUpwind
-
-
-function (centralupwind::CentralUpwind)(faceminus, faceplus, direction::Direction)
-    centralupwind(centralupwind.eq, faceminus, faceplus, direction)
-end
-
-function (centralupwind::CentralUpwind)(::Equation, faceminus, faceplus, direction::Direction)
-
-    fluxminus = centralupwind.eq(direction, faceminus...)
-    fluxplus = centralupwind.eq(direction, faceplus...)
-
-    eigenvalues_minus = compute_eigenvalues(centralupwind.eq, direction, faceminus...)
-    eigenvalues_plus = compute_eigenvalues(centralupwind.eq, direction, faceplus...)
-
-    aplus = max.(eigenvalues_plus[1], eigenvalues_minus[1], 0.0)
-    aminus = min.(eigenvalues_plus[2], eigenvalues_minus[2], 0.0)
-
-    F = (aplus .* fluxminus - aminus .* fluxplus) ./ (aplus - aminus) + ((aplus .* aminus) ./ (aplus - aminus)) .* (faceplus - faceminus)
-    return F, max(abs(aplus), abs(aminus))
-end
-
-
-function (centralupwind::CentralUpwind)(::AllPracticalSWE, faceminus, faceplus, direction::Direction)
+function (centralupwind::CentralUpwind)(::AllPracticalSWEStable, faceminus, faceplus, direction::Direction)
     fluxminus = zero(faceminus)
     eigenvalues_minus = zero(faceminus)
     if faceminus[1] > centralupwind.eq.depth_cutoff
@@ -55,4 +28,3 @@ function (centralupwind::CentralUpwind)(::AllPracticalSWE, faceminus, faceplus, 
     end    
     return F, max(abs(aplus), abs(aminus))
 end
-
