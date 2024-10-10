@@ -20,6 +20,7 @@ struct CartesianGrid{dimension,BoundaryType,dimension2} <: Grid{dimension}
     Δ::SVector{dimension,Float64}
 end
 
+is_active(::CartesianGrid, index) = true
 start_extent(grid::CartesianGrid, direction) = grid.extent[(Base.to_index(direction)-1)*2 + 1]
 end_extent(grid::CartesianGrid, direction) = grid.extent[(Base.to_index(direction)-1)*2 + 2]
 extent(grid, direction) = SVector{2, Int64}(start_extent(grid, direction), end_extent(grid, direction))

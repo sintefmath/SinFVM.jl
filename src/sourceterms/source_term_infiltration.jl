@@ -14,7 +14,7 @@ struct HortonInfiltration{S,T} <: SourceTermInfiltration
     fc::S
     k::S
     factor::T
-    function HortonInfiltration(grid::CartesianGrid{2}, backend; factor=1.0, fc=3.272e-5, f0=1.977e-4, k=2.43e-3)
+    function HortonInfiltration(grid::CartesianGrid, backend; factor=1.0, fc=3.272e-5, f0=1.977e-4, k=2.43e-3)
         if ndims(factor) == 0
             factor = [factor for x in cell_centers(grid; interior=false)]
         else
@@ -45,7 +45,7 @@ function validate_infiltration_factor(factor, grid::Grid)
 end
 
 
-function compute_infiltration(f::HortonInfiltration, t, index::CartesianIndex)
+function compute_infiltration(f::HortonInfiltration, t, index)
     return f.factor[index]*(f.fc + (f.f0 - f.fc)*exp(-f.k*t))
 end
 

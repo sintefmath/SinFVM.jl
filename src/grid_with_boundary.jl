@@ -1,7 +1,33 @@
-struct GridWithBoundary{GridType, dimension} <: Grid{dimension}
+import Adapt
+struct GridWithBoundary{GridType, dimension, ActiveSelectorType <: AbstractArray{Bool, dimension}} <: Grid{dimension}
     grid::GridType
+    is_active::ActiveSelectorType
+    function GridWithBoundary(grid, backend)
+        is_active = convert_to_backend(backend, ones(Bool, size(grid)))
+        new{typeof(grid), dimension(grid), typeof(is_active)}(grid, is_active)
+    end
 
-    GridWithBoundary(grid) = new{typeof(grid), dimension(grid)}(grid)
+    GridWithBoundary(grid, is_active::AbstractArray) = new{typeof(grid), dimension(grid), typeof(is_active)}(grid, is_active)
+end
+
+Adapt.@adapt_structure GridWithBoundary
+
+is_active(grid::GridWithBoundary, index) = grid.is_active[index]
+
+function is_inner_cell(grid::GridWithBoundary, index, ghost_cells) 
+    # TODO: This should probably be done using some pre-processing
+    for direction in directions(grid)
+        for padding in 1:ghost_cells
+            for left_right in [left_cell, right_cell]
+                neighbour_cell = left_right(grid, index, direction, padding)
+                if !is_active(grid, neighbour_cell)
+                    return false
+                end
+            end
+        end
+    end
+
+    return true
 end
 
 const CartesianGridWithBoundary{dimension} = GridWithBoundary{<:CartesianGrid, dimension} where dimension

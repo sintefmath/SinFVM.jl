@@ -33,10 +33,19 @@ function get_available_backends()
     return backends
 end
 
-@kernel function for_each_inner_cell_kernel(f, grid, direction, ghostcells, y...)
+@kernel function for_each_inner_cell_kernel(f, grid::Grid, direction, ghostcells, y...)
     J = @index(Global, Cartesian)
     I = toint(J)
     f(left_cell(grid, I, direction, ghostcells), middle_cell(grid, I, direction, ghostcells), right_cell(grid, I, direction, ghostcells), y...)
+end
+
+@kernel function for_each_inner_cell_kernel(f, grid::GridWithBoundary, direction, ghostcells, y...)
+    J = @index(Global, Cartesian)
+    I = toint(J)
+    middle_index = middle_cell(grid, I, direction, ghostcells)
+    if is_active(grid, middle_index) && is_inner_cell(grid, middle_index, ghostcells)
+        f(left_cell(grid, I, direction, ghostcells), middle_index, right_cell(grid, I, direction, ghostcells), y...)
+    end
 end
 
 
@@ -72,6 +81,7 @@ end
 
 @kernel function for_each_index_value_2d_kernel(f, values1, values2, y...)
     I = @index(Global, Cartesian)
+
     f(Tuple(I)..., values1[I[1]], values2[I[2]], y...)
 end
 
@@ -92,8 +102,11 @@ end
 
 @kernel function for_each_cell_kernel(f, grid, y...)
     I = @index(Global, Cartesian)
-    f(toint(I), y...)
+    if is_active(grid, I)
+        f(toint(I), y...)
+    end
 end
+
 
 
 function for_each_cell(f, backend::KernelAbstractionBackend{T}, grid, y...;) where {T}
