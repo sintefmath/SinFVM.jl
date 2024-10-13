@@ -20,9 +20,9 @@ function mollify_vector(v::Vector{T}; σ::Float64 = 1.0) where {T}
     return conv(v, kernel)
 end
 
-function run_simulation(sigmas)
+function run_simulation(sigmas, depth_cutoff=1e-6, desingularizing_kappa = 1e-6 )
     f = Figure(size = (2200, length(sigmas) * 600), fontsize = 24)
-    f[1, 1:3] = Label(f, "Different smoothness of bottom topography.\nHere h is no reconstruction, while h_2 is linear reconstruction (minmod)", fontsize = 32, tellheight = true)
+    f[1, 1:3] = Label(f, "Different smoothness of bottom topography.\nHere h is no reconstruction, while h_2 is linear reconstruction (minmod)\ndepth_cutoff=$(depth_cutoff), desingularizing_kappa=$(desingularizing_kappa)", fontsize = 32, tellheight = true)
 
     for (sigma_n, sigma) in enumerate(sigmas)
         u0 = x -> @SVector[0.0, 0.0]
@@ -59,7 +59,7 @@ function run_simulation(sigmas)
         bottom_topography_backend =
             SinSWE.BottomTopography1D(bottom_topography, backend, grid)
         bottom_source = SinSWE.SourceTermBottom()
-        equation = SinSWE.ShallowWaterEquations1D(bottom_topography_backend)
+        equation = SinSWE.ShallowWaterEquations1D(bottom_topography_backend, depth_cutoff = depth_cutoff, desingularizing_kappa = desingularizing_kappa)
         reconstruction = SinSWE.NoReconstruction()
         linrec = SinSWE.LinearReconstruction(1.05)
         numericalflux = SinSWE.CentralUpwind(equation)
