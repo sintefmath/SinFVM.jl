@@ -151,7 +151,7 @@ function run_ka_test()
 
 
 end
-
-run_ka_test()
-
+if SinSWE.has_cuda_backend()
+    run_ka_test()
+end
 #@show output
