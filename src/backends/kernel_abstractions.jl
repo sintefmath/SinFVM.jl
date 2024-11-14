@@ -33,6 +33,15 @@ function get_available_backends()
     return backends
 end
 
+function has_cuda_backend()
+    try
+        make_cuda_backend()
+        return true
+    catch err
+        return false
+    end
+end
+
 @kernel function for_each_inner_cell_kernel(f, grid, direction, ghostcells, y...)
     J = @index(Global, Cartesian)
     I = toint(J)
