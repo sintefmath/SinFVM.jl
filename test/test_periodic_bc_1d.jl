@@ -1,4 +1,4 @@
-using SinSWE
+using SinFVM
 using CUDA
 using Test
 using PrettyTables
@@ -6,9 +6,9 @@ using PrettyTables
 for backend in get_available_backends()
     nx = 11
     for gc in [1, 2]
-        grid = SinSWE.CartesianGrid(nx; gc=gc)
-        bc = SinSWE.PeriodicBC()
-        equation = SinSWE.Burgers()
+        grid = SinFVM.CartesianGrid(nx; gc=gc)
+        bc = SinFVM.PeriodicBC()
+        equation = SinFVM.Burgers()
 
         input = -42 * ones(nx + 2 * gc)
         for i in (gc+1):(nx+gc)
@@ -16,8 +16,8 @@ for backend in get_available_backends()
         end
         # pretty_table(input)
 
-        input_device = SinSWE.convert_to_backend(backend, input)
-        SinSWE.update_bc!(backend, bc, grid, equation, input_device)
+        input_device = SinFVM.convert_to_backend(backend, input)
+        SinFVM.update_bc!(backend, bc, grid, equation, input_device)
         output = collect(input_device)
 
         # pretty_table(output)

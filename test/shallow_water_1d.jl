@@ -6,29 +6,29 @@ using StaticArrays
 module Correct
 include("fasit.jl")
 end
-using SinSWE
+using SinFVM
 function run_simulation()
 
     u0 = x -> @SVector[exp.(-(x - 0.5)^2 / 0.001) .+ 1.5, 0.0 .* x]
     nx = 1024
-    grid = SinSWE.CartesianGrid(nx; gc=2)
+    grid = SinFVM.CartesianGrid(nx; gc=2)
     backend = make_cuda_backend()
     #backend = make_cpu_backend()
 
-    equation = SinSWE.ShallowWaterEquations1D()
-    pure_equation = SinSWE.ShallowWaterEquations1DPure()
-    reconstruction = SinSWE.NoReconstruction()
-    linrec = SinSWE.LinearReconstruction(1.05)
-    numericalflux = SinSWE.CentralUpwind(equation)
-    pure_numericalflux = SinSWE.CentralUpwind(pure_equation)
+    equation = SinFVM.ShallowWaterEquations1D()
+    pure_equation = SinFVM.ShallowWaterEquations1DPure()
+    reconstruction = SinFVM.NoReconstruction()
+    linrec = SinFVM.LinearReconstruction(1.05)
+    numericalflux = SinFVM.CentralUpwind(equation)
+    pure_numericalflux = SinFVM.CentralUpwind(pure_equation)
     conserved_system =
-        SinSWE.ConservedSystem(backend, reconstruction, numericalflux, equation, grid)
-    timestepper = SinSWE.ForwardEulerStepper()
+        SinFVM.ConservedSystem(backend, reconstruction, numericalflux, equation, grid)
+    timestepper = SinFVM.ForwardEulerStepper()
     linrec_conserved_system = 
-        SinSWE.ConservedSystem(backend, linrec, numericalflux, equation, grid)
+        SinFVM.ConservedSystem(backend, linrec, numericalflux, equation, grid)
     pure_linrec_conserved_system = 
-        SinSWE.ConservedSystem(backend, linrec, pure_numericalflux, pure_equation, grid)
-    x = SinSWE.cell_centers(grid)
+        SinFVM.ConservedSystem(backend, linrec, pure_numericalflux, pure_equation, grid)
+    x = SinFVM.cell_centers(grid)
     initial = u0.(x)
     T = 0.05
 
@@ -49,18 +49,18 @@ function run_simulation()
 
    
 
-    simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid)
-    linrec_simulator = SinSWE.Simulator(backend, linrec_conserved_system, timestepper, grid; cfl=0.2)
-    pure_linrec_simulator = SinSWE.Simulator(backend, pure_linrec_conserved_system, timestepper, grid; cfl=0.2)
+    simulator = SinFVM.Simulator(backend, conserved_system, timestepper, grid)
+    linrec_simulator = SinFVM.Simulator(backend, linrec_conserved_system, timestepper, grid; cfl=0.2)
+    pure_linrec_simulator = SinFVM.Simulator(backend, pure_linrec_conserved_system, timestepper, grid; cfl=0.2)
 
     
-    SinSWE.set_current_state!(linrec_simulator, initial)
-    SinSWE.set_current_state!(simulator, initial)
-    SinSWE.set_current_state!(pure_linrec_simulator, initial)
+    SinFVM.set_current_state!(linrec_simulator, initial)
+    SinFVM.set_current_state!(simulator, initial)
+    SinFVM.set_current_state!(pure_linrec_simulator, initial)
     
 
 
-    initial_state = SinSWE.current_interior_state(simulator)
+    initial_state = SinFVM.current_interior_state(simulator)
     lines!(ax, x, collect(initial_state.h), label=L"h_0(x)")
     lines!(ax2, x, collect(initial_state.hu), label=L"hu_0(x)")
 
@@ -69,15 +69,15 @@ function run_simulation()
  
    
 
-    result = collect(SinSWE.current_state(simulator))
-    @time SinSWE.simulate_to_time(simulator, T) 
-    @time SinSWE.simulate_to_time(linrec_simulator, T)
-    @time SinSWE.simulate_to_time(pure_linrec_simulator, T)
+    result = collect(SinFVM.current_state(simulator))
+    @time SinFVM.simulate_to_time(simulator, T) 
+    @time SinFVM.simulate_to_time(linrec_simulator, T)
+    @time SinFVM.simulate_to_time(pure_linrec_simulator, T)
 
     
-    result = SinSWE.current_interior_state(simulator)
-    linrec_results = SinSWE.current_interior_state(linrec_simulator)
-    pure_results = SinSWE.current_interior_state(pure_linrec_simulator)
+    result = SinFVM.current_interior_state(simulator)
+    linrec_results = SinFVM.current_interior_state(linrec_simulator)
+    pure_results = SinFVM.current_interior_state(pure_linrec_simulator)
     
     lines!(
         ax,

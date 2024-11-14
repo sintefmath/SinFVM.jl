@@ -1,12 +1,12 @@
-using SinSWE
+using SinFVM
 using Test 
 for backend in get_available_backends()
     nx = 10
-    grid = SinSWE.CartesianGrid(nx)
+    grid = SinFVM.CartesianGrid(nx)
 
-    output_array = SinSWE.convert_to_backend(backend, zeros(nx + 2))
+    output_array = SinFVM.convert_to_backend(backend, zeros(nx + 2))
 
-    SinSWE.@fvmloop SinSWE.for_each_cell(backend, grid) do index
+    SinFVM.@fvmloop SinFVM.for_each_cell(backend, grid) do index
         output_array[index] = index
     end
 

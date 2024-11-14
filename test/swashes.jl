@@ -1,4 +1,4 @@
-using SinSWE
+using SinFVM
 
 using StaticArrays
 using CairoMakie
@@ -107,7 +107,7 @@ end
 getExtent(sw::Swashes1D) = [0.0  sw.L]
 getExtent(sw::Swashes2D) = [0.0  sw.L; 0.0 sw.L]
 
-function get_reference_solution(sw::Swashes41x, grid::CartesianGrid, t, eq::SinSWE.AllPracticalSWE=SinSWE.ShallowWaterEquations1D(), backend=SinSWE.make_cpu_backend(); dir=1, dim=1)
+function get_reference_solution(sw::Swashes41x, grid::CartesianGrid, t, eq::SinFVM.AllPracticalSWE=SinFVM.ShallowWaterEquations1D(), backend=SinFVM.make_cpu_backend(); dir=1, dim=1)
     xA = sw.x0 - t*sqrt(sw.g*sw.hl)
     xB = sw.x0 + t*(2*sqrt(sw.g*sw.hl) - 3*sw.cm)
     xC = sw.x0 + t*(2*sw.cm^2 *(sqrt(sw.g*sw.hl) - sw.cm))/(sw.cm^2 - sw.g*sw.hr)
@@ -141,18 +141,18 @@ function get_reference_solution(sw::Swashes41x, grid::CartesianGrid, t, eq::SinS
         return 0.0
     end
 
-    all_x = SinSWE.cell_centers(grid)
+    all_x = SinFVM.cell_centers(grid)
     if (dir == 2) @assert dim == 2 end
     
-    ref_state = SinSWE.Volume(backend, eq, grid)
+    ref_state = SinFVM.Volume(backend, eq, grid)
     if dir == 1 && dim == 1
-        CUDA.@allowscalar SinSWE.InteriorVolume(ref_state)[:] = [SVector{2, Float64}(get_h(sw, x), get_u(sw, x)) for x in all_x]
+        CUDA.@allowscalar SinFVM.InteriorVolume(ref_state)[:] = [SVector{2, Float64}(get_h(sw, x), get_u(sw, x)) for x in all_x]
         return ref_state
     elseif dir == 1 && dim == 2
         u0 = x ->  @SVector[get_h(sw, x[1]), get_u(sw, x[1]), 0.0]
         return u0.(all_x)    
         # tmp =  [SVector{3, Float64}(get_h(sw, x[1]), get_u(sw, x[1]), 0.0) for x in all_x]
-        # CUDA.@allowscalar SinSWE.InteriorVolume(ref_state)[:, :] = tmp
+        # CUDA.@allowscalar SinFVM.InteriorVolume(ref_state)[:, :] = tmp
         # return ref_state
     elseif dir == 2 && dim == 2
         u0 = x ->  @SVector[get_h(sw, x[2]), 0.0, get_u(sw, x[2])]
@@ -162,11 +162,11 @@ end
 
 
 
-function get_reference_solution(sw::Swashes421, grid::CartesianGrid, t, eq::SinSWE.AllPracticalSWE=SinSWE.ShallowWaterEquations1D(), backend=SinSWE.make_cpu_backend(); momentum=true, dir=1, dim=1)
+function get_reference_solution(sw::Swashes421, grid::CartesianGrid, t, eq::SinFVM.AllPracticalSWE=SinFVM.ShallowWaterEquations1D(), backend=SinFVM.make_cpu_backend(); momentum=true, dir=1, dim=1)
     B = sqrt(2.0*sw.g*sw.h0)/(2.0*sw.a)
     x1 = -0.5*cos(2*B*t) - sw.a + sw.L/2.0
     x2 = -0.5*cos(2*B*t) + sw.a + sw.L/2.0
-    dx = SinSWE.compute_dx(grid)
+    dx = SinFVM.compute_dx(grid)
     function get_h(x)
         if x < x1 || x > x2
             return 0.0
@@ -193,23 +193,23 @@ function get_reference_solution(sw::Swashes421, grid::CartesianGrid, t, eq::SinS
         return get_u(x)*get_h(x)
     end
 
-    all_x = SinSWE.cell_centers(grid)  
-    ref_state = SinSWE.Volume(backend, eq, grid)
+    all_x = SinFVM.cell_centers(grid)  
+    ref_state = SinFVM.Volume(backend, eq, grid)
     if momentum
-        CUDA.@allowscalar SinSWE.InteriorVolume(ref_state)[:] = [SVector{2, Float64}(get_w(x), get_hu(x)) for x in all_x]
+        CUDA.@allowscalar SinFVM.InteriorVolume(ref_state)[:] = [SVector{2, Float64}(get_w(x), get_hu(x)) for x in all_x]
     else
-        CUDA.@allowscalar SinSWE.InteriorVolume(ref_state)[:] = [SVector{2, Float64}(get_w(x), get_u(x)) for x in all_x]
+        CUDA.@allowscalar SinFVM.InteriorVolume(ref_state)[:] = [SVector{2, Float64}(get_w(x), get_u(x)) for x in all_x]
     end
     return ref_state
 end
 
 
-function get_reference_solution(sw::Swashes422a, grid::CartesianGrid, t, eq::ShallowWaterEquations=SinSWE.ShallowWaterEquations2D(), backend=SinSWE.make_cpu_backend())
+function get_reference_solution(sw::Swashes422a, grid::CartesianGrid, t, eq::ShallowWaterEquations=SinFVM.ShallowWaterEquations2D(), backend=SinFVM.make_cpu_backend())
     h_term1 = (sqrt(1 - sw.A^2)/(1 - sw.A*cos(sw.ω*t))) - 1.0
     h_term2 = ((1 - sw.A^2)/(1 - sw.A*cos(sw.ω*t))^2) - 1.0
     velocity_term = (1.0/(1 - sw.A*cos(sw.ω*t)))*(0.5*sw.ω*sw.A*sin(sw.ω*t))
-    dx = SinSWE.compute_dx(grid)
-    dy = SinSWE.compute_dx(grid)
+    dx = SinFVM.compute_dx(grid)
+    dy = SinFVM.compute_dx(grid)
     function get_B_cell(x, y)
         return 0.25*(b_value(sw, sw_r(sw, x - 0.5*dx, y - 0.5*dy)) +  
                      b_value(sw, sw_r(sw, x - 0.5*dx, y + 0.5*dy)) +
@@ -230,19 +230,19 @@ function get_reference_solution(sw::Swashes422a, grid::CartesianGrid, t, eq::Sha
     function get_hv(x, y)
         return velocity_term*(y - sw.L/2.0)*get_h(x, y)
     end
-    all_x = SinSWE.cell_centers(grid)
-    ref_state = SinSWE.Volume(backend, eq, grid)
-    CUDA.@allowscalar SinSWE.InteriorVolume(ref_state)[:] = [SVector{3, Float64}(get_w(x[1], x[2]), get_hu(x[1], x[2]), get_hv(x[1], x[2])) for x in all_x]
+    all_x = SinFVM.cell_centers(grid)
+    ref_state = SinFVM.Volume(backend, eq, grid)
+    CUDA.@allowscalar SinFVM.InteriorVolume(ref_state)[:] = [SVector{3, Float64}(get_w(x[1], x[2]), get_hu(x[1], x[2]), get_hv(x[1], x[2])) for x in all_x]
     return ref_state   
 end
 
-function get_reference_solution(sw::Swashes422b, grid::CartesianGrid, t, eq::ShallowWaterEquations=SinSWE.ShallowWaterEquations2D(), backend=SinSWE.make_cpu_backend())
+function get_reference_solution(sw::Swashes422b, grid::CartesianGrid, t, eq::ShallowWaterEquations=SinFVM.ShallowWaterEquations2D(), backend=SinFVM.make_cpu_backend())
     cos_term = cos(sw.ω*t)
     sin_term = sin(sw.ω*t)
     u = -sw.η*sw.ω*sin_term
     v =  sw.η*sw.ω*cos_term
-    dx = SinSWE.compute_dx(grid)
-    dy = SinSWE.compute_dx(grid)
+    dx = SinFVM.compute_dx(grid)
+    dy = SinFVM.compute_dx(grid)
     function get_B_cell(x, y)
         return 0.25*(b_value(sw, sw_r(sw, x - 0.5*dx, y - 0.5*dy)) +  
                      b_value(sw, sw_r(sw, x - 0.5*dx, y + 0.5*dy)) +
@@ -262,9 +262,9 @@ function get_reference_solution(sw::Swashes422b, grid::CartesianGrid, t, eq::Sha
     function get_hv(x, y)
         return v*get_h(x, y)
     end
-    all_x = SinSWE.cell_centers(grid)
-    ref_state = SinSWE.Volume(backend, eq, grid)
-    CUDA.@allowscalar SinSWE.InteriorVolume(ref_state)[:] = [SVector{3, Float64}(get_w(x[1], x[2]), get_hu(x[1], x[2]), get_hv(x[1], x[2])) for x in all_x]
+    all_x = SinFVM.cell_centers(grid)
+    ref_state = SinFVM.Volume(backend, eq, grid)
+    CUDA.@allowscalar SinFVM.InteriorVolume(ref_state)[:] = [SVector{3, Float64}(get_w(x[1], x[2]), get_hu(x[1], x[2]), get_hv(x[1], x[2])) for x in all_x]
     return ref_state   
 end
 
@@ -272,35 +272,35 @@ end
 sw_r(sw::Swashes422x, x, y) = sqrt((x - sw.L/2)^2 + (y - sw.L/2)^2)
 
 function get_bottom_topography(::Swashes, ::CartesianGrid, backend)
-    return SinSWE.ConstantBottomTopography()
+    return SinFVM.ConstantBottomTopography()
 end
 
 b_value(sw::Swashes421, x) = sw.h0*((1/sw.a^2)*(x - sw.L/2.0)^2 - 1.0) + sw.offset
 function get_bottom_topography(sw::Swashes421, grid::CartesianGrid, backend)
     # b = x -> sw.h0*((1/sw.a^2)*(x - sw.L/2.0)^2 - 1.0) + sw.offset
-    B_data = [b_value(sw, x) for x in SinSWE.cell_faces(grid, interior=false)]
-    return SinSWE.BottomTopography1D(B_data, backend, grid)
+    B_data = [b_value(sw, x) for x in SinFVM.cell_faces(grid, interior=false)]
+    return SinFVM.BottomTopography1D(B_data, backend, grid)
 end
 
 b_value(sw::Swashes422x, r) = -sw.h0*(1 - (r^2/sw.a^2))
 function get_bottom_topography(sw::Swashes422x, grid::CartesianGrid{2}, backend)
     # b = (r) -> -sw.h0*(1 - (r^2/sw.a^2))
-    B_data = [b_value(sw, sw_r(sw, x[1], x[2])) for x in SinSWE.cell_faces(grid, interior=false)]
-    return SinSWE.BottomTopography2D(B_data, backend, grid)
+    B_data = [b_value(sw, sw_r(sw, x[1], x[2])) for x in SinFVM.cell_faces(grid, interior=false)]
+    return SinFVM.BottomTopography2D(B_data, backend, grid)
 end   
 
 
-function get_initial_conditions(sw::Swashes1D, grid, eq::SinSWE.AllPracticalSWE, backend; dir=1, dim=1)
+function get_initial_conditions(sw::Swashes1D, grid, eq::SinFVM.AllPracticalSWE, backend; dir=1, dim=1)
     return get_reference_solution(sw, grid, 0.0, eq, backend; dir=dir, dim=dim)
 end
-function get_initial_conditions(sw::Swashes2D, grid, eq::SinSWE.AllPracticalSWE, backend)
+function get_initial_conditions(sw::Swashes2D, grid, eq::SinFVM.AllPracticalSWE, backend)
     return get_reference_solution(sw, grid, 0.0, eq, backend)
 end
 
 function plot_ref_solution(sw::Swashes1D, nx, T)
     f = Figure(size=(1600, 600), fontsize=24)
-    grid = SinSWE.CartesianGrid(nx; gc=2, boundary=SinSWE.WallBC(), extent=getExtent(sw), )
-    x = SinSWE.cell_centers(grid, interior=false)
+    grid = SinFVM.CartesianGrid(nx; gc=2, boundary=SinFVM.WallBC(), extent=getExtent(sw), )
+    x = SinFVM.cell_centers(grid, interior=false)
     ax_h = Axis(
         f[1, 1],
         title="h in swashes test case $(sw.id)\n $(sw.name) cells.\nT=$(T)",
@@ -326,15 +326,15 @@ end
 
 function plot_ref_solution(sw::Swashes421, nx, T)
     f = Figure(size=(1600, 600), fontsize=24)
-    grid = SinSWE.CartesianGrid(nx; gc=2, boundary=SinSWE.WallBC(), extent=getExtent(sw), )
-    backend = SinSWE.make_cpu_backend()
+    grid = SinFVM.CartesianGrid(nx; gc=2, boundary=SinFVM.WallBC(), extent=getExtent(sw), )
+    backend = SinFVM.make_cpu_backend()
     topography = get_bottom_topography(sw, grid, backend)
-    x = SinSWE.cell_centers(grid)
-    x_faces = SinSWE.cell_faces(grid)
-    bottom_faces = SinSWE.collect_topography_intersections(topography, grid)
+    x = SinFVM.cell_centers(grid)
+    x_faces = SinFVM.cell_faces(grid)
+    bottom_faces = SinFVM.collect_topography_intersections(topography, grid)
     @show size(x)
     @show size(x_faces)
-    @show typeof(grid) <: SinSWE.CartesianGrid{2}
+    @show typeof(grid) <: SinFVM.CartesianGrid{2}
     ax_h = Axis(
         f[1, 1],
         title="h in swashes test case $(sw.id)\n $(sw.name) cells.\nT=$(T)",
@@ -350,7 +350,7 @@ function plot_ref_solution(sw::Swashes421, nx, T)
     )
     lines!(ax_h, x_faces, bottom_faces, label="B(x)", color="black")
     for t in T
-        ref_state = SinSWE.InteriorVolume(get_reference_solution(sw, grid, t))
+        ref_state = SinFVM.InteriorVolume(get_reference_solution(sw, grid, t))
         lines!(ax_h, x, ref_state.h, label="t=$(t)")
         lines!(ax_u, x, ref_state.hu, label="t=$(t)")
     end

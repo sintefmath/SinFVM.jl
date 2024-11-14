@@ -76,16 +76,16 @@ variable_names(::Type{Volume{EquationType,S,T,M,B,N,D}}) where {EquationType,S,T
 realtype(::Type{Volume{S,T,RealType,M,B,N,D}}) where {S,T,RealType,M,B,N,D} = RealType
 
 @inline function Base.getindex(vol::T, index::Int64) where {T<:Volume}
-    SinSWE.extract_vector(Val(number_of_variables(T)), vol._data, linear2cartesian(vol, index))
+    SinFVM.extract_vector(Val(number_of_variables(T)), vol._data, linear2cartesian(vol, index))
 end
 @inline function Base.setindex!(vol::T, value, index::Int64) where {T<:Volume}
-    SinSWE.set_vector!(Val(number_of_variables(T)), vol._data, value, linear2cartesian(vol, index))
+    SinFVM.set_vector!(Val(number_of_variables(T)), vol._data, value, linear2cartesian(vol, index))
 end
 
 @inline Base.getindex(vol::T, i::Int64, j::Int64) where {T<:Volume} =
-    SinSWE.extract_vector(Val(number_of_variables(T)), vol._data, CartesianIndex(i, j))
+    SinFVM.extract_vector(Val(number_of_variables(T)), vol._data, CartesianIndex(i, j))
 @inline Base.setindex!(vol::T, value, i::Int64, j::Int64) where {T<:Volume} =
-    SinSWE.set_vector!(Val(number_of_variables(T)), vol._data, value, CartesianIndex(i, j))
+    SinFVM.set_vector!(Val(number_of_variables(T)), vol._data, value, CartesianIndex(i, j))
 
 
 Base.firstindex(vol::Volume) = 1

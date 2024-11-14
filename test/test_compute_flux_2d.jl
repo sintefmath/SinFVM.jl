@@ -1,29 +1,29 @@
 using Test
-using SinSWE
+using SinFVM
 using StaticArrays
 import CUDA
 using LinearAlgebra
 
 function test_compute_flux_2d(backend)
-    backend_name = SinSWE.name(backend)
+    backend_name = SinFVM.name(backend)
     u0 = x -> @SVector[exp.(-(norm(x .- 0.5)^2 / 0.01)) .+ 1.5, 0.0, 0.0]
     nx = 32
     ny = 16
-    grid = SinSWE.CartesianGrid(nx, ny; gc=1)
+    grid = SinFVM.CartesianGrid(nx, ny; gc=1)
 
-    equation = SinSWE.ShallowWaterEquationsPure()
+    equation = SinFVM.ShallowWaterEquationsPure()
 
-    reconstruction = SinSWE.NoReconstruction()
-    numericalflux = SinSWE.CentralUpwind(equation)
+    reconstruction = SinFVM.NoReconstruction()
+    numericalflux = SinFVM.CentralUpwind(equation)
 
-    x = SinSWE.cell_centers(grid)
+    x = SinFVM.cell_centers(grid)
     initial = u0.(x)
 
-    state = SinSWE.Volume(backend, equation, grid)
-    output_state = SinSWE.Volume(backend, equation, grid)
-    interior_state = SinSWE.InteriorVolume(state)
+    state = SinFVM.Volume(backend, equation, grid)
+    output_state = SinFVM.Volume(backend, equation, grid)
+    interior_state = SinFVM.InteriorVolume(state)
     CUDA.@allowscalar interior_state[:, :] = initial
-    SinSWE.update_bc!(backend, grid.boundary, grid, equation, state)
+    SinFVM.update_bc!(backend, grid.boundary, grid, equation, state)
 
     for j in 1:ny
         for i in 1:nx
@@ -32,15 +32,15 @@ function test_compute_flux_2d(backend)
             equation_computed_y = equation(XDIR, initial[i, j]...)
             @test !any(isnan.(equation_computed_y))
 
-            eigenvalues_x = SinSWE.compute_eigenvalues(equation, XDIR, initial[i, j]...)
+            eigenvalues_x = SinFVM.compute_eigenvalues(equation, XDIR, initial[i, j]...)
             @test !any(isnan.(eigenvalues_x))
 
-            eigenvalues_y = SinSWE.compute_eigenvalues(equation, YDIR, initial[i, j]...)
+            eigenvalues_y = SinFVM.compute_eigenvalues(equation, YDIR, initial[i, j]...)
             @test !any(isnan.(eigenvalues_y))
         end
     end
-    wavespeeds = SinSWE.create_scalar(backend, grid, equation)
-    SinSWE.compute_flux!(backend, numericalflux, output_state, state, state, wavespeeds, grid, equation, XDIR)
+    wavespeeds = SinFVM.create_scalar(backend, grid, equation)
+    SinFVM.compute_flux!(backend, numericalflux, output_state, state, state, wavespeeds, grid, equation, XDIR)
 
 
     @test !any(isnan.(wavespeeds))
@@ -48,7 +48,7 @@ function test_compute_flux_2d(backend)
     @test !any(isnan.(collect(output_state.hv)))
     @test !any(isnan.(collect(output_state.hu)))
 
-    SinSWE.compute_flux!(backend, numericalflux, output_state, state, state, wavespeeds, grid, equation, YDIR)
+    SinFVM.compute_flux!(backend, numericalflux, output_state, state, state, wavespeeds, grid, equation, YDIR)
 
     @test !any(isnan.(wavespeeds))
     @test !any(isnan.(collect(output_state.h)))

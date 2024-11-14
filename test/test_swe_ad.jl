@@ -6,21 +6,21 @@ using Test
 import CUDA
 using ForwardDiff
 import KernelAbstractions
-using SinSWE
+using SinFVM
 import ForwardDiff
 
 function run_swe_2d_ad_simulation(height_and_position)
     # Here we say that we want to have one derivative (height_of_wall)
     ADType = eltype(height_and_position)
 
-    backend = SinSWE.KernelAbstractionBackend(KernelAbstractions.get_backend(ones(3)); realtype=ADType)
+    backend = SinFVM.KernelAbstractionBackend(KernelAbstractions.get_backend(ones(3)); realtype=ADType)
 
-    backend_name = SinSWE.name(backend)
+    backend_name = SinFVM.name(backend)
     nx = 256
     ny = 32
-    grid = SinSWE.CartesianGrid(nx, ny; gc=2)
-    dx = SinSWE.compute_dx(grid)
-    dy = SinSWE.compute_dy(grid)
+    grid = SinFVM.CartesianGrid(nx, ny; gc=2)
+    dx = SinFVM.compute_dx(grid)
+    dy = SinFVM.compute_dy(grid)
     width_of_wall = 4
     length_of_wall = 40
 
@@ -46,24 +46,24 @@ function run_swe_2d_ad_simulation(height_and_position)
         end
     end
 
-    bottom_topography = SinSWE.BottomTopography2D(bottom_topography_array, backend, grid)
-    bottom_source = SinSWE.SourceTermBottom()
-    equation = SinSWE.ShallowWaterEquations(bottom_topography)
-    reconstruction = SinSWE.LinearReconstruction()
-    numericalflux = SinSWE.CentralUpwind(equation)
+    bottom_topography = SinFVM.BottomTopography2D(bottom_topography_array, backend, grid)
+    bottom_source = SinFVM.SourceTermBottom()
+    equation = SinFVM.ShallowWaterEquations(bottom_topography)
+    reconstruction = SinFVM.LinearReconstruction()
+    numericalflux = SinFVM.CentralUpwind(equation)
 
     conserved_system =
-        SinSWE.ConservedSystem(backend, reconstruction, numericalflux, equation, grid, [bottom_source])
-    timestepper = SinSWE.ForwardEulerStepper()
-    simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid)
+        SinFVM.ConservedSystem(backend, reconstruction, numericalflux, equation, grid, [bottom_source])
+    timestepper = SinFVM.ForwardEulerStepper()
+    simulator = SinFVM.Simulator(backend, conserved_system, timestepper, grid)
     T = 0.05
 
     # Two ways for setting initial conditions:
     # 1) Directly
-    x = SinSWE.cell_centers(grid)
+    x = SinFVM.cell_centers(grid)
     u0 = x -> @SVector[exp.(-(norm(x .- 0.5)^2 / 0.01)) .+ 1.5, 0.0, 0.0]
     initial = u0.(x)
-    SinSWE.set_current_state!(simulator, initial)
+    SinFVM.set_current_state!(simulator, initial)
 
     f = Figure(size=(1600, 1200), fontsize=24)
     names = [L"h", L"hu", L"hv"]
@@ -72,10 +72,10 @@ function run_swe_2d_ad_simulation(height_and_position)
 
 
     # IMPORTANT: To get the value, we need to do ForwardDiff.value
-    current_simulator_state = ForwardDiff.value.(collect(SinSWE.current_state(simulator)))
+    current_simulator_state = ForwardDiff.value.(collect(SinFVM.current_state(simulator)))
     @test !any(isnan.(current_simulator_state))
 
-    initial_state = SinSWE.current_interior_state(simulator)
+    initial_state = SinFVM.current_interior_state(simulator)
     hm = heatmap!(axes[1][1], ForwardDiff.value.(collect(initial_state.h)))
     Colorbar(f[1, 2], hm)
     hm = heatmap!(axes[1][2], ForwardDiff.value.(collect(initial_state.hu)))
@@ -84,10 +84,10 @@ function run_swe_2d_ad_simulation(height_and_position)
     Colorbar(f[3, 2], hm)
 
     t = 0.0
-    @time SinSWE.simulate_to_time(simulator, T)
-    @test SinSWE.current_time(simulator) == T
+    @time SinFVM.simulate_to_time(simulator, T)
+    @test SinFVM.current_time(simulator) == T
 
-    result = SinSWE.current_interior_state(simulator)
+    result = SinFVM.current_interior_state(simulator)
     h = ForwardDiff.value.(collect(result.h))
     hu = ForwardDiff.value.(collect(result.hu))
     hv = ForwardDiff.value.(collect(result.hv))

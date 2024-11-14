@@ -1,4 +1,4 @@
-using SinSWE
+using SinFVM
 using Test
 using StaticArrays
  # We do not technically need this loop, but adding it to create a scope
@@ -7,17 +7,17 @@ for _ in get_available_backends()
     ny = 6
     gc = 2
 
-    grid = SinSWE.CartesianGrid(nx, ny, extent=[0 nx; 0 ny], gc=gc)
-    dx = SinSWE.compute_dx(grid)
-    dy = SinSWE.compute_dy(grid)
+    grid = SinFVM.CartesianGrid(nx, ny, extent=[0 nx; 0 ny], gc=gc)
+    dx = SinFVM.compute_dx(grid)
+    dy = SinFVM.compute_dy(grid)
 
     x_faces = collect(0:nx)
     y_faces = collect(0:ny)
     x_cellcenters = collect(0.5:1:9.5)
     y_cellcenters = collect(0.5:1:5.5)
 
-    faces_from_grid = SinSWE.cell_faces(grid)
-    centers_from_grid = SinSWE.cell_centers(grid)
+    faces_from_grid = SinFVM.cell_faces(grid)
+    centers_from_grid = SinFVM.cell_centers(grid)
     for j in 1:(ny+1)
         for i in 1:(nx+1)
             @test faces_from_grid[i, j][1] == x_faces[i]
@@ -31,12 +31,12 @@ for _ in get_available_backends()
         end
     end
 
-    @test x_faces == SinSWE.cell_faces(grid, XDIR)
-    @test y_faces == SinSWE.cell_faces(grid, YDIR)
-    @test x_cellcenters == SinSWE.cell_centers(grid, XDIR)
-    @test y_cellcenters == SinSWE.cell_centers(grid, YDIR)
+    @test x_faces == SinFVM.cell_faces(grid, XDIR)
+    @test y_faces == SinFVM.cell_faces(grid, YDIR)
+    @test x_cellcenters == SinFVM.cell_centers(grid, XDIR)
+    @test y_cellcenters == SinFVM.cell_centers(grid, YDIR)
 
-    faces_gc = SinSWE.cell_faces(grid, interior=false)
+    faces_gc = SinFVM.cell_faces(grid, interior=false)
     @test faces_gc[3:end-2, 3:end-2] ≈ faces_from_grid atol = 10^-14 # Got machine epsilon round-off errors
     for j in 1:2
         for i in 1:2
@@ -45,7 +45,7 @@ for _ in get_available_backends()
         end
     end
 
-    cells_gc = SinSWE.cell_centers(grid, interior=false)
+    cells_gc = SinFVM.cell_centers(grid, interior=false)
     @test cells_gc[3:end-2, 3:end-2] ≈ centers_from_grid atol = 10^-14
     for j in 1:2
         for i in 1:2

@@ -1,4 +1,4 @@
-using SinSWE
+using SinFVM
 using CUDA
 using Test
 
@@ -6,13 +6,13 @@ for backend in get_available_backends()
     for gc in [1, 2]
         nx = 64
         ny = 32
-        grid = SinSWE.CartesianGrid(nx, ny; gc=gc)
+        grid = SinFVM.CartesianGrid(nx, ny; gc=gc)
         
 
         
-        output = SinSWE.convert_to_backend(backend, -42 * ones(Int64, nx + 2*gc, ny + 2*gc, 3))
+        output = SinFVM.convert_to_backend(backend, -42 * ones(Int64, nx + 2*gc, ny + 2*gc, 3))
         
-        SinSWE.@fvmloop SinSWE.for_each_cell(backend, grid) do index
+        SinFVM.@fvmloop SinFVM.for_each_cell(backend, grid) do index
             output[index,1] = index[1]
             output[index,2] = index[2]
             output[index,3] = index[1] + index[2]

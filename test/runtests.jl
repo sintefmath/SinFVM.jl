@@ -1,9 +1,9 @@
-using SinSWE
+using SinFVM
 using Test
 
 # TODO: Go through tests and check they do not take longer time than necessary
 
-@testset "SinSWE tests" begin
+@testset "SinFVM tests" begin
     # Run all scripts in test/test_*.jl
     ls_test = readdir("test")
     for test_file in readdir("test")

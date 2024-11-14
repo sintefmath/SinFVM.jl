@@ -1,7 +1,7 @@
 using KernelAbstractions
 import CUDA
 using StaticArrays
-using SinSWE
+using SinFVM
 
 function get_variable_names_referred(expression)
     nothing
@@ -151,7 +151,7 @@ function run_ka_test()
 
 
 end
-if SinSWE.has_cuda_backend()
+if SinFVM.has_cuda_backend()
     run_ka_test()
 end
 #@show output

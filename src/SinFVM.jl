@@ -1,4 +1,4 @@
-module SinSWE
+module SinFVM
 using Logging
 direction(integer) = Val{integer}
 

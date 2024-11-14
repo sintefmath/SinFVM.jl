@@ -1,3 +1,3 @@
-using Documenter, SinSWE
+using Documenter, SinFVM
 
-makedocs(sitename="SinSWE.jl")
+makedocs(sitename="SinFVM.jl")

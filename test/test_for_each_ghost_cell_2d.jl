@@ -1,4 +1,4 @@
-using SinSWE
+using SinFVM
 using CUDA
 using Test
 
@@ -7,11 +7,11 @@ for backend in get_available_backends()
     ny = 8
 
     for gc in [1, 2]
-        grid = SinSWE.CartesianGrid(nx, ny; gc=gc)
+        grid = SinFVM.CartesianGrid(nx, ny; gc=gc)
 
         # XDIR
-        output_device = SinSWE.convert_to_backend(backend, -42 .* ones(Int64, nx + 2 * gc, ny + 2 * gc, 2))
-        SinSWE.@fvmloop SinSWE.for_each_ghost_cell(backend, grid, XDIR) do I
+        output_device = SinFVM.convert_to_backend(backend, -42 .* ones(Int64, nx + 2 * gc, ny + 2 * gc, 2))
+        SinFVM.@fvmloop SinFVM.for_each_ghost_cell(backend, grid, XDIR) do I
             output_device[I, 1] = I[1]
             output_device[I, 2] = I[2]
         end
@@ -30,8 +30,8 @@ for backend in get_available_backends()
         end
 
         # YDIR
-        output_device = SinSWE.convert_to_backend(backend, -42 .* ones(Int64, nx + 2 * gc, ny + 2 * gc, 2))
-        SinSWE.@fvmloop SinSWE.for_each_ghost_cell(backend, grid, YDIR) do I
+        output_device = SinFVM.convert_to_backend(backend, -42 .* ones(Int64, nx + 2 * gc, ny + 2 * gc, 2))
+        SinFVM.@fvmloop SinFVM.for_each_ghost_cell(backend, grid, YDIR) do I
             output_device[I, 1] = I[1]
             output_device[I, 2] = I[2]
         end

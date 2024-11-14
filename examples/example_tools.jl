@@ -47,7 +47,7 @@ end
     bottom_topography
 end
 
-function bottom_per_cell(bottom_topography::SinSWE.BottomTopography2D)
+function bottom_per_cell(bottom_topography::SinFVM.BottomTopography2D)
     bottom_per_cell(bottom_topography.B)
 end
 
@@ -55,10 +55,10 @@ function bottom_per_cell(bottom_topography::Array)
     dimensions = size(bottom_topography) .- (1, 1)
     data = zeros(dimensions)
 
-    bottom_topography = SinSWE.BottomTopography2D(collect(bottom_topography); should_never_be_called=1)
+    bottom_topography = SinFVM.BottomTopography2D(collect(bottom_topography); should_never_be_called=1)
     for j in 1:dimensions[2]
         for i in 1:dimensions[1]
-            data[i, j] = SinSWE.B_cell(bottom_topography, i, j)
+            data[i, j] = SinFVM.B_cell(bottom_topography, i, j)
         end
     end
 
@@ -69,10 +69,10 @@ function bottom_per_cell(bottom_topography)
     dimensions = size(bottom_topography.B) .- (1, 1)
     data = zeros(dimensions)
 
-    bottom_topography = SinSWE.BottomTopography2D(collect(bottom_topography.B); should_never_be_called=1)
+    bottom_topography = SinFVM.BottomTopography2D(collect(bottom_topography.B); should_never_be_called=1)
     for j in 1:dimensions[2]
         for i in 1:dimensions[1]
-            data[i, j] = SinSWE.B_cell(bottom_topography, i, j)
+            data[i, j] = SinFVM.B_cell(bottom_topography, i, j)
         end
     end
 
@@ -80,7 +80,7 @@ function bottom_per_cell(bottom_topography)
 end
 function (callback::TotalWaterVolume)(t, simulator)
     bottom_avg = bottom_per_cell(callback.bottom_topography)
-    h = collect(SinSWE.current_interior_state(simulator).h) .- bottom_avg[3:end-2, 3:end-2]
+    h = collect(SinFVM.current_interior_state(simulator).h) .- bottom_avg[3:end-2, 3:end-2]
     push!(callback.water_volume, sum(h))
     push!(callback.times, t)
     mkpath("figs/bay/$(basename)")
@@ -100,7 +100,7 @@ function (callback::TotalWaterVolume)(t, simulator)
     end
 end
 function (writer::IntervalWriter)(t, simulator)
-    dt = SinSWE.current_timestep(simulator)
+    dt = SinFVM.current_timestep(simulator)
     if t + dt >= writer.current_t
         writer.writer(t, simulator)
         writer.current_t += writer.step
@@ -113,7 +113,7 @@ mkpath("data")
 
 function callback(bottom, basename, t, simulator)
 
-    state = SinSWE.current_interior_state(simulator)
+    state = SinFVM.current_interior_state(simulator)
     #tstr = @sprintf "%0.3f" t
     tstr = "$(ceil(Int64, t))"
     # @show collect(B)

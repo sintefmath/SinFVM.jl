@@ -4,7 +4,7 @@ using Test
 using CairoMakie
 import CUDA
 
-using SinSWE
+using SinFVM
 
 # Validation of friction, rain and infiltration
 # Using the results from the synthetic test cases from
@@ -43,14 +43,14 @@ function make_grid(topo::ValidationTopography; dx=1.0, dy=5.0)
     Ly = topo.Ly
     Nx = Int32(Lx/dx)
     Ny = Int32(Ly/dy)
-    return SinSWE.CartesianGrid(Nx, Ny;  boundary=SinSWE.WallBC(), gc=2, extent=[0 Lx; 0 Ly])
+    return SinFVM.CartesianGrid(Nx, Ny;  boundary=SinFVM.WallBC(), gc=2, extent=[0 Lx; 0 Ly])
 end
 
 function make_grid(topo::Topography1Debug; dx=1.0, dy=5.0)
     Ly = topo.Ly
     Nx = Int32((topo.Lx_end-topo.Lx_start)/dx)
     Ny = Int32(Ly/dy)
-    return SinSWE.CartesianGrid(Nx, Ny;  boundary=SinSWE.WallBC(), gc=2, extent=[topo.Lx_start topo.Lx_end; 0 Ly])
+    return SinFVM.CartesianGrid(Nx, Ny;  boundary=SinFVM.WallBC(), gc=2, extent=[topo.Lx_start topo.Lx_end; 0 Ly])
 end
 
 function make_topography(::Topography1, coord)
@@ -108,9 +108,9 @@ function make_topography(topo::Topography3, coord)
     end
 end
 
-function make_topography(topo::ValidationTopography, grid::SinSWE.Grid, backend)
-    B_data = [make_topography(topo, coord) for coord in SinSWE.cell_faces(grid, interior=false)]
-    return SinSWE.BottomTopography2D(B_data, backend, grid)
+function make_topography(topo::ValidationTopography, grid::SinFVM.Grid, backend)
+    B_data = [make_topography(topo, coord) for coord in SinFVM.cell_faces(grid, interior=false)]
+    return SinFVM.BottomTopography2D(B_data, backend, grid)
 end
 
 function make_initial_conditions(grid, bottom_topography, init_shock; add_to_zero=0.0)
@@ -125,11 +125,11 @@ function make_initial_conditions(grid, bottom_topography, init_shock; add_to_zer
         return @SVector[w0, 0.0, 0.0]
     end
     if init_shock
-        initial = [u_shock(x, B) for (x, B) in zip(SinSWE.cell_centers(grid; interior=true), 
-                                                   SinSWE.collect_topography_cells(bottom_topography, grid, interior=true))]
+        initial = [u_shock(x, B) for (x, B) in zip(SinFVM.cell_centers(grid; interior=true), 
+                                                   SinFVM.collect_topography_cells(bottom_topography, grid, interior=true))]
     else
-        initial = [u_zero(x, B) for (x, B) in zip(SinSWE.cell_centers(grid; interior=true), 
-                                                   SinSWE.collect_topography_cells(bottom_topography, grid, interior=true))]
+        initial = [u_zero(x, B) for (x, B) in zip(SinFVM.cell_centers(grid; interior=true), 
+                                                   SinFVM.collect_topography_cells(bottom_topography, grid, interior=true))]
     end
     return initial
 end
@@ -143,12 +143,12 @@ function make_initial_water(grid, bottom_topography; add_to_zero=0.0, stop_addin
         end
         return @SVector[w0, 0.0, 0.0]
     end
-    initial = [u_water(x, B) for (x, B) in zip(SinSWE.cell_centers(grid; interior=true), 
-                                            SinSWE.collect_topography_cells(bottom_topography, grid, interior=true))]
+    initial = [u_water(x, B) for (x, B) in zip(SinFVM.cell_centers(grid; interior=true), 
+                                            SinFVM.collect_topography_cells(bottom_topography, grid, interior=true))]
     return initial
 end
 
-function make_infiltration(topo::ValidationTopography, grid::SinSWE.Grid, backend)
+function make_infiltration(topo::ValidationTopography, grid::SinFVM.Grid, backend)
     
     function infiltration_factor(Lx, coord)
         inf_factor = 0.0
@@ -157,8 +157,8 @@ function make_infiltration(topo::ValidationTopography, grid::SinSWE.Grid, backen
         end
         return inf_factor
     end
-    factor = [infiltration_factor(topo.Lx, coord) for coord in SinSWE.cell_centers(grid; interior=false)]
-    return SinSWE.HortonInfiltration(grid, backend; factor=factor)
+    factor = [infiltration_factor(topo.Lx, coord) for coord in SinFVM.cell_centers(grid; interior=false)]
+    return SinFVM.HortonInfiltration(grid, backend; factor=factor)
 end
 
 
@@ -272,45 +272,45 @@ function setup_case(backend, topo::ValidationTopography, rain_function; init_sho
     bottom_topography = make_topography(topo, grid, backend)
     infiltration = make_infiltration(topo, grid, backend)
 
-    equation = SinSWE.ShallowWaterEquations(bottom_topography; depth_cutoff=10^-3, desingularizing_kappa=10^-3)
-    reconstruction = SinSWE.LinearReconstruction()
-    reconstruction = SinSWE.NoReconstruction()
-    numericalflux = SinSWE.CentralUpwind(equation)
-    friction = SinSWE.ImplicitFriction(friction_function=SinSWE.friction_fcg2016)
-    rain = SinSWE.FunctionalRain(rain_function, grid)
+    equation = SinFVM.ShallowWaterEquations(bottom_topography; depth_cutoff=10^-3, desingularizing_kappa=10^-3)
+    reconstruction = SinFVM.LinearReconstruction()
+    reconstruction = SinFVM.NoReconstruction()
+    numericalflux = SinFVM.CentralUpwind(equation)
+    friction = SinFVM.ImplicitFriction(friction_function=SinFVM.friction_fcg2016)
+    rain = SinFVM.FunctionalRain(rain_function, grid)
 
-    # source_terms = [SinSWE.SourceTermBottom(), rain, infiltration]
-    source_terms = [SinSWE.SourceTermBottom(), infiltration, rain]
-    # source_terms = [SinSWE.SourceTermBottom(), infiltration]
-    # source_terms = [SinSWE.SourceTermBottom(), rain]
-    # source_terms = [SinSWE.SourceTermBottom()]
+    # source_terms = [SinFVM.SourceTermBottom(), rain, infiltration]
+    source_terms = [SinFVM.SourceTermBottom(), infiltration, rain]
+    # source_terms = [SinFVM.SourceTermBottom(), infiltration]
+    # source_terms = [SinFVM.SourceTermBottom(), rain]
+    # source_terms = [SinFVM.SourceTermBottom()]
     
     conserved_system =
-        SinSWE.ConservedSystem(backend, reconstruction, numericalflux, equation, grid, source_terms) #, friction)
-    # timestepper = SinSWE.ForwardEulerStepper() #RungeKutta2()
-    timestepper = SinSWE.RungeKutta2()
-    simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid, cfl=0.2)
+        SinFVM.ConservedSystem(backend, reconstruction, numericalflux, equation, grid, source_terms) #, friction)
+    # timestepper = SinFVM.ForwardEulerStepper() #RungeKutta2()
+    timestepper = SinFVM.RungeKutta2()
+    simulator = SinFVM.Simulator(backend, conserved_system, timestepper, grid, cfl=0.2)
 
     # initial = make_initial_conditions(grid, bottom_topography, init_shock) #, add_to_zero=0.0001)
     initial = make_initial_water(grid, bottom_topography, add_to_zero=0.0000, stop_adding_at=0000)
-    SinSWE.set_current_state!(simulator, initial)
+    SinFVM.set_current_state!(simulator, initial)
 
-    init_state =  SinSWE.current_interior_state(simulator)
+    init_state =  SinFVM.current_interior_state(simulator)
 
-    B_cells = SinSWE.collect_topography_cells(bottom_topography, grid, interior=true)
+    B_cells = SinFVM.collect_topography_cells(bottom_topography, grid, interior=true)
     init_volume = sum(collect(init_state.h) - B_cells)
     @show init_volume
 
 
-    SinSWE.simulate_to_time(simulator, 3 )# 100*60)
+    SinFVM.simulate_to_time(simulator, 3 )# 100*60)
 
     f = Figure(size=(800, 800), fontsize=24)
     ax_h = Axis(f[1, 1], title="hei", xlabel="x", ylabel="z")
-    x_cells = SinSWE.cell_centers(grid, XDIR, interior=true)
-    x_faces = SinSWE.cell_faces(grid, XDIR, interior=true)
-    B_faces = SinSWE.collect_topography_intersections(bottom_topography, grid, interior=true)
+    x_cells = SinFVM.cell_centers(grid, XDIR, interior=true)
+    x_faces = SinFVM.cell_faces(grid, XDIR, interior=true)
+    B_faces = SinFVM.collect_topography_intersections(bottom_topography, grid, interior=true)
     
-    state = SinSWE.current_interior_state(simulator)
+    state = SinFVM.current_interior_state(simulator)
     w_cells = collect(state.h)
 
     end_volume = sum(w_cells - B_cells)
@@ -347,8 +347,8 @@ end
 
 
 
-# backend = SinSWE.make_cuda_backend()
-backend = SinSWE.make_cpu_backend()
+# backend = SinFVM.make_cuda_backend()
+backend = SinFVM.make_cpu_backend()
 topography = Topography1Debug()
 setup_case(backend, topography, rain_fcg_1_1, init_shock=false)
 

@@ -1,7 +1,7 @@
 import DelimitedFiles
 using NPZ
 
-using SinSWE
+using SinFVM
 import Meshes
 using Parameters
 using Printf
@@ -12,7 +12,7 @@ import CUDA
 include("example_tools.jl")
 
 
-for backend in [SinSWE.make_cpu_backend(), SinSWE.make_cuda_backend()]
+for backend in [SinFVM.make_cpu_backend(), SinFVM.make_cuda_backend()]
 
     terrain = loadgrid("examples/data/bay.txt")
     upper_corner = Float64.(size(terrain))
@@ -33,29 +33,29 @@ for backend in [SinSWE.make_cpu_backend(), SinSWE.make_cuda_backend()]
     end
 
     grid_size = size(terrain) .- (5, 5)
-    grid = SinSWE.CartesianGrid(grid_size...; gc=2, boundary=SinSWE.NeumannBC(), extent=[0 upper_corner[1]; 0 upper_corner[2]])
-    infiltration = SinSWE.HortonInfiltration(grid, backend)
-    #infiltration = SinSWE.ConstantInfiltration(15 / (1000.0) / 3600.0)
-    bottom = SinSWE.BottomTopography2D(terrain, backend, grid)
-    bottom_source = SinSWE.SourceTermBottom()
-    equation = SinSWE.ShallowWaterEquations(bottom; depth_cutoff=8e-2)
-    reconstruction = SinSWE.LinearReconstruction()
-    numericalflux = SinSWE.CentralUpwind(equation)
-    constant_rain = SinSWE.ConstantRain(15 / (1000.0))
-    friction = SinSWE.ImplicitFriction()
+    grid = SinFVM.CartesianGrid(grid_size...; gc=2, boundary=SinFVM.NeumannBC(), extent=[0 upper_corner[1]; 0 upper_corner[2]])
+    infiltration = SinFVM.HortonInfiltration(grid, backend)
+    #infiltration = SinFVM.ConstantInfiltration(15 / (1000.0) / 3600.0)
+    bottom = SinFVM.BottomTopography2D(terrain, backend, grid)
+    bottom_source = SinFVM.SourceTermBottom()
+    equation = SinFVM.ShallowWaterEquations(bottom; depth_cutoff=8e-2)
+    reconstruction = SinFVM.LinearReconstruction()
+    numericalflux = SinFVM.CentralUpwind(equation)
+    constant_rain = SinFVM.ConstantRain(15 / (1000.0))
+    friction = SinFVM.ImplicitFriction()
 
     with_theme(theme_latexfonts()) do
         f = Figure(xlabel="Time", ylabel="Infiltration")
         ax = Axis(f[1, 1])
         t = LinRange(0, 60 * 60 * 24.0, 10000)
-        CUDA.@allowscalar infiltrationf(t) = SinSWE.compute_infiltration(infiltration, t, CartesianIndex(30, 30))
+        CUDA.@allowscalar infiltrationf(t) = SinFVM.compute_infiltration(infiltration, t, CartesianIndex(30, 30))
         CUDA.@allowscalar lines!(ax, t ./ 60 ./ 60, infiltrationf.(t))
 
         save("figs/bay/infiltration.png", f, px_per_unit=2)
     end
 
     conserved_system =
-        SinSWE.ConservedSystem(backend,
+        SinFVM.ConservedSystem(backend,
             reconstruction,
             numericalflux,
             equation,
@@ -66,21 +66,21 @@ for backend in [SinSWE.make_cpu_backend(), SinSWE.make_cuda_backend()]
                 bottom_source
             ],
             friction)
-    timestepper = SinSWE.ForwardEulerStepper()
-    simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid)
+    timestepper = SinFVM.ForwardEulerStepper()
+    simulator = SinFVM.Simulator(backend, conserved_system, timestepper, grid)
 
     u0 = x -> @SVector[0.0, 0.0, 0.0]
-    x = SinSWE.cell_centers(grid)
+    x = SinFVM.cell_centers(grid)
     initial = u0.(x)
 
-    SinSWE.set_current_state!(simulator, initial)
-    SinSWE.current_state(simulator).h[1:end, 1:end] = bottom_per_cell(bottom)
+    SinFVM.set_current_state!(simulator, initial)
+    SinFVM.current_state(simulator).h[1:end, 1:end] = bottom_per_cell(bottom)
     T = 24 * 60 * 60.0
-    callback_to_simulator = IntervalWriter(step=10., writer=(t, s) -> callback(terrain, SinSWE.name(backend), t, s))
+    callback_to_simulator = IntervalWriter(step=10., writer=(t, s) -> callback(terrain, SinFVM.name(backend), t, s))
 
     total_water_writer = TotalWaterVolume(bottom_topography=bottom)
     total_water_writer(0.0, simulator)
     total_water_writer_interval_writer = IntervalWriter(step=10., writer=total_water_writer)
 
-    SinSWE.simulate_to_time(simulator, T; maximum_timestep=1.0, callback=MultipleCallbacks([callback_to_simulator, total_water_writer_interval_writer]))
+    SinFVM.simulate_to_time(simulator, T; maximum_timestep=1.0, callback=MultipleCallbacks([callback_to_simulator, total_water_writer_interval_writer]))
 end

@@ -1,4 +1,4 @@
-using SinSWE
+using SinFVM
 using StaticArrays
 using Test
 import CUDA
@@ -6,9 +6,9 @@ import CUDA
 
 for backend in get_available_backends()
     nx = 10
-    grid = SinSWE.CartesianGrid(nx)
-    equation = SinSWE.ShallowWaterEquations1D()
-    volume = SinSWE.Volume(backend, equation, grid)
+    grid = SinFVM.CartesianGrid(nx)
+    equation = SinFVM.ShallowWaterEquations1D()
+    volume = SinFVM.Volume(backend, equation, grid)
 
     CUDA.@allowscalar volume[1] = @SVector [4.0, 4.0]
     CUDA.@allowscalar @test volume[1][1] == 4.0
@@ -25,7 +25,7 @@ for backend in get_available_backends()
         CUDA.@allowscalar @test volume[i] == @SVector [0.0, i]
     end
 
-    inner_volume = SinSWE.InteriorVolume(volume)
+    inner_volume = SinFVM.InteriorVolume(volume)
 
     CUDA.@allowscalar @test inner_volume[1] == volume[2]
 
@@ -34,7 +34,7 @@ for backend in get_available_backends()
         new_values[i-3] = @SVector [i, 2.0 * i]
     end
 
-    new_values_backend = SinSWE.convert_to_backend(backend, new_values)
+    new_values_backend = SinFVM.convert_to_backend(backend, new_values)
     volume[4:9] = new_values_backend
 
     for i = 4:9
@@ -46,7 +46,7 @@ for backend in get_available_backends()
         newer_values[i-3] = @SVector [4 * i, i]
     end
 
-    newer_values_backend = SinSWE.convert_to_backend(backend, newer_values)
+    newer_values_backend = SinFVM.convert_to_backend(backend, newer_values)
     inner_volume[3:8] = newer_values_backend
 
     for i = 4:9
@@ -85,7 +85,7 @@ for backend in get_available_backends()
 
     collect_inner_hu = collect(inner_volume.hu)
 
-    if backend isa SinSWE.CPUBackend
+    if backend isa SinFVM.CPUBackend
         all_elements = []
         for (n, element) in enumerate(volume)
             @test element isa SVector{2}
