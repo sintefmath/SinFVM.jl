@@ -1,6 +1,42 @@
 import ProgressMeter
 import ForwardDiff
+
 interior(state) = InteriorVolume(state)
+
+
+"""
+    Simulator{BackendType,SystemType,TimeStepperType,GridType,StateType,FloatType}
+
+A struct representing a numerical simulator for solving partial differential equations.
+
+# Fields
+- `backend::BackendType`: The computational backend used for calculations
+- `system::SystemType`: The system of equations being solved
+- `timestepper::TimeStepperType`: The time integration method
+- `grid::GridType`: The computational grid
+- `substep_outputs::Vector{StateType}`: Storage for intermediate solution states
+- `current_timestep::MVector{1,FloatType}`: Current simulation timestep size
+- `cfl::FloatType`: Courant-Friedrichs-Lewy (CFL) condition number
+- `t::MVector{1,FloatType}`: Current simulation time
+
+# Constructors
+    Simulator(backend, system, timestepper, grid; cfl=0.25, t0=0.0)
+
+Create a new simulator instance with specified components.
+
+# Arguments
+- `backend`: Computational backend for calculations
+- `system`: System of equations to solve
+- `timestepper`: Time integration method
+- `grid`: Computational grid
+
+# Keyword Arguments
+- `cfl=0.25`: CFL condition number for timestep control
+- `t0=0.0`: Initial simulation time
+
+# Returns
+Returns a new `Simulator` instance initialized with the given parameters.
+"""
 struct Simulator{BackendType,SystemType,TimeStepperType,GridType,StateType,FloatType}
     backend::BackendType
     system::SystemType
@@ -34,8 +70,27 @@ function Simulator(backend, system, timestepper, grid; cfl=0.25, t0=0.0)
     )
 end
 
+"""
+    current_state(simulator::Simulator)
+
+Get the current state of a `Simulator` object.
+"""
 current_state(simulator::Simulator) = simulator.substep_outputs[1]
 
+"""
+    current_interior_state(simulator::Simulator)
+
+Returns the current interior state of the simulator.
+
+The interior state refers to the state variables at the interior cells/nodes
+of the computational domain, excluding boundary conditions.
+
+# Arguments
+- `simulator::Simulator`: The simulator object containing the current state
+
+# Returns
+Current interior state of the simulation
+"""
 current_interior_state(simulator::Simulator) =
     interior(current_state(simulator))
 
@@ -109,7 +164,9 @@ function simulate_to_time(
     show_progress=true,
     maximum_timestep=nothing,
 )
-
+    if Base.isiterable(typeof(callback))
+        callback = MultipleCallbacks(callback)
+    end
     # TODO: Find a pragmatic and practical solution for the case where 
     # you have no water (meaning directional_dt = Inf), 
     # and you step to endtime in a single iteration 

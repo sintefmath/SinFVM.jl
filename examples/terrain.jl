@@ -11,8 +11,7 @@ import CUDA
 
 include("example_tools.jl")
 
-
-for backend in [SinFVM.make_cpu_backend(), SinFVM.make_cuda_backend()]
+for backend in get_available_backends()
 
     terrain = loadgrid("examples/data/bay.txt")
     upper_corner = Float64.(size(terrain))
@@ -26,8 +25,8 @@ for backend in [SinFVM.make_cpu_backend(), SinFVM.make_cuda_backend()]
         ax1 = Axis(f[1, 1])
         ax2 = Axis(f[2, 1])
 
-        heatmap!(ax1, terrain_original, title="original")
-        heatmap!(ax2, terrain, title="Coarsened")
+        heatmap!(ax1, terrain_original, label="original")
+        heatmap!(ax2, terrain, label="Coarsened")
         save("figs/bay/terrain_comparison.png", f, px_per_unit=2)
 
     end
@@ -82,5 +81,5 @@ for backend in [SinFVM.make_cpu_backend(), SinFVM.make_cuda_backend()]
     total_water_writer(0.0, simulator)
     total_water_writer_interval_writer = IntervalWriter(step=10., writer=total_water_writer)
 
-    SinFVM.simulate_to_time(simulator, T; maximum_timestep=1.0, callback=MultipleCallbacks([callback_to_simulator, total_water_writer_interval_writer]))
+    SinFVM.simulate_to_time(simulator, T; maximum_timestep=1.0, callback=[callback_to_simulator, total_water_writer_interval_writer])
 end

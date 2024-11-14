@@ -24,21 +24,6 @@ function coarsen(data, times)
     return data
 end
 
-@with_kw mutable struct IntervalWriter{WriterType}
-    current_t::Float64 = 0.0
-    step::Float64
-    writer::WriterType
-end
-
-struct MultipleCallbacks
-    callbacks
-end
-
-function (mc::MultipleCallbacks)(t, simulator)
-    for c in mc.callbacks
-        c(t, simulator)
-    end
-end
 
 
 @with_kw struct TotalWaterVolume
@@ -88,7 +73,7 @@ function (callback::TotalWaterVolume)(t, simulator)
     with_theme(theme_latexfonts()) do
         f = Figure()
         ax1 = Axis(f[1, 1])
-        lines!(ax1, callback.times, callback.water_volume, label="Remaining water", title="Total water as a function of time", colorrange=(0.0, 3.0))
+        lines!(ax1, callback.times, callback.water_volume, label="Remaining water", colorrange=(0.0, 3.0))
         scatter!(ax1, callback.times, callback.water_volume,)
         lines!(ax1, callback.times, prod(size(h)) .* callback.times .* 15 / (1000.0), label="Total rained")
         axislegend(ax1, position=:lt)
@@ -99,13 +84,7 @@ function (callback::TotalWaterVolume)(t, simulator)
 
     end
 end
-function (writer::IntervalWriter)(t, simulator)
-    dt = SinFVM.current_timestep(simulator)
-    if t + dt >= writer.current_t
-        writer.writer(t, simulator)
-        writer.current_t += writer.step
-    end
-end
+
 mkpath("figs")
 mkpath("data")
 
@@ -126,7 +105,7 @@ function callback(bottom, basename, t, simulator)
     with_theme(theme_latexfonts()) do
         f = Figure()
         ax1 = Axis(f[1, 1])
-        hm = heatmap!(ax1, collect(h), title="Time t=$(tstr)", colorrange=(0.0, 3.0))
+        hm = heatmap!(ax1, collect(h), label="Time t=$(tstr)", colorrange=(0.0, 3.0))
         Colorbar(f[:, end+1], hm)
         save("figs/bay/$(basename)/state_$(tstr).png", f, px_per_unit=2)
     end

@@ -172,5 +172,5 @@ for backend in [SinFVM.make_cpu_backend(), SinFVM.make_cuda_backend()]
     total_water_writer(0.0, simulator)
     total_water_writer_interval_writer = IntervalWriter(step=10.0, writer=total_water_writer)
 
-    SinFVM.simulate_to_time(simulator, T; maximum_timestep=1.0, callback=MultipleCallbacks([callback_to_simulator, total_water_writer_interval_writer]))
+    SinFVM.simulate_to_time(simulator, T; maximum_timestep=1.0, callback=[callback_to_simulator, total_water_writer_interval_writer])
 end
