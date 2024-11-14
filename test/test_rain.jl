@@ -51,10 +51,11 @@ grid2 = SinSWE.CartesianGrid(100, 100; gc=2, boundary=SinSWE.WallBC(), extent=[0
 h1 = run_sim(SinSWE.make_cpu_backend(), constant_rain, 3, grid1)
 @test maximum(h1) ≈ (3*0.01 + 1.0) atol=1e-12
 @test minimum(h1) ≈ (3*0.01 + 1.0) atol=1e-12
-h2 = run_sim(SinSWE.make_cuda_backend(), constant_rain, 3, grid2)
-@test maximum(h2) ≈ (3*0.01 + 1.0) atol=1e-12
-@test minimum(h2) ≈ (3*0.01 + 1.0) atol=1e-12
-
+if SinSWE.has_cuda_backend()
+    h2 = run_sim(SinSWE.make_cuda_backend(), constant_rain, 3, grid2)
+    @test maximum(h2) ≈ (3*0.01 + 1.0) atol=1e-12
+    @test minimum(h2) ≈ (3*0.01 + 1.0) atol=1e-12
+end
 # Check time dependent rain
 # Comment: We get the wrong rain in the time step where we change intensity.
 #   This causes an error on the scale of rain_intensity*dt/3600
@@ -68,10 +69,11 @@ h5 = run_sim(SinSWE.make_cpu_backend(), time_dependent_rain, 3, grid1)
 @test maximum(h5) ≈ (0.0353 + 1.0) atol=1e-4
 @test minimum(h5) ≈ (0.0353 + 1.0) atol=1e-4
 
-h6 = run_sim(SinSWE.make_cuda_backend(), time_dependent_rain, 3, grid2)
-@test maximum(h6) ≈ (0.0353 + 1.0) atol=1e-7
-@test minimum(h6) ≈ (0.0353 + 1.0) atol=1e-7
-
+if SinSWE.has_cuda_backend()
+    h6 = run_sim(SinSWE.make_cuda_backend(), time_dependent_rain, 3, grid2)
+    @test maximum(h6) ≈ (0.0353 + 1.0) atol=1e-7
+    @test minimum(h6) ≈ (0.0353 + 1.0) atol=1e-7
+end
 
 ##### Tests for FunctionalRain
 function constant_rain_function(t, x, y)
@@ -81,10 +83,12 @@ constant_functional_rain = SinSWE.FunctionalRain(constant_rain_function, grid1)
 h1_f = run_sim(SinSWE.make_cpu_backend(), constant_functional_rain, 3, grid1)
 @test maximum(h1_f) ≈ (3*0.01 + 1.0) atol=1e-12
 @test minimum(h1_f) ≈ (3*0.01 + 1.0) atol=1e-12
-h2_f = run_sim(SinSWE.make_cuda_backend(), constant_functional_rain, 3, grid1)
-@test maximum(h2_f) ≈ (3*0.01 + 1.0) atol=1e-12
-@test minimum(h2_f) ≈ (3*0.01 + 1.0) atol=1e-12
 
+if SinSWE.has_cuda_backend()
+    h2_f = run_sim(SinSWE.make_cuda_backend(), constant_functional_rain, 3, grid1)
+    @test maximum(h2_f) ≈ (3*0.01 + 1.0) atol=1e-12
+    @test minimum(h2_f) ≈ (3*0.01 + 1.0) atol=1e-12
+end
 function timedependent_rain_function(t, x, y)
     rate = 0
     if t < 1*3600
@@ -100,10 +104,12 @@ timedependent_functional_rain = SinSWE.FunctionalRain(timedependent_rain_functio
 h3_f = run_sim(SinSWE.make_cpu_backend(), timedependent_functional_rain, 3, grid1)
 @test maximum(h3_f) ≈ (0.0353 + 1.0) atol=1e-4
 @test minimum(h3_f) ≈ (0.0353 + 1.0) atol=1e-4
-h4_f = run_sim(SinSWE.make_cuda_backend(), timedependent_functional_rain, 3, grid2)
-@test maximum(h4_f) ≈ (0.0353 + 1.0) atol=1e-4
-@test minimum(h4_f) ≈ (0.0353 + 1.0) atol=1e-4
 
+if SinSWE.has_cuda_backend()
+    h4_f = run_sim(SinSWE.make_cuda_backend(), timedependent_functional_rain, 3, grid2)
+    @test maximum(h4_f) ≈ (0.0353 + 1.0) atol=1e-4
+    @test minimum(h4_f) ≈ (0.0353 + 1.0) atol=1e-4
+end
 function spatial_rain_function(t, x, y)
     # @show t, x, y
     if t > 3600.0 && t < 7200.0
@@ -114,8 +120,10 @@ function spatial_rain_function(t, x, y)
 end
 spatial_functional_rain = SinSWE.FunctionalRain(spatial_rain_function, grid1)
 h5_f = run_sim(SinSWE.make_cpu_backend(), spatial_functional_rain, 3, grid1, include_momentum_test=false)
-@test sum(h5_f) ≈ sum(h2_f) atol=1e-2
 
+if SinSWE.has_cuda_backend()
+    @test sum(h5_f) ≈ sum(h2_f) atol=1e-2
+end
 
 
 # @show sum(collect(results1.h))*100*100
