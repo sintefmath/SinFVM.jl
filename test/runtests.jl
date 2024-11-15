@@ -2,7 +2,10 @@ using SinFVM
 using Test
 
 # TODO: Go through tests and check they do not take longer time than necessary
+using CairoMakie
 
+# Disable showing the plot in CairoMakie
+CairoMakie.activate!(type = "svg")
 @testset "SinFVM tests" begin
     # Run all scripts in test/test_*.jl
     ls_test = readdir("test")
