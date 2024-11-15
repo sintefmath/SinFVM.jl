@@ -13,43 +13,43 @@ function conv(v::Vector{T}, kernel::Vector{T}) where {T}
     end
     return result
 end
-function mollify_vector(v::Vector{T}; σ::Float64 = 1.0) where {T}
+function mollify_vector(v::Vector{T}; σ::Float64=1.0) where {T}
     n = length(v)
     kernel = exp.(-((1:n) .- (n + 1) / 2) .^ 2 / (2σ^2))
     kernel /= sum(kernel)
     return conv(v, kernel)
 end
 
-function run_simulation(sigmas, depth_cutoff=1e-6, desingularizing_kappa = 1e-6 )
-    f = Figure(size = (2200, length(sigmas) * 600), fontsize = 24)
-    f[1, 1:3] = Label(f, "Different smoothness of bottom topography.\nHere h is no reconstruction, while h_2 is linear reconstruction (minmod)\ndepth_cutoff=$(depth_cutoff), desingularizing_kappa=$(desingularizing_kappa)", fontsize = 32, tellheight = true)
+function run_simulation(sigmas, depth_cutoff=1e-6, desingularizing_kappa=1e-6)
+    f = Figure(size=(2200, length(sigmas) * 600), fontsize=24)
+    f[1, 1:3] = Label(f, "Different smoothness of bottom topography.\nHere h is no reconstruction, while h_2 is linear reconstruction (minmod)\ndepth_cutoff=$(depth_cutoff), desingularizing_kappa=$(desingularizing_kappa)", fontsize=32, tellheight=true)
 
     for (sigma_n, sigma) in enumerate(sigmas)
         u0 = x -> @SVector[0.0, 0.0]
         nx = 1024
-        grid = SinSWE.CartesianGrid(nx; gc = 2)
+        grid = SinSWE.CartesianGrid(nx; gc=2)
         # backend = make_cuda_backend()
         backend = make_cpu_backend()
 
         bottom_topography = zeros(Float64, nx + 5)
         bottom_topography[3nx÷8:5nx÷8] .= 50
 
-        bottom_topography = mollify_vector(bottom_topography, σ = sigma)
+        bottom_topography = mollify_vector(bottom_topography, σ=sigma)
 
-        fig_topo = Figure(size = (800, 400), fontsize = 24)
+        fig_topo = Figure(size=(800, 400), fontsize=24)
         ax_topo = Axis(
             fig_topo[1, 1],
-            title = "Bottom Topography",
-            ylabel = "Elevation",
-            xlabel = L"x",
+            title="Bottom Topography",
+            ylabel="Elevation",
+            xlabel=L"x",
         )
         lines!(
             ax_topo,
             1:length(bottom_topography),
             bottom_topography,
-            label = "Bottom Topography",
+            label="Bottom Topography",
         )
-        axislegend(ax_topo, position = :lt)
+        axislegend(ax_topo, position=:lt)
         display(fig_topo)
         # bottom_topography[nx ÷ 4:3nx ÷ 4] .= 4.0
 
@@ -59,13 +59,13 @@ function run_simulation(sigmas, depth_cutoff=1e-6, desingularizing_kappa = 1e-6 
         bottom_topography_backend =
             SinSWE.BottomTopography1D(bottom_topography, backend, grid)
         bottom_source = SinSWE.SourceTermBottom()
-        equation = SinSWE.ShallowWaterEquations1D(bottom_topography_backend, depth_cutoff = depth_cutoff, desingularizing_kappa = desingularizing_kappa)
+        equation = SinSWE.ShallowWaterEquations1D(bottom_topography_backend, depth_cutoff=depth_cutoff, desingularizing_kappa=desingularizing_kappa)
         reconstruction = SinSWE.NoReconstruction()
         linrec = SinSWE.LinearReconstruction(1.05)
         numericalflux = SinSWE.CentralUpwind(equation)
         rain_source = SinSWE.ConstantRain(0.01)  # Define a rain source term with a rate of 0.01
         infiltration_source =
-            SinSWE.HortonInfiltration(grid, backend; factor = infiltration_map)
+            SinSWE.HortonInfiltration(grid, backend; factor=infiltration_map)
         friction = SinSWE.ImplicitFriction()  # Define a friction term
         conserved_system = SinSWE.ConservedSystem(
             backend,
@@ -93,28 +93,28 @@ function run_simulation(sigmas, depth_cutoff=1e-6, desingularizing_kappa = 1e-6 
 
 
         ax = Axis(
-            f[sigma_n + 1, 1],
-            title = L"h\;\mathrm{ at\;time }\;%$(T)",
-            ylabel = L"h",
-            xlabel = L"x",
+            f[sigma_n+1, 1],
+            title=L"h\;\mathrm{ at\;time }\;%$(T)",
+            ylabel=L"h",
+            xlabel=L"x",
         )
-        ax1 = Axis(f[sigma_n + 1, 2], title = L"$w = h + B$", ylabel = L"w = h + B", xlabel = L"x")
-        ax2 = Axis(f[sigma_n + 1, 3], title = L"\mathrm{Bottom\;topography }\;B_{%$(sigma)}", ylabel = L"B", xlabel = L"x")
+        ax1 = Axis(f[sigma_n+1, 2], title=L"$w = h + B$", ylabel=L"w = h + B", xlabel=L"x")
+        ax2 = Axis(f[sigma_n+1, 3], title=L"\mathrm{Bottom\;topography }\;B_{%$(sigma)}", ylabel=L"B", xlabel=L"x")
 
         simulator = SinSWE.Simulator(backend, conserved_system, timestepper, grid)
         linrec_simulator =
-            SinSWE.Simulator(backend, linrec_conserved_system, timestepper, grid; cfl = 0.2)
+            SinSWE.Simulator(backend, linrec_conserved_system, timestepper, grid; cfl=0.2)
 
         SinSWE.set_current_state!(linrec_simulator, initial)
         SinSWE.set_current_state!(simulator, initial)
 
         initial_state = SinSWE.current_interior_state(simulator)
-        lines!(ax, x, collect(initial_state.h), label = L"h_0(x)")
+        lines!(ax, x, collect(initial_state.h), label=L"h_0(x)")
 
         t = 0.0
 
-        @time SinSWE.simulate_to_time(simulator, T; maximum_timestep = 0.1)
-        @time SinSWE.simulate_to_time(linrec_simulator, T; maximum_timestep = 0.1)
+        @time SinSWE.simulate_to_time(simulator, T; maximum_timestep=0.1)
+        @time SinSWE.simulate_to_time(linrec_simulator, T; maximum_timestep=0.1)
 
         # conserved_new = SinSWE.ConservedSystem(
         #     backend,
@@ -138,60 +138,66 @@ function run_simulation(sigmas, depth_cutoff=1e-6, desingularizing_kappa = 1e-6 
             ax,
             x,
             collect(result.h) .- bottom_averages,
-            linestyle = :dot,
-            color = :red,
-            linewidth = 8,
-            label = L"h^{\Delta x}(x, t)",
+            linestyle=:dot,
+            color=:red,
+            linewidth=8,
+            label=L"h^{\Delta x}(x, t)",
         )
 
         lines!(
             ax1,
             x,
             collect(result.h),
-            linestyle = :dot,
-            color = :red,
-            linewidth = 8,
-            label = L"w^{\Delta x}(x, t)",
+            linestyle=:dot,
+            color=:red,
+            linewidth=8,
+            label=L"w^{\Delta x}(x, t)",
         )
         lines!(
             ax2,
             x,
             bottom_averages,
-            linestyle = :dashdot,
-            color = :red,
-            linewidth = 8,
-            label = L"B",
+            linestyle=:dashdot,
+            color=:red,
+            linewidth=8,
+            label=L"B",
         )
 
         lines!(
             ax1,
             x,
             collect(linrec_results.h),
-            linestyle = :dot,
-            color = :orange,
-            linewidth = 4,
-            label = L"w_2^{\Delta x}(x, t)",
+            linestyle=:dot,
+            color=:orange,
+            linewidth=4,
+            label=L"w_2^{\Delta x}(x, t)",
         )
         lines!(
             ax,
             x,
             collect(linrec_results.h) .- bottom_averages,
-            linestyle = :dot,
-            color = :orange,
-            linewidth = 4,
-            label = L"h_2^{\Delta x}(x, t)",
+            linestyle=:dot,
+            color=:orange,
+            linewidth=4,
+            label=L"h_2^{\Delta x}(x, t)",
         )
-        axislegend(ax, position = :lt)
-        axislegend(ax1, position = :lt)
-        axislegend(ax2, position = :lt)
+        axislegend(ax, position=:lt)
+        axislegend(ax1, position=:lt)
+        axislegend(ax2, position=:lt)
 
 
         @show sum(abs.(collect(result.h) - collect(linrec_results.h)))
         @show sum(abs.(collect(result.hu) - collect(linrec_results.hu)))
     end
-    save("somefig.png", f)
+    depth_cutoff_fmt = replace(string(depth_cutoff), "." => "", "-" => "m")
+    desingularizing_kappa_fmt = replace(string(desingularizing_kappa), "." => "", "-" => "m")
+    filename = "somefig_$(depth_cutoff_fmt)_$(desingularizing_kappa_fmt).png"
+    save(filename, f)
     display(f)
 
 end
 
-run_simulation([0.01, 5, 20.0, 50.0, 100.0])
+for cutoff in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]
+    run_simulation([0.01, 5, 20.0, 50.0, 100.0], cutoff, cutoff)
+end
+
