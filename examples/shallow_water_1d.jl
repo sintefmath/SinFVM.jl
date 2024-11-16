@@ -69,8 +69,7 @@ nothing
 # The initial_state is a Volume object (technically an InteriorVolume), so we can access the data using the `h` and `hu` fields
 lines!(ax, x, collect(initial_state.h), label=L"h_0(x)")
 lines!(ax2, x, collect(initial_state.hu), label=L"hu_0(x)")
-
-display(f)
+f
 
 # ## Run the simulation
 # We run the simulation to the final time `T`
@@ -103,5 +102,4 @@ lines!(
 
 axislegend(ax, position=:lt)
 axislegend(ax2, position=:lt)
-
-display(f)
+f
