@@ -43,7 +43,7 @@ end
 function simpleDamBreak1DOptim(; T=10, dt=1, w0_height=1.0, bump=false, wall_height=0.0, wall_position=0)
     #width_of_wall = 4
     ADType = eltype(wall_height)
-    nx = 128
+    nx = 32
     grid = SinFVM.CartesianGrid(nx; gc=2, boundary=SinFVM.WallBC(), extent=[0.0 200])
     x = SinFVM.cell_centers(grid)
     xf = SinFVM.cell_faces(grid)
