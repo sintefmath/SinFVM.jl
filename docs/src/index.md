@@ -4,11 +4,14 @@ SinFVM (SINTEF Finite Volume Methods) is a Julia framework for solving conservat
 [Applied Computational Science](https://www.sintef.no/en/digital/departments-new/department-of-mathematics-and-cybernetics/research-group-applied-computational-science/)
 research group at [SINTEF Digital](https://www.sintef.no/en/digital/).
 
+## Modeling of surface water using SinFVM.jl
 If you are only interested in the modelling of surface water using SinFVM.jl, you can skip directly to TODO INSERT TUTORIAL REF HERE!
 
+## Mathematical foundation
 We consider a general (hyperbolic) conservation or balance law
 
 $$u_t + \nabla_x \cdot F(u) = S(u)\qquad \text{on}\qquad D\times [0, T)$$
 
 where $u:D\times[0,T)\to\mathbb{R}$ is a vector of conserved (balanced) quantities, $F$ is a flux function and $S$ represents source terms. It is common to discretize such equations with the finite volume method. 
+
 

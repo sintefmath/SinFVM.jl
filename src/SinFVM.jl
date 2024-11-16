@@ -19,6 +19,7 @@ const Direction = Union{XDIRT, YDIRT, ZDIRT}
 using StaticArrays
 using Parameters
 
+include("artifacts.jl")
 include("abstract_types.jl")
 include("meta/staticvectors.jl")
 include("grid.jl")

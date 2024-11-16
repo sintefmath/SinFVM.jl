@@ -93,9 +93,7 @@ mkpath("data")
 function callback(bottom, basename, t, simulator)
 
     state = SinFVM.current_interior_state(simulator)
-    #tstr = @sprintf "%0.3f" t
-    tstr = "$(ceil(Int64, t))"
-    # @show collect(B)
+    tstr = string(t)
     w = collect(state.h)
     h = w .- bottom[3:end-3, 3:end-3]
     hu = collect(state.hu)
@@ -110,7 +108,7 @@ function callback(bottom, basename, t, simulator)
         save("figs/bay/$(basename)/state_$(tstr).png", f, px_per_unit=2)
     end
 
-    tstr_print = @sprintf "%d" floor(Int64, t)
+    tstr_print = "$(ceil(Int64, t))"
 
     mkpath("data/bay/$(basename)")
     npzwrite("data/bay/$(basename)/w_$(tstr_print).npz", h)

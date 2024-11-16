@@ -12,8 +12,8 @@ function run_simulation()
     u0 = x -> @SVector[exp.(-(x - 0.5)^2 / 0.001) .+ 1.5, 0.0 .* x]
     nx = 1024
     grid = SinFVM.CartesianGrid(nx; gc=2)
-    backend = make_cuda_backend()
-    #backend = make_cpu_backend()
+    #backend = make_cuda_backend()
+    backend = make_cpu_backend()
 
     equation = SinFVM.ShallowWaterEquations1D()
     pure_equation = SinFVM.ShallowWaterEquations1DPure()

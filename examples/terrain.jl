@@ -1,3 +1,6 @@
+# # Modelling of a terrain with a bay
+# In this example, we will setup a simple model of a terrain with a bay. We will use the Horton infiltration model to simulate the infiltration of water into the soil. The terrain is represented by a grid, and we will use the shallow water equations to simulate the flow of water over the terrain. We will use the `SinFVM` package to setup and solve the model. The model will be solved using the `ForwardEuler` time-stepping method. We will use the `CairoMakie` package to visualize the results of the simulation.
+
 import DelimitedFiles
 using NPZ
 
@@ -12,8 +15,8 @@ import CUDA
 include("example_tools.jl")
 
 for backend in get_available_backends()
-
-    terrain = loadgrid("examples/data/bay.txt")
+    dataset_base = joinpath(datapath_testdata(), "data", "small")
+    terrain = loadgrid(joinpath(dataset_base, "bay.txt"))
     upper_corner = Float64.(size(terrain))
     coarsen_times = 2
     terrain_original = terrain
@@ -74,7 +77,7 @@ for backend in get_available_backends()
 
     SinFVM.set_current_state!(simulator, initial)
     SinFVM.current_state(simulator).h[1:end, 1:end] = bottom_per_cell(bottom)
-    T = 24 * 60 * 60.0
+    T = 1# 24 * 60 * 60.0
     callback_to_simulator = IntervalWriter(step=10., writer=(t, s) -> callback(terrain, SinFVM.name(backend), t, s))
 
     total_water_writer = TotalWaterVolume(bottom_topography=bottom)

@@ -165,7 +165,7 @@ for backend in [SinFVM.make_cpu_backend(), SinFVM.make_cuda_backend()]
 
     SinFVM.set_current_state!(simulator, initial)
     SinFVM.current_state(simulator).h[1:end, 1:end] = bottom_per_cell(bottom)
-    T = 24 * 60 * 60.0
+    T = 1#24 * 60 * 60.0
     callback_to_simulator = IntervalWriter(step=10.0, writer=(t, s) -> callback(terrain, SinFVM.name(backend), t, s))
 
     total_water_writer = TotalWaterVolume(bottom_topography=bottom)
