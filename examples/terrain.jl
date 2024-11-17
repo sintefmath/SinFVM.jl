@@ -36,84 +36,6 @@ function naive_infill(terrain)
 	end
 	return terrain_return
 end
-function solve_lapace(terrain, magic_marker = -100.0)
-	n, m = size(terrain)
-	N = n * m
-
-	# Create sparse matrix for Laplace equation
-	I = Int[]
-	J = Int[]
-	V = Float64[]
-
-	# For each cell
-    source = zeros(N)
-	for i in 1:n
-		for j in 1:m
-			
-			idx = (j - 1) * n + i
-
-			# Add diagonal term
-			push!(I, idx)
-			push!(J, idx)
-
-			if terrain[i, j] > 1e-3
-				push!(V, 1.0)
-                source[idx] = terrain[i, j]
-			else
-				push!(V, 4.0)
-
-				# Add neighbor connections
-				if i > 1
-					push!(I, idx)
-					push!(J, idx - 1)
-					push!(V, -1.0)
-                else
-                    # Here we have a Neumann boundary condition
-                    # U[0] = U[1] (du/dx = 0)
-                    # hence we get the equation
-                    # -u[0] + 4u[1] - u[2] = 0
-                    # now u[0] == u[1] 
-                    push!(I, idx)
-                    push!(J, idx)
-                    push!(V, -1)
-				end
-				if i < n
-					push!(I, idx)
-					push!(J, idx + 1)
-					push!(V, -1.0)
-                else
-                    push!(I, idx)
-                    push!(J, idx)
-                    push!(V, -1)
-				end
-				if j > 1
-					push!(I, idx)
-					push!(J, idx - n)
-					push!(V, -1.0)
-                else
-                    push!(I, idx)
-                    push!(J, idx)
-                    push!(V, -1)
-				end
-				if j < m
-					push!(I, idx)
-					push!(J, idx + n)
-					push!(V, -1.0)
-                else
-                    push!(I, idx)
-                    push!(J, idx)
-                    push!(V, -1)
-				end
-
-			end
-		end
-	end
-
-	sparse_matrix = sparse(I, J, V, N, N)
-
-    return reshape(sparse_matrix \ source, size(terrain))
-end
-
 for backend in get_available_backends()
 	dataset_base = joinpath(datapath_testdata(), "data", "small")
 	terrain = loadgrid(joinpath(dataset_base, "bay.txt"))
@@ -125,35 +47,6 @@ for backend in get_available_backends()
 
 	terrain_marked = copy(terrain)
 
-	for i in 1:size(terrain_marked, 1)
-		for j in 1:size(terrain_marked, 2)
-			is_same = true
-			for di in -1:1
-				for dj in -1:1
-					ni = i + di
-					nj = j + dj
-					if ni >= 1 && ni <= size(terrain_marked, 1) &&
-					   nj >= 1 && nj <= size(terrain_marked, 2) &&
-					   (di != 0 || dj != 0)
-						is_same = is_same && terrain[ni, nj] == terrain[i, j]
-					end
-				end
-			end
-			if is_same
-				terrain_marked[i, j] = -100.0
-			end
-		end
-	end
-
-	with_theme(theme_latexfonts()) do
-		f = Figure()
-		ax1 = Axis(f[1, 1])
-
-		#heatmap!(ax1, terrain_marked, label="marked")
-		p = heatmap!(ax1, terrain_marked, label = "marked")
-		Colorbar(f[1, 2], p)
-		display(f)
-	end
 
     # Solve Laplace equation
     terrain_laplace = naive_infill(terrain)
@@ -166,16 +59,7 @@ for backend in get_available_backends()
         Colorbar(f[1, 2], p)
         display(f)
     end
-	with_theme(theme_latexfonts()) do
-		f = Figure()
-		ax1 = Axis(f[1, 1])
-		ax2 = Axis(f[2, 1])
-
-		heatmap!(ax1, terrain_original, label = "original")
-		heatmap!(ax2, terrain, label = "Coarsened")
-		save("figs/bay/terrain_comparison.png", f, px_per_unit = 2)
-
-	end
+	
 
 	grid_size = size(terrain) .- (5, 5)
 	grid = SinFVM.CartesianGrid(grid_size...; gc = 2, boundary = SinFVM.NeumannBC(), extent = [0 upper_corner[1]; 0 upper_corner[2]])
