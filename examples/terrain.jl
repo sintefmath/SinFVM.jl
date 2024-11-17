@@ -45,17 +45,17 @@ for backend in get_available_backends()
 	terrain = coarsen(terrain, coarsen_times)
 	mkpath("figs/bay/")
 
-	terrain_marked = copy(terrain)
+	terrain_copy = copy(terrain)
 
 
-    # Solve Laplace equation
-    terrain_laplace = naive_infill(terrain)
+    terrain = naive_infill(terrain)
+	minimum_terrain = minimum(terrain)
 
     with_theme(theme_latexfonts()) do
         f = Figure()
         ax1 = Axis(f[1, 1])
 
-        p = heatmap!(ax1, terrain_laplace, label = "Laplace", colorrange = (minimum(terrain_laplace), 2))
+        p = heatmap!(ax1, terrain, label = "Laplace", colorrange = (minimum(terrain), 2))
         Colorbar(f[1, 2], p)
         display(f)
     end
@@ -66,6 +66,8 @@ for backend in get_available_backends()
 	infiltration = SinFVM.HortonInfiltration(grid, backend)
 	#infiltration = SinFVM.ConstantInfiltration(15 / (1000.0) / 3600.0)
 	bottom = SinFVM.BottomTopography2D(terrain, backend, grid)
+	bottom_copy = SinFVM.BottomTopography2D(terrain_copy, backend, grid)
+
 	bottom_source = SinFVM.SourceTermBottom()
 	equation = SinFVM.ShallowWaterEquations(bottom; depth_cutoff = 8e-2)
 	reconstruction = SinFVM.LinearReconstruction()
@@ -101,10 +103,9 @@ for backend in get_available_backends()
 	u0 = x -> @SVector[0.0, 0.0, 0.0]
 	x = SinFVM.cell_centers(grid)
 	initial = u0.(x)
-
+	
 	SinFVM.set_current_state!(simulator, initial)
-	SinFVM.current_state(simulator).h[1:end, 1:end] = bottom_per_cell(bottom)
-	T = 1# 24 * 60 * 60.0
+	T = 60*60# 24 * 60 * 60.0
 	callback_to_simulator = IntervalWriter(step = 10.0, writer = (t, s) -> callback(terrain, SinFVM.name(backend), t, s))
 
 	total_water_writer = TotalWaterVolume(bottom_topography = bottom)
