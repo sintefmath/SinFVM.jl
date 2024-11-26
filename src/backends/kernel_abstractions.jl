@@ -15,6 +15,7 @@ end
 
 make_cuda_backend() = KernelAbstractionBackend(get_backend(CUDA.cu(ones(3))))
 make_cpu_backend() = KernelAbstractionBackend(get_backend(ones(3)))
+make_cpu_backend(RealType) = KernelAbstractionBackend(get_backend(ones(3)); realtype=RealType)
 const CUDABackend = KernelAbstractionBackend{CUDA.CUDAKernels.CUDABackend}
 const CPUBackend = KernelAbstractionBackend{KernelAbstractions.CPU}
 
