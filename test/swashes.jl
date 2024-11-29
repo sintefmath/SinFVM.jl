@@ -1,3 +1,17 @@
+# Copyright (c) 2024 SINTEF AS
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 using SinFVM
 
 using StaticArrays
@@ -303,14 +317,18 @@ function plot_ref_solution(sw::Swashes1D, nx, T)
     x = SinFVM.cell_centers(grid, interior=false)
     ax_h = Axis(
         f[1, 1],
-        title="h in swashes test case $(sw.id)\n $(sw.name) cells.\nT=$(T)",
+        title="h in swashes test case $(sw.id)
+ $(sw.name) cells.
+T=$(T)",
         ylabel="h",
         xlabel="x",
     )
 
     ax_u = Axis(
         f[1, 2],
-        title="u in swashes test case $(sw.id)\n $(sw.name) cells.\nT=$(T)",
+        title="u in swashes test case $(sw.id)
+ $(sw.name) cells.
+T=$(T)",
         ylabel="u",
         xlabel="x",
     )
@@ -337,14 +355,18 @@ function plot_ref_solution(sw::Swashes421, nx, T)
     @show typeof(grid) <: SinFVM.CartesianGrid{2}
     ax_h = Axis(
         f[1, 1],
-        title="h in swashes test case $(sw.id)\n $(sw.name) cells.\nT=$(T)",
+        title="h in swashes test case $(sw.id)
+ $(sw.name) cells.
+T=$(T)",
         ylabel="h",
         xlabel="x",
     )
 
     ax_u = Axis(
         f[1, 2],
-        title="u in swashes test case $(sw.id)\n $(sw.name) cells.\nT=$(T)",
+        title="u in swashes test case $(sw.id)
+ $(sw.name) cells.
+T=$(T)",
         ylabel="u",
         xlabel="x",
     )

@@ -1,3 +1,17 @@
+# Copyright (c) 2024 SINTEF AS
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 using SinFVM
 using Test
 using StaticArrays
@@ -57,7 +71,8 @@ function tsunami(;T=10, dt=1, w0_height=1.0, bump=false)
     t = @lift(all_t[$index])
 
     f = Figure(size=(800, 800), fontsize=24)
-    infostring = @lift("tsunami, t=$(all_t[$index]) nx=$(nx)") #\n$(split(typeof(rec),".")[2]) and $(split(typeof(flux), ".")[2])"
+    infostring = @lift("tsunami, t=$(all_t[$index]) nx=$(nx)") #
+$(split(typeof(rec),".")[2]) and $(split(typeof(flux), ".")[2])"
         ax_h = Axis(
             f[1, 1],
             title=infostring,

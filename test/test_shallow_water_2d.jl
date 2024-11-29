@@ -1,3 +1,17 @@
+# Copyright (c) 2024 SINTEF AS
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 using CairoMakie
 using Cthulhu
 using StaticArrays
@@ -42,7 +56,8 @@ function run_swe_2d_pure_simulation(backend)
     f = Figure(size=(1600, 1200), fontsize=24)
     names = [L"h", L"hu", L"hv"]
     titles=["Initial, backend=$(backend_name)", "At time $(T), backend=$(backend_name)"]
-    axes = [[Axis(f[i, 2*j - 1], ylabel=L"y", xlabel=L"x", title="$(titles[j])\n$(names[i])") for i in 1:3 ] for j in 1:2]
+    axes = [[Axis(f[i, 2*j - 1], ylabel=L"y", xlabel=L"x", title="$(titles[j])
+$(names[i])") for i in 1:3 ] for j in 1:2]
     
     
     current_simulator_state = collect(SinFVM.current_state(simulator))

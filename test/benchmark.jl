@@ -1,3 +1,17 @@
+# Copyright (c) 2024 SINTEF AS
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 using Plots
 using Cthulhu
 using StaticArrays
@@ -66,7 +80,8 @@ end
 
 function benchmark(outname, backend)
     open(outname, "w") do io
-        write(io, "resolution,time_swe,bytes_swe,gctime_swe,timesteps_swe,time_bb,bytes_bb,gctime_bb,timesteps_bb\n")
+        write(io, "resolution,time_swe,bytes_swe,gctime_swe,timesteps_swe,time_bb,bytes_bb,gctime_bb,timesteps_bb
+")
     end
     resolutions = 2 .^ (2:28)
 
@@ -74,7 +89,8 @@ function benchmark(outname, backend)
         println("resolution = $resolution")
         open(outname, "a") do io
             result_sinswe, timesteps_swe, result_barebones, timesteps_barebones = run_simulation(resolution, backend=backend)
-            write(io, "$(resolution),$(result_sinswe.time),$(result_sinswe.bytes),$(result_sinswe.gctime),$(timesteps_swe),$(result_barebones.time),$(result_barebones.bytes),$(result_barebones.gctime),$(timesteps_barebones)\n")
+            write(io, "$(resolution),$(result_sinswe.time),$(result_sinswe.bytes),$(result_sinswe.gctime),$(timesteps_swe),$(result_barebones.time),$(result_barebones.bytes),$(result_barebones.gctime),$(timesteps_barebones)
+")
         end
     end
 end

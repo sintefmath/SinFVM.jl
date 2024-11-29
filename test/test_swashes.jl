@@ -1,3 +1,17 @@
+# Copyright (c) 2024 SINTEF AS
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 
 using SinFVM
 
@@ -27,7 +41,7 @@ function compare_swashes(sw::Swashes41x, nx, t)
 
     f = Figure(size=(1600, 600), fontsize=24)
     x = SinFVM.cell_centers(grid)
-    infostring = "swashes test case $(sw.id)\n $(sw.name)\nt=$(t) nx=$(nx)\n$(typeof(eq))\n$(typeof(rec)) \n $(typeof(flux))"
+    infostring = "swashes test case $(sw.id) $(sw.name) t=$(t) nx=$(nx) $(typeof(eq)) $(typeof(rec)) $(typeof(flux))"
     ax_h = Axis(
         f[1, 1],
         title="h ",
@@ -154,7 +168,12 @@ function compare_swashes(sw::Swashes421, nx, t)
     x_faces = SinFVM.cell_faces(grid)
     topo_faces = SinFVM.collect_topography_intersections(topography, grid)
     topo_cells = SinFVM.collect_topography_cells(topography, grid)
-    infostring = "swashes test case $(sw.id)\n $(sw.name)\nt=$(t) nx=$(nx)\n$(typeof(eq))\n$(typeof(rec)) \n $(typeof(flux))"
+    infostring = "swashes test case $(sw.id)
+ $(sw.name)
+t=$(t) nx=$(nx)
+$(typeof(eq))
+$(typeof(rec)) 
+ $(typeof(flux))"
     ax_h = Axis(f[1, 1], title="h", ylabel="h", xlabel="x")
     ax_hu = Axis(f[1, 2], title="hu", ylabel="hu", xlabel="x")
     ax_hl = Axis(f[2, 1], title="h", ylabel="h", xlabel="x")
@@ -251,7 +270,12 @@ function compare_swashes_in2d(sw::Swashes41x, nx, t;
     if do_plot
         f = Figure(size=(1600, 600), fontsize=24)
         x = SinFVM.cell_centers(grid)
-        infostring = "2D swashes test case $(sw.id)\n $(sw.name)\nt=$(t) nx=$(nx)\n$typeof(eq)\n$(typeof(rec)) \n $(typeof(flux_2D))"
+        infostring = "2D swashes test case $(sw.id)
+ $(sw.name)
+t=$(t) nx=$(nx)
+$typeof(eq)
+$(typeof(rec)) 
+ $(typeof(flux_2D))"
         ax_h = Axis(
             f[1, 1],
             title="h ",
@@ -309,7 +333,9 @@ end
 # compare_swashes(swashes411, nx, 8.0)
 # compare_swashes(swashes412, nx, 6.0)
 # compare_swashes(swashes421, nx, swashes421.period*1)
-# println("\n\n")
+# println("
+
+#")
 
 # compare_swashes(swashes412, nx, 2.0)
 # compare_swashes_in2d(swashes412, nx, 4.0; do_plot=true, do_test=true, timestepper=SinFVM.RungeKutta2())

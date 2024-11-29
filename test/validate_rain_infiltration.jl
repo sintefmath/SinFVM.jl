@@ -1,3 +1,17 @@
+# Copyright (c) 2024 SINTEF AS
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 using StaticArrays
 using LinearAlgebra
 using Test
@@ -409,8 +423,12 @@ function visualize(vd, rain_function, topography; folder="")
 
     git_hash = read(`git rev-parse HEAD`, String)[1:end-1]
     hostname = read(`hostname`, String)[1:end-1]
-    runinfo = "run on "*hostname*" w/ git commit "*git_hash*"\n"
-    infostring = "\n\n"*folder*"\n"*runinfo*"Validation case from Sec 3.2 in https://doi.org/10.1016/j.jhydrol.2016.03.021"
+    runinfo = "run on "*hostname*" w/ git commit "*git_hash*"
+"
+    infostring = "
+
+"*folder*"
+"*runinfo*"Validation case from Sec 3.2 in https://doi.org/10.1016/j.jhydrol.2016.03.021"
 
     ax1 = Axis(f[1, 1], ytickcolor = :black, title="Runoff validation "*string(rain_function), 
                 xlabel="t [(]minutes]"*infostring, 

@@ -1,3 +1,17 @@
+# Copyright (c) 2024 SINTEF AS
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 
 using SinFVM
 
@@ -58,7 +72,12 @@ function plot_crossection(sw::Swashes2D, simulator, t, cross_sec)
     topo_cells =SinFVM.collect_topography_cells(eq.B, grid)
 
 
-    infostring = "swashes test case $(sw.id)\n $(sw.name)\nt=$(t) (nx, ny)=$((nx, ny))\n$(typeof(eq))\n$(typeof(rec)) \n $(typeof(flux))"
+    infostring = "swashes test case $(sw.id)
+ $(sw.name)
+t=$(t) (nx, ny)=$((nx, ny))
+$(typeof(eq))
+$(typeof(rec)) 
+ $(typeof(flux))"
     ax_h_x = Axis(f[1, 1], title="water level (y=$(y_index))", ylabel="z", xlabel="x")
     ax_hu_x = Axis(f[1, 2], title="hu (y=$(y_index))", ylabel="hu", xlabel="x",)
     ax_hv_x = Axis(f[1, 3], title="hv (y=$(y_index))", ylabel="hu", xlabel="x",)
@@ -113,7 +132,12 @@ function plot_surfaces(sw::Swashes2D, simulator, t)
     topo_cells =SinFVM.collect_topography_cells(eq.B, grid)
 
 
-    infostring = "swashes test case $(sw.id)\n $(sw.name)\nt=$(t) (nx, ny)=$((nx, ny))\n$(typeof(eq))\n$(typeof(rec)) \n $(typeof(flux))"
+    infostring = "swashes test case $(sw.id)
+ $(sw.name)
+t=$(t) (nx, ny)=$((nx, ny))
+$(typeof(eq))
+$(typeof(rec)) 
+ $(typeof(flux))"
     ax_h = Axis3(f[1, 1], title="water level", ylabel="z", xlabel="x", elevation=0.2*π, azimuth=0.1*π)
     ax_hu = Axis3(f[1, 2], title="hu", ylabel="hu", xlabel="x", azimuth=0.1*π)
     ax_hv = Axis3(f[1, 3], title="hv", ylabel="hu", xlabel="x", azimuth=0.1*π)

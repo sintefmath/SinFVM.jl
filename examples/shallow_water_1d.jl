@@ -1,3 +1,17 @@
+# Copyright (c) 2024 SINTEF AS
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # # Shallow Water Equations in 1D without bottom Bottom topography
 # In this example, we will solve the Shallow Water Equations in 1D without bottom topography. We will use the `SinFVM` package to setup and solve the model. The model will be solved using the `ForwardEuler` time-stepping method. We will use the `CairoMakie` package to visualize the results of the simulation.
 
@@ -50,14 +64,20 @@ SinFVM.set_current_state!(simulator, initial)
 f = Figure(size=(1600, 600), fontsize=24)
 ax = Axis(
     f[1, 1],
-    title="Simulation of the Shallow Water equations in 1D.\nCentral Upwind and Forward-Euler.\nResolution $(nx) cells.\nT=$(T)",
+    title="Simulation of the Shallow Water equations in 1D.
+Central Upwind and Forward-Euler.
+Resolution $(nx) cells.
+T=$(T)",
     ylabel="h",
     xlabel=L"x",
 )
 
 ax2 = Axis(
     f[1, 2],
-    title="Simulation of the Shallow Water equations in 1D.\nCentral Upwind and Forward-Euler.\nResolution $(nx) cells.\nT=$(T)",
+    title="Simulation of the Shallow Water equations in 1D.
+Central Upwind and Forward-Euler.
+Resolution $(nx) cells.
+T=$(T)",
     ylabel="hu",
     xlabel=L"x",
 )
