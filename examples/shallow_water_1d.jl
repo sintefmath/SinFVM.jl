@@ -36,25 +36,25 @@ initial = u0.(x)
 
 # ## Setup the simulation
 # We choose the Shallow Water Equations in 1D, here 'Pure' refers to the version without bottom topography
-equation = SinFVM.ShallowWaterEquations1DPure()
+equation = ShallowWaterEquations1DPure()
 
 # We choose a linear reconstruction to get a second order accurate solution
-reconstruction = SinFVM.LinearReconstruction(1.05)
+reconstruction = LinearReconstruction(1.05)
 
 # We choose the Central Upwind numerical flux
-numericalflux = SinFVM.CentralUpwind(equation)
+numericalflux = CentralUpwind(equation)
 
 # And we setup the conserved system
 conserved_system =
-        SinFVM.ConservedSystem(backend, reconstruction, numericalflux, equation, grid)
+        ConservedSystem(backend, reconstruction, numericalflux, equation, grid)
 
 # Note that we use the RungeKutta2 method to get second order in time as well
-timestepper = SinFVM.RungeKutta2()
+timestepper = RungeKutta2()
 
 # We define the final time
 T = 0.05
 # Then we create the simulator
-simulator = SinFVM.Simulator(backend, conserved_system, timestepper, grid)
+simulator = Simulator(backend, conserved_system, timestepper, grid)
 
 # Set the initial data created above
 SinFVM.set_current_state!(simulator, initial)
