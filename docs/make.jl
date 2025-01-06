@@ -34,6 +34,7 @@ end
 Literate.markdown("examples/terrain.jl", "docs/src/"; execute=false, preprocess=process_includes)
 Literate.markdown("examples/optimization.jl", "docs/src/"; execute=false, preprocess=process_includes)
 Literate.markdown("examples/shallow_water_1d.jl", "docs/src/"; execute=false, preprocess=process_includes)
+Literate.markdown("examples/callbacks.jl", "docs/src/"; execute=false, preprocess=process_includes)
 
 makedocs(modules = [SinFVM], 
     sitename="SinFVM.jl",

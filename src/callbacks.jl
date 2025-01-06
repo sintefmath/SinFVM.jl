@@ -37,6 +37,9 @@ intervals.
 	writer::WriterType
 end
 
+IntervalWriter(step::Real, writer::Base.Callable) = IntervalWriter(step=step, writer=writer)
+IntervalWriter(writer::Base.Callable) = IntervalWriter(step=1.0, writer=writer)
+
 function (writer::IntervalWriter)(t, simulator)
 	dt = SinFVM.current_timestep(simulator)
 	if t + dt >= writer.current_t
