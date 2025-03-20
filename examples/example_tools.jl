@@ -64,7 +64,7 @@ function bottom_per_cell(bottom_topography::Array)
     return data
 end
 
-function bottom_per_cell(bottom_topography)
+function bottom_per_cell(bottom_topography::SinFVM.BottomTopography2D)
     dimensions = size(bottom_topography.B) .- (1, 1)
     data = zeros(dimensions)
 

@@ -109,8 +109,8 @@ for backend in [SinFVM.make_cpu_backend(), SinFVM.make_cuda_backend()]
         ax1 = Axis(f[1, 1])
         ax2 = Axis(f[2, 1])
 
-        heatmap!(ax1, terrain_original, title="original")
-        heatmap!(ax2, terrain, title="Coarsened")
+        heatmap!(ax1, terrain_original)
+        heatmap!(ax2, terrain)
         save("figs/bay/terrain_comparison.png", f, px_per_unit=2)
 
     end
