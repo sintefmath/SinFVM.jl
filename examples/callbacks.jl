@@ -83,4 +83,8 @@ lineplot = lines!(ax, x, animation_data[end], color = :blue)
 record(fig, "burgers_callback.mp4", 1:length(animation_data), framerate = 24) do index
     lineplot[2] = animation_data[index]
 end
+
+```@raw html
+<video autoplay loop muted playsinline controls src="./burgers_callback.mp4" />
+```
 # The animation will be saved as `burgers_callback.mp4` in the current directory. You can view the animation using your favorite video player.

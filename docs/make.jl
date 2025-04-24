@@ -41,7 +41,10 @@ makedocs(modules = [SinFVM],
     draft=false,
     pages = [
         "Introduction" => "index.md",
-        "Examples" => ["shallow_water_1d.md", "terrain.md", "optimization.md"],
+        "Examples" => [#"shallow_water_1d.md",
+                       #"terrain.md",
+                       #"optimization.md", 
+                       "callbacks.md"],
         "Index" => "indexlist.md",
         "Public API" => "api.md"
     ])
