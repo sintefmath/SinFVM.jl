@@ -13,7 +13,7 @@ grid = CartesianGrid(nx; gc=2, boundary=SinFVM.PeriodicBC())
 B0 = -3.0
 bottom = SinFVM.ConstantBottomTopography(B0)
 
-equation = SinFVM.TwoLayerShallowWaterEquations1D(bottom)
+equation = SinFVM.TwoLayerShallowWaterEquations1D(bottom, ρ1 = 1.00, ρ2 = 1.00, g = 9.81)
 numericalflux = CentralUpwind(equation)
 
 # IMPORTANT: this assumes your TwoLayer limiter-reconstruction is the ω-well-balanced one:
@@ -23,13 +23,8 @@ reconstruction = LinearLimiterReconstruction(SinFVM.VanLeerLimiter())
 
 bottom_src = SinFVM.SourceTermBottom()
 ncp_src    = SinFVM.SourceTermNonConservative()
-
-conserved_system = ConservedSystem(
-    backend, reconstruction, numericalflux, equation, grid, [bottom_src, ncp_src]
-)
-
+conserved_system = ConservedSystem(backend, reconstruction, numericalflux, equation, grid, [bottom_src, ncp_src])
 timestepper = RungeKutta2()
-T = 0.05
 simulator = Simulator(backend, conserved_system, timestepper, grid)
 
 # Grid + sampled bottom (interior)
@@ -44,7 +39,7 @@ Bvals = SinFVM.collect_topography_cells(equation.B, grid; interior=true)
 ε0 = 0.0
 u1fun(x) = 0.0
 u2fun(x) = 0.0
-h2fun(x) = exp(-(x - 0.5)^2 / 0.01) + 1.0
+h2fun(x) = -exp(-(x - 0.5)^2 / 0.05) + 1.5
 
 u0 = (xi, Bi) -> begin
     h2 = h2fun(xi)
@@ -63,7 +58,7 @@ SinFVM.set_current_state!(simulator, initial)
 # ============================================================
 # Visualization setup
 # ============================================================
-
+T = 0 
 f = Figure(size=(1600, 600), fontsize=24)
 ax_surf = Axis(
     f[1, 1],
@@ -93,8 +88,8 @@ q2_0 = collect(st0.q2)
 h2_0 = ω0 .- Bvals               # recover physical h2
 ε_0  = ω0 .+ h1_0                # ε = ω + h1
 
-u1_0 = q1_0 ./ max.(h1_0, 1e-12)
-u2_0 = q2_0 ./ max.(h2_0, 1e-12)
+u1_0 = q1_0 ./ max.(h1_0, 1e-5)
+u2_0 = q2_0 ./ max.(h2_0, 1e-5)
 
 println("---- initial checks ----")
 @show minimum(h1_0) minimum(h2_0)
@@ -114,7 +109,7 @@ axislegend(ax_vel, position=:lt)
 # ============================================================
 # Run
 # ============================================================
-
+T = 0.10
 @time SinFVM.simulate_to_time(simulator, T)
 
 # ============================================================
@@ -131,8 +126,8 @@ q2 = collect(st.q2)
 h2 = ω .- Bvals
 ε  = ω .+ h1
 
-u1 = q1 ./ max.(h1, 1e-12)
-u2 = q2 ./ max.(h2, 1e-12)
+u1 = q1 ./ max.(h1, 1e-5)
+u2 = q2 ./ max.(h2, 1e-5)
 
 println("---- final checks ----")
 @show minimum(h1) minimum(h2)

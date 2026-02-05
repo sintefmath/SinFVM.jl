@@ -145,14 +145,9 @@ function reconstruct!(
 
     @fvmloop for_each_inner_cell(backend, grid, direction; ghostcells=1) do ileft, imiddle, iright
         # input_conserved = (h1, q1, ω, q2)
-        s = slope(lim,
-                  input_conserved[ileft],
-                  input_conserved[imiddle],
-                  input_conserved[iright])
-
+        s = slope(lim,input_conserved[ileft], input_conserved[imiddle], input_conserved[iright])
         B_left  = B_face_left(eq.B, imiddle, direction)
         B_right = B_face_right(eq.B, imiddle, direction)
-
         ω  = input_conserved[imiddle][3]
         sω = s[3]
 
@@ -174,9 +169,9 @@ function reconstruct!(
         h1L, q1L, q2L = UL[1], UL[2], UL[4]
         h1R, q1R, q2R = UR[1], UR[2], UR[4]
 
-        # Desingularize
+        # Desingularize and recalculate momenta
         if h1L < eq.depth_cutoff
-            q1L = h1L * desingularize(eq, h1L, q1L)
+            q1L = h1L * desingularize(eq, h1L, q1L) 
         end
         if h1R < eq.depth_cutoff
             q1R = h1R * desingularize(eq, h1R, q1R)

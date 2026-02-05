@@ -71,10 +71,7 @@ function (centralupwind::CentralUpwind)(::AllPracticalSWE, faceminus, faceplus, 
 end
 
 
-function (centralupwind::CentralUpwind)(::TwoLayerShallowWaterEquations1D,
-                                       faceminus, faceplus,
-                                       direction::Direction)
-
+function (centralupwind::CentralUpwind)(::TwoLayerShallowWaterEquations1D, faceminus, faceplus,direction::Direction)
     eq = centralupwind.eq
     h2m = faceminus[3]
     h2p = faceplus[3]
