@@ -74,12 +74,26 @@ function lagrange_bounds(c1, c2, c3, c4)
             push!(Sd, -abs(dj)^(1/j))
         end
     end
-    sort!(Sc, rev = true)
-    sort!(Sd)
-    λmax = Sc[1] + Sc[2]
-    λmin = Sd[1] + Sd[2]
+    # --- SAFETY GUARDS ---
+    if length(Sc) == 0
+        λmax = 0.0
+    elseif length(Sc) == 1
+        λmax = Sc[1]
+    else
+        sort!(Sc, rev=true)
+        λmax = Sc[1] + Sc[2]
+    end
+    if length(Sd) == 0
+        λmin = 0.0
+    elseif length(Sd) == 1
+        λmin = Sd[1]
+    else
+        sort!(Sd)
+        λmin = Sd[1] + Sd[2]
+    end
     return λmin, λmax
 end
+
 
 # See Kurganov and Petrova (2009) "Central-Upwind Schemes for Two-Layer Shallow Water Equations" eq. (2.18) - (2.24)
 function compute_eigenvalues(eq::TwoLayerShallowWaterEquations1D,::XDIRT, h1, q1, h2, q2)

@@ -66,13 +66,13 @@ function reconstruct!(backend, linRec::LinearLimiterReconstruction, output_left,
         output_right[imiddle] = input_conserved[imiddle] .+ 0.5 .* s
     end
 end
-function reconstruct!(backend, linRec::LinearLimiterReconstruction, output_left, output_right, input_conserved, grid::Grid, ::Equation, direction::Direction)
+
+function reconstruct!(backend, linRec::LinearLimiterReconstruction, output_left, output_right,
+                      input_conserved, grid::Grid, eq::Equation, direction::Direction)
     reconstruct!(backend, linRec, output_left, output_right, input_conserved, grid, direction)
 end
 
 
-
-#Note: Have not added limiters to SWE yet
 function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, eq::AllPracticalSWE, direction::Direction)
     @assert grid.ghostcells[1] > 1
 
@@ -119,72 +119,78 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
     nothing
 end
 
-
-
-@inline function fix_slope(slope, fix_val, ::TwoLayerShallowWaterEquations1D)
-    return typeof(slope)(slope[1], slope[2], fix_val, slope[4]) #Fix so ω > 0
+#Two-layer SWE analogue of the above, where we reconstruct (h1, q1, ω, q2) with ω = h2 + B.
+@inline function fix_slope_ω(slope, fix_val, ::TwoLayerShallowWaterEquations1D)
+    return typeof(slope)(slope[1], slope[2], fix_val, slope[4])
 end
 
-# --- Two-layer reconstruction with arbitrary limiter: input (h1, q1, ω, q2) ---
-function reconstruct!(backend, linRec::LinearLimiterReconstruction, output_left, output_right,
-                      input_conserved, grid::Grid, eq::TwoLayerShallowWaterEquations1D, direction::Direction)
+@inline function fix_slope_ω(slope, fix_val, ::TwoLayerShallowWaterEquations1D)
+    # Only adjust ω slope (component 3)
+    return typeof(slope)(slope[1], slope[2], fix_val, slope[4])
+end
+
+
+function reconstruct!(
+    backend,
+    linRec::LinearLimiterReconstruction,
+    output_left,
+    output_right,
+    input_conserved,
+    grid::Grid,
+    eq::TwoLayerShallowWaterEquations1D,
+    direction::Direction
+)
     @assert grid.ghostcells[1] > 1
     lim = linRec.limiter
 
     @fvmloop for_each_inner_cell(backend, grid, direction; ghostcells=1) do ileft, imiddle, iright
-        s = slope(lim, input_conserved[ileft], input_conserved[imiddle], input_conserved[iright])
+        # input_conserved = (h1, q1, ω, q2)
+        s = slope(lim,
+                  input_conserved[ileft],
+                  input_conserved[imiddle],
+                  input_conserved[iright])
+
         B_left  = B_face_left(eq.B, imiddle, direction)
         B_right = B_face_right(eq.B, imiddle, direction)
+
         ω  = input_conserved[imiddle][3]
         sω = s[3]
 
-        #Adjust slope of ω to avoid negative h2 at faces
+        # --- well-balanced positivity of h2 = ω - B ---
         if (ω - 0.5*sω < B_left)
-            s = fix_slope(s, 2.0 * (ω - B_left), eq)
+            s = fix_slope_ω(s, 2.0*(ω - B_left), eq)
         elseif (ω + 0.5*sω < B_right)
-            s = fix_slope(s, 2.0 * (B_right - ω), eq)
+            s = fix_slope_ω(s, 2.0*(B_right - ω), eq)
         end
 
-        # Reconstruct (h1, q1, ω, q2)
+        # Reconstruct equilibrium variables
         UL = input_conserved[imiddle] .- 0.5 .* s
         UR = input_conserved[imiddle] .+ 0.5 .* s
 
-        # Convert ω -> h2 at faces (component 3 becomes h2)
+        # Convert ω → h2 at faces
         h2L = UL[3] - B_left
         h2R = UR[3] - B_right
 
-        # Extract quantities
-        h1L = UL[1]; q1L = UL[2]; q2L = UL[4]
-        h1R = UR[1]; q1R = UR[2]; q2R = UR[4]
+        h1L, q1L, q2L = UL[1], UL[2], UL[4]
+        h1R, q1R, q2R = UR[1], UR[2], UR[4]
 
-        # Desingularize + recalculate momenta if needed
+        # Desingularize
         if h1L < eq.depth_cutoff
-            u1L = desingularize(eq, h1L, q1L)
-            q1L = h1L * u1L
+            q1L = h1L * desingularize(eq, h1L, q1L)
         end
         if h1R < eq.depth_cutoff
-            u1R = desingularize(eq, h1R, q1R)
-            q1R = h1R * u1R
+            q1R = h1R * desingularize(eq, h1R, q1R)
         end
-
         if h2L < eq.depth_cutoff
-            u2L = desingularize(eq, h2L, q2L)
-            q2L = h2L * u2L
+            q2L = h2L * desingularize(eq, h2L, q2L)
         end
         if h2R < eq.depth_cutoff
-            u2R = desingularize(eq, h2R, q2R)
-            q2R = h2R * u2R
+            q2R = h2R * desingularize(eq, h2R, q2R)
         end
 
-        # Build final face states: (h1, q1, h2, q2)
-        UL = typeof(UL)(h1L, q1L, h2L, q2L)
-        UR = typeof(UR)(h1R, q1R, h2R, q2R)
-
-        # Output face values now in (h1, q1, h2, q2)
-        output_left[imiddle]  = UL
-        output_right[imiddle] = UR
+        # Output physical face states
+        output_left[imiddle]  = typeof(UL)(h1L, q1L, h2L, q2L)
+        output_right[imiddle] = typeof(UR)(h1R, q1R, h2R, q2R)
     end
-    return nothing
+    nothing
 end
-
-
