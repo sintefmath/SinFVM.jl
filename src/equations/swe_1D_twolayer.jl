@@ -118,5 +118,5 @@ function compute_max_abs_eigenvalue(eq::TwoLayerShallowWaterEquations1D, ::XDIRT
     return maximum(abs, λ)
 end
 
-#In the discretization they use ω = h_2 + B(x) as the conserved variable instead of h2
+#In the discretization they use w = h_2 + B(x) as the conserved variable instead of h2
 conserved_variable_names(::Type{T}) where {T<:TwoLayerShallowWaterEquations1D} = (:h1, :q1, :h2, :q2)
