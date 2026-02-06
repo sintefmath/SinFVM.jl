@@ -51,10 +51,10 @@ function (eq::TwoLayerShallowWaterEquations1D)(::XDIRT, h1, q1, h2, q2)
     u2 = desingularize(eq, h2, q2)
 
     return @SVector [
-        eq.ρ1 * h1, 
-        eq.ρ1* (q1*u1 + 0.5*g*h1^2),
-        eq.ρ2 * h2,                              
-        eq.ρ2 *(q2*u2 + 0.5*g*h2^2),
+        q1, 
+        (q1*u1 + 0.5*g*h1^2),
+        q2,                              
+        (q2*u2 + 0.5*g*h2^2),
         ]
 end
 
@@ -74,7 +74,6 @@ function lagrange_bounds(c1, c2, c3, c4)
             push!(Sd, -abs(dj)^(1/j))
         end
     end
-    # --- SAFETY GUARDS ---
     if length(Sc) == 0
         λmax = 0.0
     elseif length(Sc) == 1
