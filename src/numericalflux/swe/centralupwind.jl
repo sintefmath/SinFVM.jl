@@ -107,11 +107,10 @@ function (centralupwind::CentralUpwind)(::TwoLayerShallowWaterEquations1D, facem
     #Compute aplus and aminus
     aplus  = max(0.0, λmax_m, λmax_p, u1m, u2m, u1p, u2p)
     aminus = min(0.0, λmin_m, λmin_p, u1m, u2m, u1p, u2p)
-    denom = aplus - aminus
-    if abs(denom) < eq.desingularizing_kappa
+    if abs(aplus - aminus) < eq.desingularizing_kappa
         return zero(faceminus), zero(aminus)
     end
-    F = (aplus .* fluxminus .- aminus .* fluxplus)./denom .+ ((aplus .* aminus) ./denom) .* (faceplus .- faceminus)
+    F = (aplus .* fluxminus .- aminus .* fluxplus)./( aplus - aminus) .+ ((aplus .* aminus) ./( aplus - aminus)) .* (faceplus .- faceminus)
     if h2m < eq.depth_cutoff && h2p < eq.depth_cutoff
         return F, zero(aplus)
     end

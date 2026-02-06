@@ -51,10 +51,10 @@ function (eq::TwoLayerShallowWaterEquations1D)(::XDIRT, h1, q1, h2, q2)
     u2 = desingularize(eq, h2, q2)
 
     return @SVector [
-        q1, 
-        (q1*u1 + 0.5*g*h1^2),
-        q2,                              
-        (q2*u2 + 0.5*g*h2^2),
+        eq.ρ1 * q1, 
+        eq.ρ1 * (q1*u1 + 0.5*g*h1^2),
+        eq.ρ2 * q2,                              
+        eq.ρ2 * (q2*u2 + 0.5*g*h2^2),
         ]
 end
 
@@ -121,7 +121,7 @@ function compute_eigenvalues(eq::TwoLayerShallowWaterEquations1D,::XDIRT, h1, q1
         c4 = u1^2*u2^2 - g*(u1^2*h2 + u2^2*h1) + g^2*(1 - r)*h1*h2
 
         λmin, λmax = lagrange_bounds(c1, c2, c3, c4)
-        return @SVector [λmin, λmax]
+        return @SVector [λmin, λmax] 
     end
 end
 

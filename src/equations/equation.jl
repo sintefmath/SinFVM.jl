@@ -23,12 +23,13 @@ include("swe_1D.jl")
 include("swe_2D_pure.jl")
 include("swe_2D.jl")
 include("swe_1D_twolayer.jl")
+include("swe_2D_twolayer.jl")
 
-AllSWE = Union{ShallowWaterEquations1D,ShallowWaterEquations1DPure,ShallowWaterEquationsPure, ShallowWaterEquations, TwoLayerShallowWaterEquations1D}
-AllPracticalSWE = Union{ShallowWaterEquations1D, ShallowWaterEquations, TwoLayerShallowWaterEquations1D}
+AllSWE = Union{ShallowWaterEquations1D,ShallowWaterEquations1DPure,ShallowWaterEquationsPure, ShallowWaterEquations, TwoLayerShallowWaterEquations1D, TwoLayerShallowWaterEquations2D}
+AllPracticalSWE = Union{ShallowWaterEquations1D, ShallowWaterEquations, TwoLayerShallowWaterEquations1D, TwoLayerShallowWaterEquations2D}
 AllPureSWE = Union{ShallowWaterEquations1DPure,ShallowWaterEquationsPure}
 AllSWE1D = Union{ShallowWaterEquations1D, ShallowWaterEquations1DPure, TwoLayerShallowWaterEquations1D}
-AllSWE2D = Union{ShallowWaterEquations, ShallowWaterEquationsPure}
+AllSWE2D = Union{ShallowWaterEquations, ShallowWaterEquationsPure, TwoLayerShallowWaterEquations2D}
 
 desingularize(::AllPureSWE, h) = h # TODO: Do we want to something more here?
 

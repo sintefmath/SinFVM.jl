@@ -131,37 +131,21 @@ end
     return typeof(slope)(slope[1], slope[2], fix_val, slope[4])
 end
 
-@inline function B_cell(eq::TwoLayerShallowWaterEquations1D, i, direction)
-    # Avoid indexing eq.B (ConstantBottomTopography isn't indexable).
-    # Use face values and take midpoint as "cell" value.
-    Bl = B_face_left(eq.B, i, direction)
-    Br = B_face_right(eq.B, i, direction)
-    return 0.5 * (Bl + Br)
-end
+function reconstruct!(backend, linRec::LinearLimiterReconstruction,
+    output_left, output_right, input_conserved, grid::Grid, eq::TwoLayerShallowWaterEquations1D, direction::Direction)
 
-function reconstruct!(
-    backend,
-    linRec::LinearLimiterReconstruction,
-    output_left,
-    output_right,
-    input_conserved,
-    grid::Grid,
-    eq::TwoLayerShallowWaterEquations1D,
-    direction::Direction,
-)
     @assert grid.ghostcells[1] > 1
     lim = linRec.limiter
 
     @fvmloop for_each_inner_cell(backend, grid, direction; ghostcells=1) do ileft, imiddle, iright
-        # --- Build equilibrium-variable triplet from physical cell data ---
         # physical: U = (h1, q1, h2, q2)
         Ul = input_conserved[ileft]
         Um = input_conserved[imiddle]
         Ur = input_conserved[iright]
 
-        Blc = B_cell(eq, ileft,   direction)
-        Bmc = B_cell(eq, imiddle, direction)
-        Brc = B_cell(eq, iright,  direction)
+        Blc = B_cell(eq.B, ileft,   direction)
+        Bmc = B_cell(eq.B, imiddle, direction)
+        Brc = B_cell(eq.B, iright,  direction)
 
         # equilibrium vars V = (h1, q1, ω, q2), ω = h2 + B
         Vl = typeof(Ul)(Ul[1], Ul[2], Ul[3] + Blc, Ul[4])
@@ -174,17 +158,14 @@ function reconstruct!(
         # face bathymetry (needed for positivity in h2_face = ω_face - B_face)
         B_left  = B_face_left(eq.B, imiddle, direction)
         B_right = B_face_right(eq.B, imiddle, direction)
-
         ωm  = Vm[3]
         sω  = s[3]
-
         # enforce ω_face >= B_face  <=>  h2_face >= 0
         if (ωm - 0.5*sω < B_left)
             s = fix_slope_ω(s, 2.0*(ωm - B_left), eq)
         elseif (ωm + 0.5*sω < B_right)
             s = fix_slope_ω(s, 2.0*(B_right - ωm), eq)
         end
-
         # reconstruct equilibrium variables at faces
         VL = Vm .- 0.5 .* s
         VR = Vm .+ 0.5 .* s
@@ -192,10 +173,6 @@ function reconstruct!(
         # convert ω -> h2 at faces (physical output)
         h2L = VL[3] - B_left
         h2R = VR[3] - B_right
-
-        # small numerical guard
-        h2L = max(h2L, 0.0)
-        h2R = max(h2R, 0.0)
 
         h1L, q1L, q2L = VL[1], VL[2], VL[4]
         h1R, q1R, q2R = VR[1], VR[2], VR[4]

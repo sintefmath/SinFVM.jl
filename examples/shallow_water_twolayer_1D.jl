@@ -10,13 +10,13 @@ backend = make_cpu_backend()
 nx = 1024
 grid = CartesianGrid(nx; gc=2, boundary=SinFVM.PeriodicBC())
 
-B0 = 0.0
+B0 = -3.0
 bottom = SinFVM.ConstantBottomTopography(B0)
 
-equation = SinFVM.TwoLayerShallowWaterEquations1D(bottom; ρ1 = 1.00, ρ2 = 1.10, g = 9.81)
+equation = SinFVM.TwoLayerShallowWaterEquations1D(bottom; ρ1 = 1.00, ρ2 = 1.02, g = 9.81)
 numericalflux = CentralUpwind(equation)
 
-# Option 1 reconstruction:
+# Reconstruction:
 #   input_conserved  = (h1, q1, h2, q2)  [PHYSICAL STORAGE]
 #   internally uses ω = h2 + B for limiting and reconstructing,
 #   outputs faces    = (h1, q1, h2, q2)
@@ -27,10 +27,10 @@ ncp_src    = SinFVM.SourceTermNonConservative()
 
 conserved_system = ConservedSystem(backend, reconstruction, numericalflux, equation, grid, [bottom_src, ncp_src])
 timestepper = RungeKutta2()
-simulator = Simulator(backend, conserved_system, timestepper, grid)
+simulator = Simulator(backend, conserved_system, timestepper, grid; cfl = 0.99)
 
 # Grid + sampled bottom (interior)
-x     = SinFVM.cell_centers(grid)
+x = SinFVM.cell_centers(grid)
 Bvals = SinFVM.collect_topography_cells(equation.B, grid; interior=true)
 
 # ============================================================
@@ -38,7 +38,7 @@ Bvals = SinFVM.collect_topography_cells(equation.B, grid; interior=true)
 # ε = B + h2 + h1
 # ============================================================
 
-ε0 = 5.0
+ε0 = 0.0
 u1fun(x) = 0.0
 u2fun(x) = 0.0
 h2fun(x) = -exp(-(x - 0.5)^2 / 0.05) + 1.5
@@ -60,7 +60,7 @@ SinFVM.set_current_state!(simulator, initial)
 # Visualization setup
 # ============================================================
 
-Tshow = 0.0
+Tshow = 100.0
 f = Figure(size=(1600, 600), fontsize=24)
 
 ax_surf = Axis(
@@ -113,7 +113,7 @@ axislegend(ax_vel, position=:lt)
 # Run
 # ============================================================
 
-T = 0.10
+T = 100.0
 @time SinFVM.simulate_to_time(simulator, T)
 
 # ============================================================
