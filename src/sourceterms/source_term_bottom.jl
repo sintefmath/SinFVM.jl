@@ -35,54 +35,40 @@ function evaluate_directional_source_term!(::SourceTermBottom, output, current_s
 end
 
 
-function evaluate_directional_source_term!(
-    ::SourceTermBottom, output, current_state,
-    cs::ConservedSystem{<:Any,<:Any,<:Any,<:TwoLayerShallowWaterEquations1D},
-    dir::Direction
+# Works for both 1D and 2D
+function SinFVM.evaluate_directional_source_term!(::SourceTermBottom, output, current_state,
+    cs::ConservedSystem{<:Any,<:Any,<:Any,<:Union{TwoLayerShallowWaterEquations1D, TwoLayerShallowWaterEquations2D}}, dir::Direction
 )
     dx = SinFVM.compute_dx(cs.grid, dir)
     B  = cs.equation.B
     g  = cs.equation.g
     r  = cs.equation.ρ1 / cs.equation.ρ2
 
+    out_m2 = (dir == XDIR) ? output.q2 : output.p2
     h1R = cs.right_buffer.h1
     h1L = cs.left_buffer.h1
-    out_q2 = output.q2 
 
-    # Use w if buffers have it; otherwise compute w = h2 + B_cell
+    # Do we have w in the reconstructed buffers?
     names = SinFVM.variable_names(typeof(cs.left_buffer))
     has_w = (:w in names)
 
-    if has_w
-        wR = cs.right_buffer.w
-        wL = cs.left_buffer.w
-
-        @fvmloop SinFVM.for_each_inner_cell(cs.backend, cs.grid, dir) do ileft, imiddle, iright
-            B_right = SinFVM.B_face_right(B, imiddle, dir)
-            B_left  = SinFVM.B_face_left( B, imiddle, dir)
-            Bx = (B_right - B_left)/dx
-
-            avg = 0.5*(wR[imiddle] + wL[imiddle] + r*h1R[imiddle] + r*h1L[imiddle])
-            out_q2[imiddle] += -g * avg * Bx
-            nothing
+    @fvmloop SinFVM.for_each_inner_cell(cs.backend, cs.grid, dir) do ileft, imiddle, iright
+        B_right = SinFVM.B_face_right(B, imiddle, dir)
+        B_left  = SinFVM.B_face_left( B, imiddle, dir)
+        Bx = (B_right - B_left) / dx
+        if has_w
+            wR = cs.right_buffer.w[imiddle]
+            wL = cs.left_buffer.w[imiddle]
+            avg = 0.5 * (wR + wL + r*h1R[imiddle] + r*h1L[imiddle])
+        else
+            Bmid = SinFVM.B_cell(B, imiddle, dir)
+            wR = cs.right_buffer.h2[imiddle] + Bmid
+            wL = cs.left_buffer.h2[imiddle]  + Bmid
+            avg = 0.5 * (wR + wL + r*h1R[imiddle] + r*h1L[imiddle])
         end
-    else
-        h2R = cs.right_buffer.h2
-        h2L = cs.left_buffer.h2
 
-        @fvmloop SinFVM.for_each_inner_cell(cs.backend, cs.grid, dir) do ileft, imiddle, iright
-            B_right = SinFVM.B_face_right(B, imiddle, dir)
-            B_left  = SinFVM.B_face_left(B, imiddle, dir)
-            Bmid    = SinFVM.B_cell(B, imiddle, dir)
-            Bx = (B_right - B_left)/dx
-
-            wR = h2R[imiddle] + Bmid
-            wL = h2L[imiddle] + Bmid
-            avg = 0.5*(wR + wL + r*h1R[imiddle] + r*h1L[imiddle])
-            
-            out_q2[imiddle] += -g * avg * Bx
-            nothing
-        end
+        out_m2[imiddle] += -g * avg * Bx
+        nothing
     end
 
     return nothing
