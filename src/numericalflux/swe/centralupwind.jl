@@ -71,16 +71,8 @@ function (centralupwind::CentralUpwind)(::AllPracticalSWE, faceminus, faceplus, 
 end
 
 
-# Direction to pick momentum components in 2D
-@inline _m1_idx(::XDIRT) = 2  # q1
-@inline _m1_idx(::YDIRT) = 3  # p1
-@inline _m2_idx(::XDIRT) = 5  # q2
-@inline _m2_idx(::YDIRT) = 6  # p2
 
-# Unified for both 1D and 2D two-layer:
-# 1D state: (h1, q1, h2, q2)
-# 2D state: (h1, q1, p1, h2, q2, p2)
-function (centralupwind::CentralUpwind)(::AllTwolayerSWE, faceminus, faceplus, direction::Direction)
+function (centralupwind::CentralUpwind)(::TwoLayerShallowWaterEquations1D, faceminus, faceplus, direction::Direction)
     eq = centralupwind.eq
     nvars = length(faceminus)
     @assert nvars == length(faceplus)
@@ -115,6 +107,83 @@ function (centralupwind::CentralUpwind)(::AllTwolayerSWE, faceminus, faceplus, d
 
     if h2p > eq.depth_cutoff
         fluxplus = eq(direction, faceplus...)
+        λp = compute_eigenvalues(eq, direction, faceplus...)
+        λmax_p = maximum(λp)
+        λmin_p = minimum(λp)
+
+        u1p = desingularize(eq, faceplus[h1idx], faceplus[m1idx])
+        u2p = desingularize(eq, faceplus[h2idx], faceplus[m2idx])
+    end
+
+    aplus  = max(0.0, λmax_m, λmax_p, u1m, u2m, u1p, u2p)
+    aminus = min(0.0, λmin_m, λmin_p, u1m, u2m, u1p, u2p)
+
+    denom = aplus - aminus
+    if abs(denom) < eq.desingularizing_kappa
+        return zero(faceminus), 0.0
+    end
+
+    F = (aplus .* fluxminus .- aminus .* fluxplus) ./ denom .+
+        ((aplus .* aminus) ./ denom) .* (faceplus .- faceminus)
+
+    if h2m < eq.depth_cutoff && h2p < eq.depth_cutoff
+        return F, 0.0
+    end
+
+    return F, max(abs(aplus), abs(aminus))
+end
+
+
+#Need to make another one for 2D since we need to pass in the bottom in equation and hence need to pass in an index to find facevalues in the flux
+# Direction to pick momentum components in 2D
+@inline _m1_idx(::XDIRT) = 2  # q1
+@inline _m1_idx(::YDIRT) = 3  # p1
+@inline _m2_idx(::XDIRT) = 5  # q2
+@inline _m2_idx(::YDIRT) = 6  # p2
+
+function (centralupwind::CentralUpwind)(faceminus, faceplus, direction::Direction, I::CartesianIndex)
+    centralupwind(centralupwind.eq, faceminus, faceplus, direction, I)
+end
+
+function (centralupwind::CentralUpwind)(eq::SinFVM.TwoLayerShallowWaterEquations2D,
+                                        faceminus, faceplus, direction::Direction,
+                                        I::CartesianIndex)
+    @assert length(faceminus) == 6
+    @assert length(faceplus)  == 6
+
+    # scalar bottom at this face (works for ConstantBottomTopography and BottomTopography2D)
+    bL = SinFVM.B_face_left(eq.B, I, direction)
+    bR = SinFVM.B_face_right(eq.B, I, direction)
+
+    # indices
+    h1idx = 1
+    h2idx = 4
+    m1idx = _m1_idx(direction)
+    m2idx = _m2_idx(direction)
+
+    h2m = faceminus[h2idx]
+    h2p = faceplus[h2idx]
+
+    fluxminus = zero(faceminus)
+    λmax_m = 0.0; λmin_m = 0.0
+    u1m = 0.0; u2m = 0.0
+
+    if h2m > eq.depth_cutoff
+        fluxminus = eq(direction, faceminus..., bL)           # <-- 2D uses b
+        λm = compute_eigenvalues(eq, direction, faceminus...) # keep eigenvalues signature unchanged
+        λmax_m = maximum(λm)
+        λmin_m = minimum(λm)
+
+        u1m = desingularize(eq, faceminus[h1idx], faceminus[m1idx])
+        u2m = desingularize(eq, faceminus[h2idx], faceminus[m2idx])
+    end
+
+    fluxplus = zero(faceplus)
+    λmax_p = 0.0; λmin_p = 0.0
+    u1p = 0.0; u2p = 0.0
+
+    if h2p > eq.depth_cutoff
+        fluxplus = eq(direction, faceplus..., bR)             # <-- 2D uses b
         λp = compute_eigenvalues(eq, direction, faceplus...)
         λmax_p = maximum(λp)
         λmin_p = minimum(λp)
