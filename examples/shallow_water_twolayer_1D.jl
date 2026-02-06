@@ -7,7 +7,7 @@ using SinFVM
 # ============================================================
 
 backend = make_cpu_backend()
-nx = 1024
+nx = 128
 grid = CartesianGrid(nx; gc=2, boundary=SinFVM.PeriodicBC())
 
 B0 = -3.0
@@ -41,7 +41,7 @@ Bvals = SinFVM.collect_topography_cells(equation.B, grid; interior=true)
 ε0 = 0.0
 u1fun(x) = 0.0
 u2fun(x) = 0.0
-h2fun(x) = -exp(-(x - 0.5)^2 / 0.05) + 1.5
+h2fun(x) = exp(-(x - 0.5)^2 / 0.05) + 1.5
 
 u0 = (xi, Bi) -> begin
     h2 = h2fun(xi)
@@ -60,7 +60,7 @@ SinFVM.set_current_state!(simulator, initial)
 # Visualization setup
 # ============================================================
 
-Tshow = 100.0
+Tshow = 10000.0
 f = Figure(size=(1600, 600), fontsize=24)
 
 ax_surf = Axis(
@@ -113,7 +113,7 @@ axislegend(ax_vel, position=:lt)
 # Run
 # ============================================================
 
-T = 100.0
+T = 10000.0
 @time SinFVM.simulate_to_time(simulator, T)
 
 # ============================================================

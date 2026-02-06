@@ -37,7 +37,7 @@ end
 
 # Works for both 1D and 2D
 function SinFVM.evaluate_directional_source_term!(::SourceTermBottom, output, current_state,
-    cs::ConservedSystem{<:Any,<:Any,<:Any,<:Union{TwoLayerShallowWaterEquations1D, TwoLayerShallowWaterEquations2D}}, dir::Direction
+    cs::ConservedSystem{<:Any,<:Any,<:Any,<:AllTwolayerSWE}, dir::Direction
 )
     dx = SinFVM.compute_dx(cs.grid, dir)
     B  = cs.equation.B
