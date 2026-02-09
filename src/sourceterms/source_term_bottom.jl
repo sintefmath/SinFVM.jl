@@ -67,7 +67,7 @@ function SinFVM.evaluate_directional_source_term!(::SourceTermBottom, output, cu
             avg = 0.5 * (wR + wL + r*h1R[imiddle] + r*h1L[imiddle])
         end
 
-        out_m2[imiddle] += -g * avg * Bx
+        out_m2[imiddle] += - g* avg * Bx
         nothing
     end
 

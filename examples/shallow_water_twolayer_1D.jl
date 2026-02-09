@@ -18,6 +18,7 @@ xwrap(x) = x - floor(x)
 # B(x) = 0.25[cos(10π(x-0.5)) + 1] - 2,   if 0.4<x<0.6
 #      = -2,                               otherwise
 # ------------------------------------------------------------
+"""
 xF = SinFVM.cell_faces(grid; interior=false)
 Bint = similar(xF)
 @inbounds for i in eachindex(xF)
@@ -25,13 +26,12 @@ Bint = similar(xF)
     Bint[i] = (0.4 < x < 0.6) ? (0.25*(cos(10π*(x - 0.5)) + 1.0) - 2.0) : -2.0
 end
 bottom = SinFVM.BottomTopography1D(Bint, backend, grid)
+"""
 
-# If you want the discontinuous bottom (2.36) instead, use:
-# @inbounds for i in eachindex(xF)
-#     x = xwrap(xF[i])
-#     Bint[i] = (x > 0.5) ? -1.5 : -2.0
-# end
-# bottom = SinFVM.BottomTopography1D(Bint, backend, grid)
+B0 = -2.0
+bottom = SinFVM.ConstantBottomTopography(B0)
+equation = SinFVM.TwoLayerShallowWaterEquations1D(bottom; ρ1=0.98, ρ2=1.0, g=10.0)
+Bvals = SinFVM.collect_topography_cells(equation.B, grid; interior=true)  # all = B0
 
 # Paper parameters for §2.7.2: g=10, r=0.98 => ρ1/ρ2=0.98
 equation = SinFVM.TwoLayerShallowWaterEquations1D(bottom; ρ1=0.98, ρ2=1.0, g=10.0)
@@ -43,6 +43,7 @@ reconstruction = LinearLimiterReconstruction(SinFVM.VanLeerLimiter())
 bottom_src = SinFVM.SourceTermBottom()
 ncp_src    = SinFVM.SourceTermNonConservative()
 
+@show bottom_src
 conserved_system = ConservedSystem(backend, reconstruction, numericalflux, equation, grid, [bottom_src, ncp_src])
 timestepper = RungeKutta2()
 simulator = Simulator(backend, conserved_system, timestepper, grid; cfl=0.60)
@@ -108,9 +109,6 @@ q2_0 = st0.q2
 w0  = h2_0 .+ Bvals         # w = h2 + B
 ε_0 = h1_0 .+ w0            # ε = h1 + h2 + B
 
-u1_0 = q1_0 ./ max.(h1_0, 1e-12)
-u2_0 = q2_0 ./ max.(h2_0, 1e-12)
-
 println("---- initial checks ----")
 @show minimum(h1_0) minimum(h2_0)
 @show maximum(abs.(u1_0)) maximum(abs.(u2_0))
@@ -146,9 +144,6 @@ q2 = st.q2
 
 w  = h2 .+ Bvals            # w = h2 + B
 ε  = h1 .+ w                # ε = h1 + h2 + B
-
-u1 = q1 ./ max.(h1, 1e-12)
-u2 = q2 ./ max.(h2, 1e-12)
 
 println("---- final checks ----")
 @show minimum(h1) minimum(h2)

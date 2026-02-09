@@ -68,7 +68,7 @@ function reconstruct!(backend, linRec::LinearLimiterReconstruction, output_left,
 end
 
 function reconstruct!(backend, linRec::LinearLimiterReconstruction, output_left, output_right,
-                      input_conserved, grid::Grid, eq::Equation, direction::Direction)
+                      input_conserved, grid::Grid, ::Equation, direction::Direction)
     reconstruct!(backend, linRec, output_left, output_right, input_conserved, grid, direction)
 end
 
