@@ -10,16 +10,34 @@ backend = make_cpu_backend()
 nx = 128
 grid = CartesianGrid(nx; gc=2, boundary=SinFVM.PeriodicBC())
 
-B0 = -3.0
-bottom = SinFVM.ConstantBottomTopography(B0)
+xwrap(x) = x - floor(x)
 
-equation = SinFVM.TwoLayerShallowWaterEquations1D(bottom; ρ1 = 1.00, ρ2 = 1.02, g = 9.81)
+# ------------------------------------------------------------
+# Bottom topography on faces (intersections), including ghosts
+# Eq. (2.35):
+# B(x) = 0.25[cos(10π(x-0.5)) + 1] - 2,   if 0.4<x<0.6
+#      = -2,                               otherwise
+# ------------------------------------------------------------
+xF = SinFVM.cell_faces(grid; interior=false)
+Bint = similar(xF)
+@inbounds for i in eachindex(xF)
+    x = xwrap(xF[i])
+    Bint[i] = (0.4 < x < 0.6) ? (0.25*(cos(10π*(x - 0.5)) + 1.0) - 2.0) : -2.0
+end
+bottom = SinFVM.BottomTopography1D(Bint, backend, grid)
+
+# If you want the discontinuous bottom (2.36) instead, use:
+# @inbounds for i in eachindex(xF)
+#     x = xwrap(xF[i])
+#     Bint[i] = (x > 0.5) ? -1.5 : -2.0
+# end
+# bottom = SinFVM.BottomTopography1D(Bint, backend, grid)
+
+# Paper parameters for §2.7.2: g=10, r=0.98 => ρ1/ρ2=0.98
+equation = SinFVM.TwoLayerShallowWaterEquations1D(bottom; ρ1=0.98, ρ2=1.0, g=10.0)
 numericalflux = CentralUpwind(equation)
 
-# Reconstruction:
-#   input_conserved  = (h1, q1, h2, q2)  [PHYSICAL STORAGE]
-#   internally uses ω = h2 + B for limiting and reconstructing,
-#   outputs faces    = (h1, q1, h2, q2)
+# Reconstruction: STORE physical (h1,q1,h2,q2) but reconstruct using w=h2+B internally
 reconstruction = LinearLimiterReconstruction(SinFVM.VanLeerLimiter())
 
 bottom_src = SinFVM.SourceTermBottom()
@@ -27,30 +45,27 @@ ncp_src    = SinFVM.SourceTermNonConservative()
 
 conserved_system = ConservedSystem(backend, reconstruction, numericalflux, equation, grid, [bottom_src, ncp_src])
 timestepper = RungeKutta2()
-simulator = Simulator(backend, conserved_system, timestepper, grid; cfl = 0.99)
+simulator = Simulator(backend, conserved_system, timestepper, grid; cfl=0.60)
 
-# Grid + sampled bottom (interior)
-x = SinFVM.cell_centers(grid)
+# Interior grid + cell-centered bottom
+x     = SinFVM.cell_centers(grid)
 Bvals = SinFVM.collect_topography_cells(equation.B, grid; interior=true)
 
 # ============================================================
-# Initial conditions (PHYSICAL conserved variables): (h1, q1, h2, q2)
-# ε = B + h2 + h1
+# Initial conditions for §2.7.2 (PHYSICAL storage)
+# Paper gives w(x,0) = h2 + B = -1, q1=q2=0, and h1 has a small bump
+# Stored state must be U=(h1,q1,h2,q2) with h2 = w - B_cell
 # ============================================================
 
-ε0 = 0.0
-u1fun(x) = 0.0
-u2fun(x) = 0.0
-h2fun(x) = exp(-(x - 0.5)^2 / 0.05) + 1.5
+bump = 1e-5
+h1fun(x) = (0.1 < xwrap(x) < 0.2) ? (1.0 + bump) : 1.0
+wfun(x)  = -1.0
 
 u0 = (xi, Bi) -> begin
-    h2 = h2fun(xi)
-    h1 = ε0 - (Bi + h2)      # ε = B + h2 + h1
-
-    q1 = h1 * u1fun(xi)
-    q2 = h2 * u2fun(xi)
-
-    @SVector [h1, q1, h2, q2]   # PHYSICAL STORAGE
+    h1 = h1fun(xi)
+    w  = wfun(xi)
+    h2 = w - Bi                 # physical h2 from w=h2+B
+    @SVector [h1, 0.0, h2, 0.0] # (h1,q1,h2,q2) PHYSICAL STORAGE
 end
 
 initial = [u0(x[i], Bvals[i]) for i in eachindex(x)]
@@ -60,7 +75,7 @@ SinFVM.set_current_state!(simulator, initial)
 # Visualization setup
 # ============================================================
 
-Tshow = 10000.0
+Tshow = 0.15
 f = Figure(size=(1600, 600), fontsize=24)
 
 ax_surf = Axis(
@@ -69,7 +84,8 @@ ax_surf = Axis(
     ylabel="elevations",
     xlabel=L"x",
 )
-ax_vel  = Axis(
+
+ax_vel = Axis(
     f[1, 2],
     title="Two-layer SWE 1D (velocities). nx=$(nx), T=$(Tshow)",
     ylabel="u",
@@ -77,22 +93,23 @@ ax_vel  = Axis(
 )
 
 # ============================================================
-# Initial state (now slot 3 is truly h2)
+# Initial state (PHYSICAL storage; compute w, ε diagnostically)
 # ============================================================
 
 st0 = SinFVM.current_interior_state(simulator)
-@show SinFVM.variable_names(typeof(st0))  # (:h1,:q1,:h2,:q2)
 
-h1_0 = collect(st0.h1)
-q1_0 = collect(st0.q1)
-h2_0 = collect(st0.h2)   # PHYSICAL h2
-q2_0 = collect(st0.q2)
+# Be robust to naming differences: read as vectors of SVectors
+U0 = collect(st0)  # Vector{SVector{4}}
+h1_0 = st0.h1
+q1_0 = st0.q1
+h2_0 = st0.h2     # PHYSICAL h2
+q2_0 = st0.q2
 
-ω0  = Bvals .+ h2_0
-ε_0 = ω0 .+ h1_0
+w0  = h2_0 .+ Bvals         # w = h2 + B
+ε_0 = h1_0 .+ w0            # ε = h1 + h2 + B
 
-u1_0 = q1_0 ./ max.(h1_0, 1e-5)
-u2_0 = q2_0 ./ max.(h2_0, 1e-5)
+u1_0 = q1_0 ./ max.(h1_0, 1e-12)
+u2_0 = q2_0 ./ max.(h2_0, 1e-12)
 
 println("---- initial checks ----")
 @show minimum(h1_0) minimum(h2_0)
@@ -100,8 +117,8 @@ println("---- initial checks ----")
 @show minimum(ε_0) maximum(ε_0)
 
 lines!(ax_surf, x, Bvals, linestyle=:dash, label=L"B(x)")
-lines!(ax_surf, x, ω0,                label=L"\omega(x,0)=B+h_2")
-lines!(ax_surf, x, ε_0,               label=L"\varepsilon(x,0)=B+h_2+h_1")
+lines!(ax_surf, x, w0,               label=L"w(x,0)=B+h_2")
+lines!(ax_surf, x, ε_0,              label=L"\varepsilon(x,0)=h_1+w")
 
 lines!(ax_vel, x, u1_0, label=L"u_1(x,0)")
 lines!(ax_vel, x, u2_0, label=L"u_2(x,0)")
@@ -113,33 +130,33 @@ axislegend(ax_vel, position=:lt)
 # Run
 # ============================================================
 
-T = 10000.0
-@time SinFVM.simulate_to_time(simulator, T)
+@time SinFVM.simulate_to_time(simulator, Tshow)
 
 # ============================================================
-# Final state (slot 3 is h2)
+# Final state (PHYSICAL storage; compute w, ε diagnostically)
 # ============================================================
 
 st = SinFVM.current_interior_state(simulator)
+U = collect(st)
 
-h1 = collect(st.h1)
-q1 = collect(st.q1)
-h2 = collect(st.h2)      # PHYSICAL h2
-q2 = collect(st.q2)
+h1 = st.h1
+q1 = st.q1
+h2 = st.h2     # PHYSICAL h2
+q2 = st.q2
 
-ω = Bvals .+ h2
-ε = ω .+ h1
+w  = h2 .+ Bvals            # w = h2 + B
+ε  = h1 .+ w                # ε = h1 + h2 + B
 
-u1 = q1 ./ max.(h1, 1e-5)
-u2 = q2 ./ max.(h2, 1e-5)
+u1 = q1 ./ max.(h1, 1e-12)
+u2 = q2 ./ max.(h2, 1e-12)
 
 println("---- final checks ----")
 @show minimum(h1) minimum(h2)
 @show maximum(abs.(u1)) maximum(abs.(u2))
 @show minimum(ε) maximum(ε)
 
-lines!(ax_surf, x, ω, linestyle=:dot, linewidth=5, label=L"\omega(x,t)")
-lines!(ax_surf, x, ε, linestyle=:dot, linewidth=5, label=L"\varepsilon(x,t)")
+lines!(ax_surf, x, w, linestyle=:dot, linewidth=5, label=L"w(x,t)=B+h_2")
+lines!(ax_surf, x, ε, linestyle=:dot, linewidth=5, label=L"\varepsilon(x,t)=h_1+w")
 
 lines!(ax_vel, x, u1, linestyle=:dashdot, linewidth=5, label=L"u_1(x,t)")
 lines!(ax_vel, x, u2, linestyle=:dashdot, linewidth=5, label=L"u_2(x,t)")
@@ -148,3 +165,4 @@ axislegend(ax_surf, position=:lt)
 axislegend(ax_vel, position=:lt)
 
 f
+

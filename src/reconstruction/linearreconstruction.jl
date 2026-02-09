@@ -120,64 +120,69 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
 end
 
 # ------------------------------------------------------------
-# Two-layer SWE: Option 1 (physical storage)
-# Input (cell values):  (h1, q1, h2, q2)
-# Reconstruction vars:  (h1, q1, ω,  q2) with ω = h2 + B
-# Output (face values): (h1, q1, h2, q2)
+# Two-layer SWE 1D (physical storage, well-balanced reconstruction)
+# Input (cell values):    U = (h1, q1, h2, q2)
+# Reconstruction vars:    V = (h1, q1, w,  q2) with w = h2 + B_cell
+# Output (face values):   (h1, q1, h2, q2) where h2_face = w_face - B_face
 # ------------------------------------------------------------
 
-@inline function fix_slope_ω(slope, fix_val, ::TwoLayerShallowWaterEquations1D)
-    # Only adjust ω slope (component 3)
+@inline function fix_slope_w(slope, fix_val)
+    # adjust only the w-slope (component 3)
     return typeof(slope)(slope[1], slope[2], fix_val, slope[4])
 end
 
 function reconstruct!(backend, linRec::LinearLimiterReconstruction,
-    output_left, output_right, input_conserved, grid::Grid, eq::TwoLayerShallowWaterEquations1D, direction::Direction)
+    output_left, output_right, input_conserved, grid::Grid,
+    eq::TwoLayerShallowWaterEquations1D, direction::Direction)
 
     @assert grid.ghostcells[1] > 1
     lim = linRec.limiter
 
     @fvmloop for_each_inner_cell(backend, grid, direction; ghostcells=1) do ileft, imiddle, iright
-        # physical: U = (h1, q1, h2, q2)
+        # Physical stored variables: U = (h1, q1, h2, q2)
         Ul = input_conserved[ileft]
         Um = input_conserved[imiddle]
         Ur = input_conserved[iright]
 
+        # Cell-centered bottom values for lift to w
         Blc = B_cell(eq.B, ileft,   direction)
         Bmc = B_cell(eq.B, imiddle, direction)
         Brc = B_cell(eq.B, iright,  direction)
 
-        # equilibrium vars V = (h1, q1, ω, q2), ω = h2 + B
+        # Equilibrium reconstruction variables: V = (h1, q1, w, q2), w = h2 + B_cell
         Vl = typeof(Ul)(Ul[1], Ul[2], Ul[3] + Blc, Ul[4])
         Vm = typeof(Um)(Um[1], Um[2], Um[3] + Bmc, Um[4])
         Vr = typeof(Ur)(Ur[1], Ur[2], Ur[3] + Brc, Ur[4])
 
-        # slope in equilibrium variables
+        # Limited slope in equilibrium variables
         s = slope(lim, Vl, Vm, Vr)
 
-        # face bathymetry (needed for positivity in h2_face = ω_face - B_face)
+        # Face bottom values for positivity & converting back to h2 at faces
         B_left  = B_face_left(eq.B, imiddle, direction)
         B_right = B_face_right(eq.B, imiddle, direction)
-        ωm  = Vm[3]
-        sω  = s[3]
-        # enforce ω_face >= B_face  <=>  h2_face >= 0
-        if (ωm - 0.5*sω < B_left)
-            s = fix_slope_ω(s, 2.0*(ωm - B_left), eq)
-        elseif (ωm + 0.5*sω < B_right)
-            s = fix_slope_ω(s, 2.0*(B_right - ωm), eq)
+
+        wm = Vm[3]
+        sw = s[3]
+
+        # Enforce h2_face >= 0  <=>  w_face >= B_face
+        if (wm - 0.5*sw < B_left)
+            s = fix_slope_w(s, 2.0*(wm - B_left))
+        elseif (wm + 0.5*sw < B_right)
+            s = fix_slope_w(s, 2.0*(B_right - wm))
         end
-        # reconstruct equilibrium variables at faces
-        VL = Vm .- 0.5 .* s
+
+        # Reconstruct equilibrium vars at faces
+        VL = Vm .- 0.5 .* s   # (h1,q1,w,q2)
         VR = Vm .+ 0.5 .* s
 
-        # convert ω -> h2 at faces (physical output)
+        # Convert back to physical face states for flux/eigenvalues
         h2L = VL[3] - B_left
         h2R = VR[3] - B_right
 
         h1L, q1L, q2L = VL[1], VL[2], VL[4]
         h1R, q1R, q2R = VR[1], VR[2], VR[4]
 
-        # desingularize if needed (keep momenta consistent)
+        # Desingularize momenta if very shallow (keep consistency)
         if h1L < eq.depth_cutoff
             q1L = h1L * desingularize(eq, h1L, q1L)
         end
@@ -191,13 +196,14 @@ function reconstruct!(backend, linRec::LinearLimiterReconstruction,
             q2R = h2R * desingularize(eq, h2R, q2R)
         end
 
-        # OUTPUT to flux in physical conserved variables (h1,q1,h2,q2)
-        output_left[imiddle]  = typeof(VL)(h1L, q1L, h2L, q2L)
-        output_right[imiddle] = typeof(VR)(h1R, q1R, h2R, q2R)
+        # Output physical conserved variables (h1,q1,h2,q2)
+        output_left[imiddle]  = typeof(Um)(h1L, q1L, h2L, q2L)
+        output_right[imiddle] = typeof(Um)(h1R, q1R, h2R, q2R)
     end
 
     return nothing
 end
+
 
 
 ###########################################################################################
