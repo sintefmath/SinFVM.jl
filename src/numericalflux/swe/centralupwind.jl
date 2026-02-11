@@ -72,21 +72,16 @@ end
 
 
 
-function (centralupwind::CentralUpwind)(
-    ::TwoLayerShallowWaterEquations1D,
-    faceminus,
-    faceplus,
-    direction::Direction,
-    Bface,
+function (centralupwind::CentralUpwind)(::TwoLayerShallowWaterEquations1D, faceminus, faceplus, direction::Direction, Bface,
 )
     eq = centralupwind.eq
     nvars = length(faceminus)
     @assert nvars == length(faceplus)
 
     # Indices depending on dimension
-    if nvars == 5 # 1D: (h1,q1,h2,q2,B) at faces 
+    if nvars == 4 # 1D: (h1,q1,h2,q2) at faces 
         h1idx = 1; m1idx = 2; h2idx = 3; m2idx = 4
-    elseif nvars == 7 # 2D (h1,q1,p1,h2,q2,p2,B) at faces
+    elseif nvars == 6 # 2D (h1,q1,p1,h2,q2,p2) at faces
         h1idx = 1; h2idx = 4; m1idx = _m1_idx(direction); m2idx = _m2_idx(direction)
     else
         throw(ArgumentError("Unsupported state size $nvars for two-layer CentralUpwind"))
