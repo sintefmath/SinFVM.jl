@@ -61,9 +61,8 @@ function SinFVM.evaluate_directional_source_term!(::SourceTermBottom, output, cu
             wL = cs.left_buffer.w[imiddle]
             avg = 0.5 * (wR + wL + r*h1R[imiddle] + r*h1L[imiddle])
         else
-            Bmid = SinFVM.B_cell(B, imiddle, dir)
-            wR = cs.right_buffer.h2[imiddle] + Bmid
-            wL = cs.left_buffer.h2[imiddle]  + Bmid
+            wR = cs.right_buffer.h2[imiddle] + B_right
+            wL = cs.left_buffer.h2[imiddle]  + B_left
             avg = 0.5 * (wR + wL + r*h1R[imiddle] + r*h1L[imiddle])
         end
 
