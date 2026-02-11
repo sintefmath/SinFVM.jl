@@ -45,16 +45,17 @@ function Adapt.adapt_structure(to, eq::TwoLayerShallowWaterEquations1D{T, S}) wh
     TwoLayerShallowWaterEquations1D(B; ρ1 = ρ1, ρ2 = ρ2, g = g, depth_cutoff = depth_cutoff, desingularizing_kappa = desingularizing_kappa)
 end
 
-function (eq::TwoLayerShallowWaterEquations1D)(::XDIRT, h1, q1, h2, q2)
+function (eq::TwoLayerShallowWaterEquations1D)(::XDIRT, h1, q1, h2, q2, Bface)
     g  = eq.g
+    r = eq.ρ1 / eq.ρ2
     u1 = desingularize(eq, h1, q1)
     u2 = desingularize(eq, h2, q2)
 
     return @SVector [
         eq.ρ1 * q1, 
-        eq.ρ1 * (q1*u1 + 0.5*g*h1^2),
+        eq.ρ1 * (q1*u1 + g*(h1+h2+Bface)*h1),
         eq.ρ2 * q2,                              
-        eq.ρ2 * (q2*u2 + 0.5*g*h2^2),
+        eq.ρ2 * (q2*u2 + 0.5*g*(h2+Bface)^2 - 0.5*g*r*h1^2 - g*Bface*(r*h1+h2+Bface)),
         ]
 end
 
@@ -131,4 +132,4 @@ function compute_max_abs_eigenvalue(eq::TwoLayerShallowWaterEquations1D, ::XDIRT
     return maximum(abs, λ)
 end
 
-conserved_variable_names(::Type{T}) where {T<:TwoLayerShallowWaterEquations1D} = (:h1, :q1, :h2, :q2)
+conserved_variable_names(::Type{T}) where {T<:TwoLayerShallowWaterEquations1D} = (:h1, :q1, :w, :q2)

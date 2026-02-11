@@ -119,13 +119,7 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
     nothing
 end
 
-# ------------------------------------------------------------
-# Two-layer SWE 1D (physical storage, well-balanced reconstruction)
-# Input (cell values):    U = (h1, q1, h2, q2)
-# Reconstruction vars:    V = (h1, q1, w,  q2) with w = h2 + B_cell
-# Output (face values):   (h1, q1, h2, q2) where h2_face = w_face - B_face
-# ------------------------------------------------------------
-
+# Twolayer SWE reconstruction: reconstruct using w=h2+B for positivity, but also store physical h2
 @inline function fix_slope_w(slope, fix_val)
     # adjust only the w-slope (component 3)
     return typeof(slope)(slope[1], slope[2], fix_val, slope[4])
@@ -139,32 +133,21 @@ function reconstruct!(backend, linRec::LinearLimiterReconstruction,
     lim = linRec.limiter
 
     @fvmloop for_each_inner_cell(backend, grid, direction; ghostcells=1) do ileft, imiddle, iright
-        # Physical stored variables: U = (h1, q1, h2, q2)
+        # Equilibrium variables: U = (h1, q1, w, q2)
         Ul = input_conserved[ileft]
         Um = input_conserved[imiddle]
         Ur = input_conserved[iright]
 
-        # Cell-centered bottom values for lift to w
-        Blc = B_cell(eq.B, ileft,   direction)
-        Bmc = B_cell(eq.B, imiddle, direction)
-        Brc = B_cell(eq.B, iright,  direction)
-
-        # Equilibrium reconstruction variables: V = (h1, q1, w, q2), w = h2 + B_cell
-        Vl = typeof(Ul)(Ul[1], Ul[2], Ul[3] + Blc, Ul[4])
-        Vm = typeof(Um)(Um[1], Um[2], Um[3] + Bmc, Um[4])
-        Vr = typeof(Ur)(Ur[1], Ur[2], Ur[3] + Brc, Ur[4])
-
         # Limited slope in equilibrium variables
-        s = slope(lim, Vl, Vm, Vr)
+        s = slope(lim, Ul, Um, Ur)
 
         # Face bottom values for positivity & converting back to h2 at faces
         B_left  = B_face_left(eq.B, imiddle, direction)
         B_right = B_face_right(eq.B, imiddle, direction)
 
-        wm = Vm[3]
-        sw = s[3]
-
         # Enforce h2_face >= 0  <=>  w_face >= B_face
+        wm = Um[3]
+        sw = s[3]
         if (wm - 0.5*sw < B_left)
             s = fix_slope_w(s, 2.0*(wm - B_left))
         elseif (wm + 0.5*sw < B_right)
@@ -172,17 +155,18 @@ function reconstruct!(backend, linRec::LinearLimiterReconstruction,
         end
 
         # Reconstruct equilibrium vars at faces
-        VL = Vm .- 0.5 .* s   # (h1,q1,w,q2)
-        VR = Vm .+ 0.5 .* s
+        UL = Um .- 0.5 .* s   # (h1,q1,w,q2)
+        UR = Um .+ 0.5 .* s
 
-        # Convert back to physical face states for flux/eigenvalues
-        h2L = VL[3] - B_left
-        h2R = VR[3] - B_right
+        # Extract reconstructed values
+        h1L, q1L, wL, q2L = UL
+        h1R, q1R, wR, q2R = UR
 
-        h1L, q1L, q2L = VL[1], VL[2], VL[4]
-        h1R, q1R, q2R = VR[1], VR[2], VR[4]
+        # Convert reconstructed w -> physical h2 at faces
+        h2L = wL - B_left
+        h2R = wR - B_right
 
-        # Desingularize momenta if very shallow (keep consistency)
+        # Desingularize momenta if very shallow and write back into UL/UR
         if h1L < eq.depth_cutoff
             q1L = h1L * desingularize(eq, h1L, q1L)
         end
@@ -196,14 +180,20 @@ function reconstruct!(backend, linRec::LinearLimiterReconstruction,
             q2R = h2R * desingularize(eq, h2R, q2R)
         end
 
-        # Output physical conserved variables (h1,q1,h2,q2)
-        output_left[imiddle]  = typeof(Um)(h1L, q1L, h2L, q2L)
-        output_right[imiddle] = typeof(Um)(h1R, q1R, h2R, q2R)
+        # Re-pack equilibrium conserved variables (h1,q1,w,q2)
+        UL = typeof(UL)(h1L, q1L, wL, q2L)
+        UR = typeof(UR)(h1R, q1R, wR, q2R)
+
+        output_left[imiddle]  = UL
+        output_right[imiddle] = UR
+
+        # Store physical h2 at faces for momentum exchange / CU
+        h2_left[imiddle]  = h2L
+        h2_right[imiddle] = h2R
     end
 
     return nothing
 end
-
 
 
 ###########################################################################################
