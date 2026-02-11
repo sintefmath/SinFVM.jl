@@ -13,63 +13,46 @@ grid = CartesianGrid(nx; gc=2, boundary=SinFVM.PeriodicBC())
 xwrap(x) = x - floor(x)
 
 # ------------------------------------------------------------
-# Bottom topography on faces (intersections), including ghosts
-# Eq. (2.35):
-# B(x) = 0.25[cos(10π(x-0.5)) + 1] - 2,   if 0.4<x<0.6
-#      = -2,                               otherwise
+# Bottom topography (constant here)
 # ------------------------------------------------------------
-"""
-xF = SinFVM.cell_faces(grid; interior=false)
-Bint = similar(xF)
-@inbounds for i in eachindex(xF)
-    x = xwrap(xF[i])
-    Bint[i] = (0.4 < x < 0.6) ? (0.25*(cos(10π*(x - 0.5)) + 1.0) - 2.0) : -2.0
-end
-bottom = SinFVM.BottomTopography1D(Bint, backend, grid)
-"""
-
 B0 = -2.0
 bottom = SinFVM.ConstantBottomTopography(B0)
-equation = SinFVM.TwoLayerShallowWaterEquations1D(bottom; ρ1=0.98, ρ2=1.0, g=10.0)
-Bvals = SinFVM.collect_topography_cells(equation.B, grid; interior=true)  # all = B0
 
 # Paper parameters for §2.7.2: g=10, r=0.98 => ρ1/ρ2=0.98
 equation = SinFVM.TwoLayerShallowWaterEquations1D(bottom; ρ1=0.98, ρ2=1.0, g=10.0)
 numericalflux = CentralUpwind(equation)
 
-# Reconstruction: STORE physical (h1,q1,h2,q2) but reconstruct using w=h2+B internally
+# Reconstruction: equilibrium storage in state (h1, q1, w, q2)
+# but NOTE: your reconstruct! overwrites face buffers to physical h2 in slot 3 (Choice A, SWE-style)
 reconstruction = LinearLimiterReconstruction(SinFVM.VanLeerLimiter())
 
 bottom_src = SinFVM.SourceTermBottom()
 ncp_src    = SinFVM.SourceTermNonConservative()
 
-@show bottom_src
 conserved_system = ConservedSystem(backend, reconstruction, numericalflux, equation, grid, [bottom_src, ncp_src])
 timestepper = RungeKutta2()
 simulator = Simulator(backend, conserved_system, timestepper, grid; cfl=0.60)
 
 # Interior grid + cell-centered bottom
 x     = SinFVM.cell_centers(grid)
-Bvals = SinFVM.collect_topography_cells(equation.B, grid; interior=true)
+Bvals = SinFVM.collect_topography_cells(bottom, grid; interior=true)  # all = B0
 
 # ============================================================
-# Initial conditions for §2.7.2 (PHYSICAL storage)
-# Paper gives w(x,0) = h2 + B = -1, q1=q2=0, and h1 has a small bump
-# Stored state must be U=(h1,q1,h2,q2) with h2 = w - B_cell
+# Initial conditions for §2.7.2 (EQUILIBRIUM storage)
+# Stored state is U=(h1,q1,w,q2) with w = h2 + B
 # ============================================================
 
-bump = 1e-5
+bump = 0.001
 h1fun(x) = (0.1 < xwrap(x) < 0.2) ? (1.0 + bump) : 1.0
 wfun(x)  = -1.0
 
-u0 = (xi, Bi) -> begin
+u0 = (xi) -> begin
     h1 = h1fun(xi)
     w  = wfun(xi)
-    h2 = w - Bi                 # physical h2 from w=h2+B
-    @SVector [h1, 0.0, h2, 0.0] # (h1,q1,h2,q2) PHYSICAL STORAGE
+    @SVector [h1, 0.0, w, 0.0]   # (h1,q1,w,q2)
 end
 
-initial = [u0(x[i], Bvals[i]) for i in eachindex(x)]
+initial = [u0(x[i]) for i in eachindex(x)]
 SinFVM.set_current_state!(simulator, initial)
 
 # ============================================================
@@ -94,20 +77,17 @@ ax_vel = Axis(
 )
 
 # ============================================================
-# Initial state (PHYSICAL storage; compute w, ε diagnostically)
+# Initial state (EQUILIBRIUM storage; compute h2 diagnostically)
 # ============================================================
 
 st0 = SinFVM.current_interior_state(simulator)
+h1_0 = st0.h1; q1_0 = st0.q1; w0 = st0.w; q2_0 = st0.q2
 
-# Be robust to naming differences: read as vectors of SVectors
-U0 = collect(st0)  # Vector{SVector{4}}
-h1_0 = st0.h1
-q1_0 = st0.q1
-h2_0 = st0.h2     # PHYSICAL h2
-q2_0 = st0.q2
+h2_0 = w0 .- Bvals                 # diagnostic physical h2
+ε_0  = h1_0 .+ w0                  # ε = h1 + w = h1 + h2 + B
 
-w0  = h2_0 .+ Bvals         # w = h2 + B
-ε_0 = h1_0 .+ w0            # ε = h1 + h2 + B
+u1_0 = q1_0 ./ max.(h1_0, equation.depth_cutoff)
+u2_0 = q2_0 ./ max.(h2_0, equation.depth_cutoff)
 
 println("---- initial checks ----")
 @show minimum(h1_0) minimum(h2_0)
@@ -131,19 +111,17 @@ axislegend(ax_vel, position=:lt)
 @time SinFVM.simulate_to_time(simulator, Tshow)
 
 # ============================================================
-# Final state (PHYSICAL storage; compute w, ε diagnostically)
+# Final state (EQUILIBRIUM storage; compute h2 diagnostically)
 # ============================================================
 
 st = SinFVM.current_interior_state(simulator)
-U = collect(st)
+h1 = st.h1; q1 = st.q1; w = st.w; q2 = st.q2
 
-h1 = st.h1
-q1 = st.q1
-h2 = st.h2     # PHYSICAL h2
-q2 = st.q2
+h2 = w .- Bvals
+ε  = h1 .+ w
 
-w  = h2 .+ Bvals            # w = h2 + B
-ε  = h1 .+ w                # ε = h1 + h2 + B
+u1 = q1 ./ max.(h1, equation.depth_cutoff)
+u2 = q2 ./ max.(h2, equation.depth_cutoff)
 
 println("---- final checks ----")
 @show minimum(h1) minimum(h2)
@@ -160,4 +138,3 @@ axislegend(ax_surf, position=:lt)
 axislegend(ax_vel, position=:lt)
 
 f
-

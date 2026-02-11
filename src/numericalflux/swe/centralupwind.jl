@@ -72,28 +72,36 @@ end
 
 
 
-function (centralupwind::CentralUpwind)(::TwoLayerShallowWaterEquations1D, faceminus, faceplus, direction::Direction)
+function (centralupwind::CentralUpwind)(
+    ::TwoLayerShallowWaterEquations1D,
+    faceminus,
+    faceplus,
+    direction::Direction,
+    Bface,
+)
     eq = centralupwind.eq
     nvars = length(faceminus)
     @assert nvars == length(faceplus)
+
     # Indices depending on dimension
-    if nvars == 4 #1D
+    if nvars == 5 # 1D: (h1,q1,h2,q2,B) at faces 
         h1idx = 1; m1idx = 2; h2idx = 3; m2idx = 4
-    elseif nvars == 6 #2D
+    elseif nvars == 7 # 2D (h1,q1,p1,h2,q2,p2,B) at faces
         h1idx = 1; h2idx = 4; m1idx = _m1_idx(direction); m2idx = _m2_idx(direction)
     else
         throw(ArgumentError("Unsupported state size $nvars for two-layer CentralUpwind"))
     end
 
-    h2m = faceminus[h2idx]; h2p = faceplus[h2idx]
+    h2m = faceminus[h2idx]
+    h2p = faceplus[h2idx]
 
     fluxminus = zero(faceminus)
     λmax_m = 0.0; λmin_m = 0.0
     u1m = 0.0; u2m = 0.0
 
     if h2m > eq.depth_cutoff
-        fluxminus = eq(direction, faceminus...)
-        λm = compute_eigenvalues(eq, direction, faceminus...)
+        fluxminus = eq(direction, faceminus..., Bface)      # <-- pass Bface
+        λm = compute_eigenvalues(eq, direction, faceminus...)  # eigenvalues don't need B
         λmax_m = maximum(λm)
         λmin_m = minimum(λm)
 
@@ -106,10 +114,9 @@ function (centralupwind::CentralUpwind)(::TwoLayerShallowWaterEquations1D, facem
     u1p = 0.0; u2p = 0.0
 
     if h2p > eq.depth_cutoff
-        fluxplus = eq(direction, faceplus...)
+        fluxplus = eq(direction, faceplus..., Bface)        # <-- pass Bface
         λp = compute_eigenvalues(eq, direction, faceplus...)
-        λmax_p = maximum(λp)
-        λmin_p = minimum(λp)
+        λmax_p = maximum(λp); λmin_p = minimum(λp)
 
         u1p = desingularize(eq, faceplus[h1idx], faceplus[m1idx])
         u2p = desingularize(eq, faceplus[h2idx], faceplus[m2idx])

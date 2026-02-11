@@ -119,9 +119,11 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
     nothing
 end
 
-# Twolayer SWE reconstruction: reconstruct using w=h2+B for positivity, but also store physical h2
+# Two-layer SWE 1D reconstruction:
+# input (cell values):    U = (h1, q1, w, q2)   with w = h2 + B_cell (or consistent cell stage)
+# reconstruction in:      (h1, q1, w, q2)
+# output (face values):   (h1, q1, h2, q2)      with h2_face = w_face - B_face
 @inline function fix_slope_w(slope, fix_val)
-    # adjust only the w-slope (component 3)
     return typeof(slope)(slope[1], slope[2], fix_val, slope[4])
 end
 
@@ -133,19 +135,19 @@ function reconstruct!(backend, linRec::LinearLimiterReconstruction,
     lim = linRec.limiter
 
     @fvmloop for_each_inner_cell(backend, grid, direction; ghostcells=1) do ileft, imiddle, iright
-        # Equilibrium variables: U = (h1, q1, w, q2)
+        # equilibrium stored variables: U = (h1, q1, w, q2)
         Ul = input_conserved[ileft]
         Um = input_conserved[imiddle]
         Ur = input_conserved[iright]
 
-        # Limited slope in equilibrium variables
+        # slope in equilibrium variables
         s = slope(lim, Ul, Um, Ur)
 
-        # Face bottom values for positivity & converting back to h2 at faces
+        # face bathymetry (for positivity and w->h2 conversion)
         B_left  = B_face_left(eq.B, imiddle, direction)
         B_right = B_face_right(eq.B, imiddle, direction)
 
-        # Enforce h2_face >= 0  <=>  w_face >= B_face
+        # enforce w_face >= B_face  <=> h2_face >= 0
         wm = Um[3]
         sw = s[3]
         if (wm - 0.5*sw < B_left)
@@ -154,19 +156,19 @@ function reconstruct!(backend, linRec::LinearLimiterReconstruction,
             s = fix_slope_w(s, 2.0*(B_right - wm))
         end
 
-        # Reconstruct equilibrium vars at faces
-        UL = Um .- 0.5 .* s   # (h1,q1,w,q2)
-        UR = Um .+ 0.5 .* s
+        # reconstruct equilibrium vars at faces
+        VL = Um .- 0.5 .* s   # (h1,q1,w,q2)
+        VR = Um .+ 0.5 .* s
 
-        # Extract reconstructed values
-        h1L, q1L, wL, q2L = UL
-        h1R, q1R, wR, q2R = UR
+        # extract
+        h1L, q1L, wL, q2L = VL
+        h1R, q1R, wR, q2R = VR
 
-        # Convert reconstructed w -> physical h2 at faces
+        # convert to physical h2 at faces
         h2L = wL - B_left
         h2R = wR - B_right
 
-        # Desingularize momenta if very shallow and write back into UL/UR
+        # desingularize using physical depths
         if h1L < eq.depth_cutoff
             q1L = h1L * desingularize(eq, h1L, q1L)
         end
@@ -180,33 +182,27 @@ function reconstruct!(backend, linRec::LinearLimiterReconstruction,
             q2R = h2R * desingularize(eq, h2R, q2R)
         end
 
-        # Re-pack equilibrium conserved variables (h1,q1,w,q2)
-        UL = typeof(UL)(h1L, q1L, wL, q2L)
-        UR = typeof(UR)(h1R, q1R, wR, q2R)
-
-        output_left[imiddle]  = UL
-        output_right[imiddle] = UR
-
-        # Store physical h2 at faces for momentum exchange / CU
-        h2_left[imiddle]  = h2L
-        h2_right[imiddle] = h2R
+        # OUTPUT: store physical face values (h1,q1,h2,q2)
+        output_left[imiddle]  = typeof(Um)(h1L, q1L, h2L, q2L)
+        output_right[imiddle] = typeof(Um)(h1R, q1R, h2R, q2R)
     end
 
     return nothing
 end
 
 
+
 ###########################################################################################
 
 # ------------------------------------------------------------
 # Two-layer SWE 2D:
-# Input (cell values):  (h1, q1, p1, h2, q2, p2)
-# Reconstruction vars:  (h1, q1, p1, ω,  q2, p2) with ω = h2 + B
+# Input (cell values):  (h1, q1, p1, w, q2, p2)
+# Reconstruction vars:  (h1, q1, p1, w,  q2, p2) with w = h2 + B
 # Output (face values): (h1, q1, p1, h2, q2, p2)
 # ------------------------------------------------------------
 
-@inline function fix_slope_ω(slope, fix_val, ::TwoLayerShallowWaterEquations2D)
-    # Only adjust ω slope (component 4)
+@inline function fix_slope_w(slope, fix_val, ::TwoLayerShallowWaterEquations2D)
+    # Only adjust w slope (component 4)
     return typeof(slope)(slope[1], slope[2], slope[3], fix_val, slope[5], slope[6])
 end
 
