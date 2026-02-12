@@ -132,4 +132,4 @@ function compute_max_abs_eigenvalue(eq::TwoLayerShallowWaterEquations1D, ::XDIRT
     return maximum(abs, λ)
 end
 
-conserved_variable_names(::Type{T}) where {T<:TwoLayerShallowWaterEquations1D} = (:h1, :q1, :w, :q2)
+conserved_variable_names(::Type{T}) where {T<:TwoLayerShallowWaterEquations1D} = (:h1, :q1, :h2, :q2)

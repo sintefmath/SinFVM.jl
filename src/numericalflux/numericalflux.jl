@@ -27,7 +27,7 @@ function compute_flux!(backend, F::NumericalFlux, output, left, right, wavespeed
 end
 
 #Need to make another compute_flux! that passes Bface to the numerical flux
-function compute_flux!(backend, F::CentralUpwind, output, left, right, wavespeeds, grid, equation::TwoLayerShallowWaterEquations1D, direction)
+function compute_flux!(backend, F::NumericalFlux, output, left, right, wavespeeds, grid, equation::TwoLayerShallowWaterEquations1D, direction)
     Δx = compute_dx(grid, direction)
     B  = equation.B
     @fvmloop for_each_inner_cell(backend, grid, direction) do ileft, imiddle, iright
