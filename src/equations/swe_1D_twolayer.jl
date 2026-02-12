@@ -52,10 +52,10 @@ function (eq::TwoLayerShallowWaterEquations1D)(::XDIRT, h1, q1, h2, q2, Bface)
     u2 = desingularize(eq, h2, q2)
 
     return @SVector [
-        eq.ρ1 * q1, 
-        eq.ρ1 * (q1*u1 + g*(h1+h2+Bface)*h1),
-        eq.ρ2 * q2,                              
-        eq.ρ2 * (q2*u2 + 0.5*g*(h2+Bface)^2 - 0.5*g*r*h1^2 - g*Bface*(r*h1+h2+Bface)),
+        q1, 
+        (q1*u1 + g*(h1+h2+Bface)*h1),
+        q2,                              
+        (q2*u2 + 0.5*g*(h2+Bface)^2 - 0.5*g*r*h1^2 - g*Bface*(r*h1+h2+Bface)),
         ]
 end
 

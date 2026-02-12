@@ -215,14 +215,10 @@ function reconstruct!(backend, linRec::LinearLimiterReconstruction, output_left,
 
     @fvmloop for_each_inner_cell(backend, grid, direction; ghostcells=1) do ileft, imiddle, iright
         # physical: U = (h1, q1, p1, h2, q2, p2)
-        Ul = input_conserved[ileft]
-        Um = input_conserved[imiddle]
-        Ur = input_conserved[iright]
+        Ul = input_conserved[ileft]; Um = input_conserved[imiddle]; Ur = input_conserved[iright]
 
         # cell-centered bottom values
-        Blc = B_cell(eq.B, ileft,   direction)
-        Bmc = B_cell(eq.B, imiddle, direction)
-        Brc = B_cell(eq.B, iright,  direction)
+        Blc = B_cell(eq.B, ileft, direction); Bmc = B_cell(eq.B, imiddle, direction); Brc = B_cell(eq.B, iright, direction)
 
         # equilibrium vars V = (h1, q1, p1, ω, q2, p2), ω = h2 + B
         Vl = typeof(Ul)(Ul[1], Ul[2], Ul[3], Ul[4] + Blc, Ul[5], Ul[6])
@@ -233,11 +229,8 @@ function reconstruct!(backend, linRec::LinearLimiterReconstruction, output_left,
         s = slope(lim, Vl, Vm, Vr)
 
         # face bathymetry (needed for positivity in h2_face = ω_face - B_face)
-        B_left  = B_face_left(eq.B, imiddle, direction)
-        B_right = B_face_right(eq.B, imiddle, direction)
-
-        ωm = Vm[4]
-        sω = s[4]
+        B_left  = B_face_left(eq.B, imiddle, direction); B_right = B_face_right(eq.B, imiddle, direction)
+        ωm = Vm[4]; sω = s[4]
 
         # enforce ω_face >= B_face  <=> h2_face >= 0
         if (ωm - 0.5*sω < B_left)
