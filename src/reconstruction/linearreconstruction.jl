@@ -198,7 +198,7 @@ end
 
 # ------------------------------------------------------------
 # Two-layer SWE 2D:
-# Input (cell values):  (h1, q1, p1, w, q2, p2)
+# Input (cell values):  (h1, q1, p1, h2, q2, p2)
 # Reconstruction vars:  (h1, q1, p1, w,  q2, p2) with w = h2 + B
 # Output (face values): (h1, q1, p1, h2, q2, p2)
 # ------------------------------------------------------------

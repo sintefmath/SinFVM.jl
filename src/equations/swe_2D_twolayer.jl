@@ -41,8 +41,8 @@ end
 
 conserved_variable_names(::Type{T}) where {T<:TwoLayerShallowWaterEquations2D} = (:h1, :q1, :p1, :h2, :q2, :p2)
 
-# x-direction
-function (eq::TwoLayerShallowWaterEquations2D)(::XDIRT, h1, q1, p1, h2, q2, p2, b)
+# x-direction (F(U,B))
+function (eq::TwoLayerShallowWaterEquations2D)(::XDIRT, h1, q1, p1, h2, q2, p2, Bface)
     g  = eq.g
     ρ1 = eq.ρ1
     ρ2 = eq.ρ2
@@ -54,18 +54,18 @@ function (eq::TwoLayerShallowWaterEquations2D)(::XDIRT, h1, q1, p1, h2, q2, p2, 
     return @SVector[
         # layer 1
         q1,
-        q1*u1 + 0.5*g*(h1 + h2 + b)*(h1 - h2 - b),
+        q1*u1 + g*h1*(h1 + h2 + Bface),
         q1*v1,
 
         # layer 2
         q2,
-        q2*u2 + 0.5*g*(h2 + r*h1 + b)*(h2 - r*h1 - b),
+        q2*u2 + 0.5*g*(h2 +Bface)^2 -0.5*g*r*(h1)^2 - g*Bface*(r*h1 + h2 + Bface), 
         q2*v2
     ]
 end
 
 # y-direction
-function (eq::TwoLayerShallowWaterEquations2D)(::YDIRT, h1, q1, p1, h2, q2, p2, b)
+function (eq::TwoLayerShallowWaterEquations2D)(::YDIRT, h1, q1, p1, h2, q2, p2, Bface)
     g  = eq.g
     ρ1 = eq.ρ1
     ρ2 = eq.ρ2
@@ -78,12 +78,12 @@ function (eq::TwoLayerShallowWaterEquations2D)(::YDIRT, h1, q1, p1, h2, q2, p2, 
         # layer 1
         p1,
         p1*u1,
-        p1*v1 + 0.5*g*(h1 + h2 + b)*(h1 - h2 - b),
+        p1*v1 + g*h1*(h1 + h2 + Bface),
 
         # layer 2
         p2,
         p2*u2,
-        p2*v2 + 0.5*g*(h2 + r*h1 + b)*(h2 - r*h1 - b)
+        p2*v2 + 0.5*g*(h2 +Bface)^2 - 0.5*g*r*(h1)^2 - g*Bface*(r*h1 + h2 + Bface)
     ]
 end
 

@@ -36,25 +36,24 @@ end
 
 
 # Works for both 1D and 2D
-function SinFVM.evaluate_directional_source_term!(::SourceTermBottom, output, current_state,
+function evaluate_directional_source_term!(::SourceTermBottom, output, current_state,
     cs::ConservedSystem{<:Any,<:Any,<:Any,<:AllTwolayerSWE}, dir::Direction
 )
-    dx = SinFVM.compute_dx(cs.grid, dir)
+    dx = compute_dx(cs.grid, dir)
     B  = cs.equation.B
     g  = cs.equation.g
     r  = cs.equation.ρ1 / cs.equation.ρ2
 
     out_m2 = (dir == XDIR) ? output.q2 : output.p2
-    h1R = cs.right_buffer.h1
-    h1L = cs.left_buffer.h1
+    h1R = cs.right_buffer.h1; h1L = cs.left_buffer.h1
 
     # Do we have w in the reconstructed buffers?
-    names = SinFVM.variable_names(typeof(cs.left_buffer))
+    names = variable_names(typeof(cs.left_buffer))
     has_w = (:w in names)
 
-    @fvmloop SinFVM.for_each_inner_cell(cs.backend, cs.grid, dir) do ileft, imiddle, iright
-        B_right = SinFVM.B_face_right(B, imiddle, dir)
-        B_left  = SinFVM.B_face_left( B, imiddle, dir)
+    @fvmloop for_each_inner_cell(cs.backend, cs.grid, dir) do ileft, imiddle, iright
+        B_right = B_face_right(B, imiddle, dir)
+        B_left  = B_face_left( B, imiddle, dir)
         Bx = (B_right - B_left) / dx
         if has_w
             wR = cs.right_buffer.w[imiddle]

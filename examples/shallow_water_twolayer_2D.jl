@@ -21,7 +21,7 @@ B0 = -3.0
 bottom = SinFVM.ConstantBottomTopography(B0)
 
 equation = SinFVM.TwoLayerShallowWaterEquations2D(bottom; ρ1=1.00, ρ2=1.02, g=9.81)
-numericalflux = CentralUpwind(equation, grid)
+numericalflux = CentralUpwind(equation)
 
 # Reconstruction: PHYSICAL storage in state:
 #   input_conserved = (h1,q1,p1,h2,q2,p2)
