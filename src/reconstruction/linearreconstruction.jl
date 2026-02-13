@@ -234,9 +234,9 @@ function reconstruct!(backend, linRec::LinearLimiterReconstruction, output_left,
 
         # enforce ω_face >= B_face  <=> h2_face >= 0
         if (ωm - 0.5*sω < B_left)
-            s = fix_slope_ω(s, 2.0 * (ωm - B_left), eq)
+            s = fix_slope_w(s, 2.0 * (ωm - B_left), eq)
         elseif (ωm + 0.5*sω < B_right)
-            s = fix_slope_ω(s, 2.0 * (B_right - ωm), eq)
+            s = fix_slope_w(s, 2.0 * (B_right - ωm), eq)
         end
 
         # reconstruct equilibrium variables at faces
