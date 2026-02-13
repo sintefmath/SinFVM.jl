@@ -72,19 +72,22 @@ end
 
 
 
-
+################################# Two-layer Central Upwind #################################
 @inline _m1_idx(::XDIRT) = 2  # q1
 @inline _m1_idx(::YDIRT) = 3  # p1
 @inline _m2_idx(::XDIRT) = 5  # q2
 @inline _m2_idx(::YDIRT) = 6  # p2
 
 function (centralupwind::CentralUpwind)(faceminus, faceplus, direction::Direction, Bface)
-    centralupwind(centralupwind.eq, faceminus, faceplus, direction, Bface)
+    return centralupwind(centralupwind.eq, faceminus, faceplus, direction, Bface)
 end
 
+# Guard: prevent accidentally calling 3-arg version for two-layer
+function (centralupwind::CentralUpwind)(::AllTwoLayerSWE, faceminus, faceplus, direction::Direction)
+    throw(ArgumentError("Two-layer CentralUpwind requires Bface. Call as centralupwind(faceminus, faceplus, direction, Bface)"))
+end
 
-function (centralupwind::CentralUpwind)(::AllTwoLayerSWE, faceminus, faceplus, direction::Direction, Bface)
-    eq = centralupwind.eq
+function (centralupwind::CentralUpwind)(eq::AllTwoLayerSWE, faceminus, faceplus, direction::Direction, Bface)
     nvars = length(faceminus)
     @assert nvars == length(faceplus)
 
@@ -107,7 +110,6 @@ function (centralupwind::CentralUpwind)(::AllTwoLayerSWE, faceminus, faceplus, d
     fluxminus = zero(faceminus)
     λmax_m = 0.0; λmin_m = 0.0
     u1m = 0.0; u2m = 0.0
-
     if h2m > eq.depth_cutoff
         fluxminus = eq(direction, faceminus..., Bface)
         λm = compute_eigenvalues(eq, direction, faceminus...) # no Bface
@@ -121,7 +123,6 @@ function (centralupwind::CentralUpwind)(::AllTwoLayerSWE, faceminus, faceplus, d
     fluxplus = zero(faceplus)
     λmax_p = 0.0; λmin_p = 0.0
     u1p = 0.0; u2p = 0.0
-
     if h2p > eq.depth_cutoff
         fluxplus = eq(direction, faceplus..., Bface)
         λp = compute_eigenvalues(eq, direction, faceplus...)
@@ -131,17 +132,14 @@ function (centralupwind::CentralUpwind)(::AllTwoLayerSWE, faceminus, faceplus, d
         u2p = desingularize(eq, faceplus[h2idx], faceplus[m2idx])
     end
 
-    # wave speed bounds
     aplus  = max(0.0, λmax_m, λmax_p, u1m, u2m, u1p, u2p)
     aminus = min(0.0, λmin_m, λmin_p, u1m, u2m, u1p, u2p)
-
     denom = aplus - aminus
     if abs(denom) < eq.desingularizing_kappa
         return zero(faceminus), 0.0
     end
-
-    F = (aplus .* fluxminus .- aminus .* fluxplus) ./ denom .+
-        ((aplus * aminus) / denom) .* (faceplus .- faceminus)
+    
+    F = (aplus .* fluxminus .- aminus .* fluxplus) ./ denom .+ ((aplus * aminus) / denom) .* (faceplus .- faceminus)
 
     if h2m < eq.depth_cutoff && h2p < eq.depth_cutoff
         return F, 0.0

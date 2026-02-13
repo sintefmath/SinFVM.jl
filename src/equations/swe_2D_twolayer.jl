@@ -64,7 +64,7 @@ function (eq::TwoLayerShallowWaterEquations2D)(::XDIRT, h1, q1, p1, h2, q2, p2, 
     ]
 end
 
-# y-direction
+# y-direction G(U,B)
 function (eq::TwoLayerShallowWaterEquations2D)(::YDIRT, h1, q1, p1, h2, q2, p2, Bface)
     g  = eq.g
     ρ1 = eq.ρ1

@@ -28,7 +28,7 @@ include("swe_2D_twolayer.jl")
 AllSWE = Union{ShallowWaterEquations1D,ShallowWaterEquations1DPure,ShallowWaterEquationsPure, ShallowWaterEquations, TwoLayerShallowWaterEquations1D, TwoLayerShallowWaterEquations2D}
 AllPracticalSWE = Union{ShallowWaterEquations1D, ShallowWaterEquations, TwoLayerShallowWaterEquations1D, TwoLayerShallowWaterEquations2D}
 AllPureSWE = Union{ShallowWaterEquations1DPure,ShallowWaterEquationsPure}
-AllTwolayerSWE = Union{TwoLayerShallowWaterEquations1D, TwoLayerShallowWaterEquations2D}
+AllTwoLayerSWE = Union{TwoLayerShallowWaterEquations1D, TwoLayerShallowWaterEquations2D}
 AllSWE1D = Union{ShallowWaterEquations1D, ShallowWaterEquations1DPure, TwoLayerShallowWaterEquations1D}
 AllSWE2D = Union{ShallowWaterEquations, ShallowWaterEquationsPure, TwoLayerShallowWaterEquations2D}
 
