@@ -37,7 +37,7 @@ end
 
 # Works for both 1D and 2D
 function evaluate_directional_source_term!(::SourceTermBottom, output, current_state,
-    cs::ConservedSystem{<:Any,<:Any,<:Any,<:AllTwolayerSWE}, dir::Direction
+    cs::ConservedSystem{<:Any,<:Any,<:Any,<:AllTwoLayerSWE}, dir::Direction
 )
     dx = compute_dx(cs.grid, dir)
     B  = cs.equation.B
