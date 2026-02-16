@@ -70,6 +70,12 @@ function (centralupwind::CentralUpwind)(::AllPracticalSWE, faceminus, faceplus, 
     return F, max(abs(aplus), abs(aminus))
 end
 
+
+
+function (centralupwind::CentralUpwind)(faceminus, faceplus, direction::Direction, Bface)
+    centralupwind(centralupwind.eq, faceminus, faceplus, direction, Bface)
+end
+
 function (centralupwind::CentralUpwind)(eq::AllTwoLayerSWE, faceminus, faceplus, direction::Direction, Bface)
     nvars = length(faceminus)
     @assert nvars == length(faceplus)
@@ -97,25 +103,20 @@ function (centralupwind::CentralUpwind)(eq::AllTwoLayerSWE, faceminus, faceplus,
 
     # minus state
     fluxminus = zero(faceminus)
-    λmin_m = 0.0; λmax_m = 0.0
-    u1m = 0.0; u2m = 0.0
+    λmin_m = 0.0; λmax_m = 0.0; u1m = 0.0; u2m = 0.0
     if wet_m
         fluxminus = eq(direction, faceminus..., Bface)
-
         λm = compute_eigenvalues(eq, direction, h1m, faceminus[m1idx], h2m, faceminus[m2idx])
         λmin_m = minimum(λm); λmax_m = maximum(λm)
-
         u1m = desingularize(eq, h1m, faceminus[m1idx])
         u2m = desingularize(eq, h2m, faceminus[m2idx])
     end
 
     # plus state
     fluxplus = zero(faceplus)
-    λmin_p = 0.0; λmax_p = 0.0
-    u1p = 0.0; u2p = 0.0
+    λmin_p = 0.0; λmax_p = 0.0; u1p = 0.0; u2p = 0.0
     if wet_p
         fluxplus = eq(direction, faceplus..., Bface)
-
         λp = compute_eigenvalues(eq, direction, h1p, faceplus[m1idx], h2p, faceplus[m2idx])
         λmin_p = minimum(λp); λmax_p = maximum(λp)
 
@@ -129,14 +130,13 @@ function (centralupwind::CentralUpwind)(eq::AllTwoLayerSWE, faceminus, faceplus,
 
     denom = aplus - aminus
     if abs(denom) < eq.desingularizing_kappa
-        return zero(faceminus), 0.0
+        return zero(faceminus), zero(aminus)
     end
-
-    F = (aplus .* fluxminus .- aminus .* fluxplus) ./ denom .+
-        ((aplus * aminus) / denom) .* (faceplus .- faceminus)
+    
+    F = (aplus .* fluxminus .- aminus .* fluxplus) ./ denom .+ ((aplus * aminus) / denom) .* (faceplus .- faceminus)
 
     if !wet_m && !wet_p
-        return F, 0.0
+        return F, zero(aplus)
     end
 
     return F, max(abs(aplus), abs(aminus))

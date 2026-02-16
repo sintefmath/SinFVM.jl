@@ -2,6 +2,8 @@ using CairoMakie
 using StaticArrays
 using SinFVM
 
+
+
 # ============================================================
 # Two-layer SWE 1D runner (EQUILIBRIUM STORAGE)
 #   V = (h1, q1, w, q2)   where  w = h2 + B
@@ -70,15 +72,8 @@ function run_case(; nx=256, gc=2, cfl=0.15, Tshow=1.0,
     bottom_obj = bottom isa Function ? make_bottom_faces_1d(bottom, backend, grid) : bottom
 
     equation = SinFVM.TwoLayerShallowWaterEquations1D(bottom_obj; ρ1=ρ1, ρ2=ρ2, g=g)
-
-    # ADD THESE THREE LINES HERE:
-    println("=== variable name diagnostic ===")
-    @show typeof(equation)
-    @show SinFVM.conserved_variable_names(typeof(equation))
-    @show SinFVM.variable_names(typeof(SinFVM.create_volume(backend, grid, equation)))
-    println("===============================")
-
     numericalflux = SinFVM.CentralUpwind(equation)
+
     reconstruction = SinFVM.LinearLimiterReconstruction(SinFVM.VanLeerLimiter())
 
     bottom_src = SinFVM.SourceTermBottom()
