@@ -3,9 +3,9 @@ using StaticArrays
 using SinFVM
 
 # ============================================================
-# Two-layer SWE 1D runner (PHYSICAL STORAGE)
-#   U = (h1, q1, h2, q2)
-# Bottom can be constant or face-defined (BottomTopography1D)
+# Two-layer SWE 1D runner (EQUILIBRIUM STORAGE)
+#   V = (h1, q1, w, q2)   where  w = h2 + B
+# Physical h2 is derived as:  h2 = w - Bcell (cells) or w - Bface (faces)
 # ============================================================
 
 # ----------------------------
@@ -34,34 +34,50 @@ bottom_cosine_faces(; B0=-2.0, A=0.4, m=1) = (x -> (B0 + A*cos(2π*m*xwrap(x))))
 Uniform upper-layer velocity u1=u0, constant upper-layer thickness h1=h10,
 constant interface elevation w=w0, lower layer at rest.
 
-w = h2 + B  =>  h2(x) = w0 - Bcell(x)
+State stored is V = (h1, q1, w, q2).
 
-Returns IC: (x, Bcell) -> SVector(h1,q1,h2,q2)
+Physical h2 in cells is h2(x) = w0 - Bcell(x), so you must choose w0 > max(Bcell).
 """
 function ic_uniform_h1_w(; h10=1.0, w0=-1.0, u0=0.0, min_h=1e-10)
     return (x, Bcell) -> begin
         h1 = max(h10, min_h)
+
+        # physical h2 implied by equilibrium w0
         h2 = w0 - Bcell
         if h2 <= 0
             error("IC makes h2 <= 0 at x=$x: h2 = w0 - Bcell = $w0 - $Bcell = $h2. Choose w0 > max(Bcell).")
         end
         h2 = max(h2, min_h)
+
         q1 = h1 * u0
         q2 = 0.0
-        @SVector [h1, q1, h2, q2]
+
+        # store equilibrium variable w, not h2
+        @SVector [h1, q1, w0, q2]
     end
 end
 
 # ----------------------------
 # Runner
 # ----------------------------
-function run_case(; nx=256, gc=2, cfl=0.15, Tshow=1.0,bottom, ic_fun, ρ1=0.98, ρ2=1.0, g=10.0, title="Two-layer SWE 1D")
+function run_case(; nx=256, gc=2, cfl=0.15, Tshow=1.0,
+    bottom, ic_fun, ρ1=0.98, ρ2=1.0, g=10.0,
+    title="Two-layer SWE 1D (w-storage)")
+
     backend = SinFVM.make_cpu_backend()
     grid = SinFVM.CartesianGrid(nx; gc=gc, boundary=SinFVM.PeriodicBC())
 
     bottom_obj = bottom isa Function ? make_bottom_faces_1d(bottom, backend, grid) : bottom
 
     equation = SinFVM.TwoLayerShallowWaterEquations1D(bottom_obj; ρ1=ρ1, ρ2=ρ2, g=g)
+
+    # ADD THESE THREE LINES HERE:
+    println("=== variable name diagnostic ===")
+    @show typeof(equation)
+    @show SinFVM.conserved_variable_names(typeof(equation))
+    @show SinFVM.variable_names(typeof(SinFVM.create_volume(backend, grid, equation)))
+    println("===============================")
+
     numericalflux = SinFVM.CentralUpwind(equation)
     reconstruction = SinFVM.LinearLimiterReconstruction(SinFVM.VanLeerLimiter())
 
@@ -75,15 +91,17 @@ function run_case(; nx=256, gc=2, cfl=0.15, Tshow=1.0,bottom, ic_fun, ρ1=0.98, 
     x     = SinFVM.cell_centers(grid)
     Bvals = SinFVM.collect_topography_cells(bottom_obj, grid; interior=true)
 
-    # --- Set ICs (PHYSICAL storage)
+    # --- Set ICs (EQUILIBRIUM storage: h1,q1,w,q2)
     initial = [ic_fun(x[i], Bvals[i]) for i in eachindex(x)]
     SinFVM.set_current_state!(simulator, initial)
 
-    # --- IC equilibrium checks (these must be constant if you want well-balance)
+    # --- IC equilibrium checks
     st0 = SinFVM.current_interior_state(simulator)
-    h1_0, q1_0, h2_0, q2_0 = st0.h1, st0.q1, st0.h2, st0.q2
-    w_0 = h2_0 .+ Bvals
-    η_0 = h1_0 .+ w_0
+    h1_0, q1_0, w_0, q2_0 = st0.h1, st0.q1, st0.w, st0.q2
+
+    # physical h2 in cells
+    h2_0 = w_0 .- Bvals
+    η_0  = h1_0 .+ w_0
 
     u1_0 = SinFVM.desingularize.(Ref(equation), h1_0, q1_0)
     u2_0 = SinFVM.desingularize.(Ref(equation), h2_0, q2_0)
@@ -107,8 +125,8 @@ function run_case(; nx=256, gc=2, cfl=0.15, Tshow=1.0,bottom, ic_fun, ρ1=0.98, 
                    ylabel="u", xlabel=L"x")
 
     lines!(ax_surf, x, Bvals, linestyle=:dash, label=L"B(x)")
-    lines!(ax_surf, x, w_0, label=L"w(x,0)=B+h_2")
-    lines!(ax_surf, x, η_0, label=L"\eta(x,0)=h_1+h_2+B")
+    lines!(ax_surf, x, w_0, label=L"w(x,0)")
+    lines!(ax_surf, x, η_0, label=L"\eta(x,0)=h_1+w")
 
     lines!(ax_vel, x, u1_0, label=L"u_1(x,0)")
     lines!(ax_vel, x, u2_0, label=L"u_2(x,0)")
@@ -124,24 +142,30 @@ function run_case(; nx=256, gc=2, cfl=0.15, Tshow=1.0,bottom, ic_fun, ρ1=0.98, 
     SinFVM.simulate_to_time(simulator, 1e-4)
     st_micro = SinFVM.current_interior_state(simulator)
 
-    @show minimum(st_micro.h1) minimum(st_micro.h2)
-    @show any(isnan, st_micro.h1) any(isnan, st_micro.h2) any(isnan, st_micro.q1) any(isnan, st_micro.q2)
+    h2_micro = st_micro.w .- Bvals
 
-    if any(isnan, st_micro.h1) || any(isnan, st_micro.h2) || any(isnan, st_micro.q1) || any(isnan, st_micro.q2)
+    @show minimum(st_micro.h1) minimum(h2_micro)
+    @show any(isnan, st_micro.h1) any(isnan, st_micro.w) any(isnan, st_micro.q1) any(isnan, st_micro.q2)
+
+    if any(isnan, st_micro.h1) || any(isnan, st_micro.w) || any(isnan, st_micro.q1) || any(isnan, st_micro.q2)
         error("NaNs appeared by t=1e-4. This points to flux/eigenvalues/reconstruction inconsistency (Bface/Bcell or w↔h2 mix).")
     end
+    if minimum(h2_micro) <= 0
+        error("Dry lower layer (h2<=0) appeared by t=1e-4. Check positivity enforcement w_face>=B_face and w0>max(Bcell).")
+    end
 
-    # IMPORTANT: reinitialize to the same IC so the main run starts at t=0 IC (not at t=1e-4)
+    # IMPORTANT: reinitialize to the same IC so the main run starts at t=0 IC
     SinFVM.set_current_state!(simulator, initial)
 
     # ----------------------------
-    # Check after 1e-4 again (from IC) and then run to Tshow
+    # Diagnostic after 1e-4 again (from IC) and then run to Tshow
     # ----------------------------
     println("---- equilibrium diagnostic (t = 1e-4 from IC) ----")
     SinFVM.simulate_to_time(simulator, 1e-4)
     st = SinFVM.current_interior_state(simulator)
-    h1, q1, h2, q2 = st.h1, st.q1, st.h2, st.q2
-    w  = h2 .+ Bvals
+
+    h1, q1, w, q2 = st.h1, st.q1, st.w, st.q2
+    h2 = w .- Bvals
     η  = h1 .+ w
 
     println("after 1e-4:")
@@ -151,15 +175,15 @@ function run_case(; nx=256, gc=2, cfl=0.15, Tshow=1.0,bottom, ic_fun, ρ1=0.98, 
     @show minimum(η)  maximum(η)
     @show maximum(abs.(SinFVM.desingularize.(Ref(equation), h2, q2)))
 
-    # Reinitialize again so the main run starts from IC at t=0
     SinFVM.set_current_state!(simulator, initial)
 
     println("---- run to Tshow ----")
     @time SinFVM.simulate_to_time(simulator, Tshow)
 
     stF = SinFVM.current_interior_state(simulator)
-    h1F, q1F, h2F, q2F = stF.h1, stF.q1, stF.h2, stF.q2
-    wF  = h2F .+ Bvals
+    h1F, q1F, wF, q2F = stF.h1, stF.q1, stF.w, stF.q2
+
+    h2F = wF .- Bvals
     ηF  = h1F .+ wF
 
     u1F = SinFVM.desingularize.(Ref(equation), h1F, q1F)
@@ -174,8 +198,8 @@ function run_case(; nx=256, gc=2, cfl=0.15, Tshow=1.0,bottom, ic_fun, ρ1=0.98, 
     @show minimum(ηF) maximum(ηF)
 
     # Overlay final
-    lines!(ax_surf, x, wF, linestyle=:dot, linewidth=5, label=L"w(x,t)=B+h_2")
-    lines!(ax_surf, x, ηF, linestyle=:dot, linewidth=5, label=L"\eta(x,t)=h_1+h_2+B")
+    lines!(ax_surf, x, wF, linestyle=:dot, linewidth=5, label=L"w(x,t)")
+    lines!(ax_surf, x, ηF, linestyle=:dot, linewidth=5, label=L"\eta(x,t)=h_1+w")
     lines!(ax_vel,  x, u1F, linestyle=:dashdot, linewidth=5, label=L"u_1(x,t)")
     lines!(ax_vel,  x, u2F, linestyle=:dashdot, linewidth=5, label=L"u_2(x,t)")
 
@@ -191,17 +215,17 @@ end
 #============================================================================================================#
 
 bottom = bottom_cosine_faces(B0=-2.0, A=0.4, m=1)
-# bottom = make_bottom_constant(-2.0)  # constant bottom test
+# bottom = make_bottom_constant(-2.0)
 
 # Well-balanced equilibrium test: constant h1 and constant w, zero momenta
 ic = ic_uniform_h1_w(h10=1.0, w0=-1.0, u0=0.0)
 
 f, sim = run_case(
-    nx=256,
+    nx=128,
     gc=2,
     bottom=bottom,
     ic_fun=ic,
-    Tshow=0.5,
+    Tshow=0.01,
     cfl=0.6,
     title="Equilibrium test: constant h1 and constant w on cosine bathymetry"
 )

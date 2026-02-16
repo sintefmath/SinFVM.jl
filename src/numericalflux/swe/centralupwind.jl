@@ -70,24 +70,10 @@ function (centralupwind::CentralUpwind)(::AllPracticalSWE, faceminus, faceplus, 
     return F, max(abs(aplus), abs(aminus))
 end
 
-################################# Two-layer Central Upwind #################################
-@inline _m1_idx(::XDIRT) = 2  # q1
-@inline _m1_idx(::YDIRT) = 3  # p1
-@inline _m2_idx(::XDIRT) = 5  # q2
-@inline _m2_idx(::YDIRT) = 6  # p2
-
-function (centralupwind::CentralUpwind)(faceminus, faceplus, direction::Direction, Bface)
-    return centralupwind(centralupwind.eq, faceminus, faceplus, direction, Bface)
-end
-
-# Guard: prevent accidentally calling 3-arg version for two-layer
-function (centralupwind::CentralUpwind)(::AllTwoLayerSWE, faceminus, faceplus, direction::Direction)
-    throw(ArgumentError("Two-layer CentralUpwind requires Bface. Call as centralupwind(faceminus, faceplus, direction, Bface)"))
-end
-
 function (centralupwind::CentralUpwind)(eq::AllTwoLayerSWE, faceminus, faceplus, direction::Direction, Bface)
     nvars = length(faceminus)
     @assert nvars == length(faceplus)
+
     if nvars == 4
         # 1D: (h1,q1,w,q2)
         h1idx = 1; m1idx = 2; widx = 3; m2idx = 4
@@ -100,47 +86,47 @@ function (centralupwind::CentralUpwind)(eq::AllTwoLayerSWE, faceminus, faceplus,
         throw(ArgumentError("Unsupported state size $nvars for two-layer CentralUpwind"))
     end
 
-    # Convert equilibrium w -> physical h2 at this face
-    w_m = faceminus[widx];  w_p = faceplus[widx]
-    h2m = w_m - Bface
-    h2p = w_p - Bface
+    # physical depths at this interface
+    h1m = faceminus[h1idx]
+    h1p = faceplus[h1idx]
+    h2m = faceminus[widx] - Bface
+    h2p = faceplus[widx]  - Bface
 
-    # --- minus state
+    wet_m = (h1m > eq.depth_cutoff) && (h2m > eq.depth_cutoff)
+    wet_p = (h1p > eq.depth_cutoff) && (h2p > eq.depth_cutoff)
+
+    # minus state
     fluxminus = zero(faceminus)
-    λmax_m = 0.0; λmin_m = 0.0
+    λmin_m = 0.0; λmax_m = 0.0
     u1m = 0.0; u2m = 0.0
-    if h2m > eq.depth_cutoff
-        # eq(...) expects w and Bface (eq converts to h2 internally)
+    if wet_m
         fluxminus = eq(direction, faceminus..., Bface)
 
-        # eigenvalues expect physical h2 (not w)
-        λm = compute_eigenvalues(eq, direction,
-            faceminus[h1idx], faceminus[m1idx], h2m, faceminus[m2idx]
-        )
-        λmax_m = maximum(λm); λmin_m = minimum(λm)
+        λm = compute_eigenvalues(eq, direction, h1m, faceminus[m1idx], h2m, faceminus[m2idx])
+        λmin_m = minimum(λm); λmax_m = maximum(λm)
 
-        u1m = desingularize(eq, faceminus[h1idx], faceminus[m1idx])
-        u2m = desingularize(eq, h2m,               faceminus[m2idx])
+        u1m = desingularize(eq, h1m, faceminus[m1idx])
+        u2m = desingularize(eq, h2m, faceminus[m2idx])
     end
 
-    # --- plus state
+    # plus state
     fluxplus = zero(faceplus)
-    λmax_p = 0.0; λmin_p = 0.0
+    λmin_p = 0.0; λmax_p = 0.0
     u1p = 0.0; u2p = 0.0
-    if h2p > eq.depth_cutoff
+    if wet_p
         fluxplus = eq(direction, faceplus..., Bface)
 
-        λp = compute_eigenvalues(eq, direction,
-            faceplus[h1idx], faceplus[m1idx], h2p, faceplus[m2idx]
-        )
-        λmax_p = maximum(λp); λmin_p = minimum(λp)
+        λp = compute_eigenvalues(eq, direction, h1p, faceplus[m1idx], h2p, faceplus[m2idx])
+        λmin_p = minimum(λp); λmax_p = maximum(λp)
 
-        u1p = desingularize(eq, faceplus[h1idx], faceplus[m1idx])
-        u2p = desingularize(eq, h2p,              faceplus[m2idx])
+        u1p = desingularize(eq, h1p, faceplus[m1idx])
+        u2p = desingularize(eq, h2p, faceplus[m2idx])
     end
 
+    # bounds using eigenvalues AND velocities
     aplus  = max(0.0, λmax_m, λmax_p, u1m, u2m, u1p, u2p)
     aminus = min(0.0, λmin_m, λmin_p, u1m, u2m, u1p, u2p)
+
     denom = aplus - aminus
     if abs(denom) < eq.desingularizing_kappa
         return zero(faceminus), 0.0
@@ -149,11 +135,9 @@ function (centralupwind::CentralUpwind)(eq::AllTwoLayerSWE, faceminus, faceplus,
     F = (aplus .* fluxminus .- aminus .* fluxplus) ./ denom .+
         ((aplus * aminus) / denom) .* (faceplus .- faceminus)
 
-    if h2m < eq.depth_cutoff && h2p < eq.depth_cutoff
+    if !wet_m && !wet_p
         return F, 0.0
     end
 
     return F, max(abs(aplus), abs(aminus))
 end
-
-

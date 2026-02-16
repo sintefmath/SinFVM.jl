@@ -22,25 +22,6 @@ end
 struct LinearLimiterReconstruction{L<:Limiter} <: Reconstruction
     limiter::L
 end
-LinearLimiterReconstruction(lim::L) where {L<:Limiter} = LinearLimiterReconstruction{L}(lim)
-
-
-# 3-argument minmod
-function minmod(a, b, c)
-    if (a > 0) && (b > 0) && (c > 0)
-        return min(a, b, c)
-    elseif (a < 0) && (b < 0) && (c < 0)
-        return max(a, b, c)
-    end
-    return zero(a)
-end
-
-function minmod_slope(left, center, right, theta)
-    forward_diff  = right .- center
-    backward_diff = center .- left
-    central_diff  = (forward_diff .+ backward_diff) ./ 2.0
-    return minmod.(theta .* forward_diff, central_diff, theta .* backward_diff)
-end
 
 
 function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, direction::Direction)
@@ -120,54 +101,41 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
 end
 
 
-#Two-Layer reconstruction: reconstruct in equilibrium variable w = h2 + B, but return face values in physical variables (h2 = w - B)
-function reconstruct!(backend, linRec::LinearLimiterReconstruction, output_left, output_right, input_conserved,
-    grid::Grid, eq::AllTwoLayerSWE, direction::Direction)
 
+# Two-Layer reconstruction (EQUILIBRIUM STORAGE):
+# Reconstruct in equilibrium variables, where w = h2 + B, and KEEP w at faces.
+# Physical h2 is computed later in the flux as h2_face = w_face - B_face.
+function reconstruct!(backend, linRec::LinearLimiterReconstruction, output_left, output_right, input_conserved, grid::Grid, eq::AllTwoLayerSWE, direction::Direction)
     @assert grid.ghostcells[1] > 1
     lim = linRec.limiter
-
-    # IMPORTANT CONVENTION:
-    # input_conserved.h2 is actually w = h2 + B_cell (equilibrium storage)
-    w_input = input_conserved.h2
-
-    # physical output storage
-    h2_left  = output_left.h2
-    h2_right = output_right.h2
-
-    # adjust only slope of w (component 3 in 1D, 4 in 2D)
     function fix_slope_w(slope, fix_val, ::TwoLayerShallowWaterEquations1D)
-        return typeof(slope)(slope[1], slope[2], fix_val, slope[4]) # V = (h1, q1, w, q2)
+        return typeof(slope)(slope[1], slope[2], fix_val, slope[4])  # (h1,q1,w,q2)
     end
     function fix_slope_w(slope, fix_val, ::TwoLayerShallowWaterEquations2D)
-        return typeof(slope)(slope[1], slope[2], slope[3], fix_val, slope[5], slope[6]) # V = (h1, q1, p1, w, q2, p2
+        return typeof(slope)(slope[1], slope[2], slope[3], fix_val, slope[5], slope[6])  # (h1,q1,p1,w,q2,p2)
     end
 
-    # Find index of w in conserved state vector, depending on dimension
-    w_of(V, ::TwoLayerShallowWaterEquations1D) = V[3]
-    w_of(V, ::TwoLayerShallowWaterEquations2D) = V[4]
+    w_of(V, ::TwoLayerShallowWaterEquations1D) = V[3]; w_of(V, ::TwoLayerShallowWaterEquations2D) = V[4]
 
     @fvmloop for_each_inner_cell(backend, grid, direction; ghostcells=1) do ileft, imiddle, iright
         s = slope(lim, input_conserved[ileft], input_conserved[imiddle], input_conserved[iright])
-        B_left  = B_face_left(eq.B,  imiddle, direction); B_right = B_face_right(eq.B, imiddle, direction)
+
+        B_left  = B_face_left(eq.B,  imiddle, direction)
+        B_right = B_face_right(eq.B, imiddle, direction)
+
         w  = w_of(input_conserved[imiddle], eq)
         sw = w_of(s, eq)
 
-        # 2) Adjust slope of w so that h2_face = w_face - B_face >= 0
         if (w - 0.5 * sw < B_left)
             s = fix_slope_w(s, 2.0 * (w - B_left), eq)
         elseif (w + 0.5 * sw < B_right)
             s = fix_slope_w(s, 2.0 * (B_right - w), eq)
         end
 
-        # 3) Reconstruct face values in EQUILIBRIUM variables
         output_left[imiddle]  = input_conserved[imiddle] .- 0.5 .* s
         output_right[imiddle] = input_conserved[imiddle] .+ 0.5 .* s
-
-        # 4) Lift back to PHYSICAL by converting w -> h2 in-place on outputs
-        h2_left[imiddle]  -= B_left
-        h2_right[imiddle] -= B_right
     end
 
     return nothing
 end
+

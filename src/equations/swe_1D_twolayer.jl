@@ -48,56 +48,50 @@ end
 function (eq::TwoLayerShallowWaterEquations1D)(::XDIRT, h1, q1, w, q2, Bface)
     g  = eq.g
     r  = eq.ρ1 / eq.ρ2
-
-    # convert equilibrium variable -> physical depth at this face
-    h2 = w - Bface
-
-    u1 = desingularize(eq, h1, q1)
-    u2 = desingularize(eq, h2, q2)
+    #Can replace q1/h1 with u1 and q2/(w-Bface) with u2, if needed
+    #u1 = desingularize(eq, h1, q1)
+    #u2 = desingularize(eq, h2, q2)
+    
 
     return @SVector [
         q1,
-        (q1*u1 + g*(h1 + h2 + Bface)*h1),
+        (q1^2/h1 + g*(h1 + w)*h1),
         q2,
-        (q2*u2 + 0.5*g*(h2 + Bface)^2 - 0.5*g*r*h1^2 - g*Bface*(r*h1 + h2 + Bface)),
+        (q2^2/(w - Bface) + 0.5*g*w^2 - 0.5*g*r*h1^2 - g*Bface*(r*h1 + w)),
     ]
 end
 
 
-#Helper function to compute eigenvalue bounds using Lagrange method
+# Helper function to compute eigenvalue bounds using Lagrange method
 function lagrange_bounds(c1, c2, c3, c4)
+    T = promote_type(typeof(c1), typeof(c2), typeof(c3), typeof(c4))
     c = (c1, c2, c3, c4)
-    Sc = Float64[]
-    Sd = Float64[]
+
+    Sc = T[]
+    Sd = T[]
+
     for j in 1:4
         cj = c[j]
-        dj = (-1)^j * c[j]
+        dj = isodd(j) ? -cj : cj   # dj = (-1)^j * cj
+
         if cj < 0
-            push!(Sc, abs(cj)^(1/j))
+            push!(Sc, abs(cj)^(one(T)/j))
         end
         if dj < 0
-            push!(Sd, -abs(dj)^(1/j))
+            push!(Sd, -abs(dj)^(one(T)/j))
         end
     end
-    if length(Sc) == 0
-        λmax = 0.0
-    elseif length(Sc) == 1
-        λmax = Sc[1]
-    else
-        sort!(Sc, rev=true)
-        λmax = Sc[1] + Sc[2]
-    end
-    if length(Sd) == 0
-        λmin = 0.0
-    elseif length(Sd) == 1
-        λmin = Sd[1]
-    else
-        sort!(Sd)
-        λmin = Sd[1] + Sd[2]
-    end
+
+    λmax = isempty(Sc) ? zero(T) :
+           length(Sc) == 1 ? Sc[1] :
+           (sort!(Sc, rev=true); Sc[1] + Sc[2])
+
+    λmin = isempty(Sd) ? zero(T) :
+           length(Sd) == 1 ? Sd[1] :
+           (sort!(Sd); Sd[1] + Sd[2])
+
     return λmin, λmax
 end
-
 
 # See Kurganov and Petrova (2009) "Central-Upwind Schemes for Two-Layer Shallow Water Equations" eq. (2.18) - (2.24)
 function compute_eigenvalues(eq::TwoLayerShallowWaterEquations1D,::XDIRT, h1, q1, h2, q2)
