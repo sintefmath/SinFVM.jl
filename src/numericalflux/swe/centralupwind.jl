@@ -70,8 +70,6 @@ function (centralupwind::CentralUpwind)(::AllPracticalSWE, faceminus, faceplus, 
     return F, max(abs(aplus), abs(aminus))
 end
 
-
-
 ################################# Two-layer Central Upwind #################################
 @inline _m1_idx(::XDIRT) = 2  # q1
 @inline _m1_idx(::YDIRT) = 3  # p1
@@ -90,33 +88,39 @@ end
 function (centralupwind::CentralUpwind)(eq::AllTwoLayerSWE, faceminus, faceplus, direction::Direction, Bface)
     nvars = length(faceminus)
     @assert nvars == length(faceplus)
-
-    # Indices depending on dimension
     if nvars == 4
-        # 1D: (h1,q1,h2,q2)
-        h1idx = 1; m1idx = 2; h2idx = 3; m2idx = 4
+        # 1D: (h1,q1,w,q2)
+        h1idx = 1; m1idx = 2; widx = 3; m2idx = 4
     elseif nvars == 6
-        # 2D: (h1,q1,p1,h2,q2,p2)
-        h1idx = 1; h2idx = 4
+        # 2D: (h1,q1,p1,w,q2,p2)
+        h1idx = 1; widx = 4
         m1idx = _m1_idx(direction)
         m2idx = _m2_idx(direction)
     else
         throw(ArgumentError("Unsupported state size $nvars for two-layer CentralUpwind"))
     end
 
-    h2m = faceminus[h2idx]; h2p = faceplus[h2idx]
+    # Convert equilibrium w -> physical h2 at this face
+    w_m = faceminus[widx];  w_p = faceplus[widx]
+    h2m = w_m - Bface
+    h2p = w_p - Bface
 
     # --- minus state
     fluxminus = zero(faceminus)
     λmax_m = 0.0; λmin_m = 0.0
     u1m = 0.0; u2m = 0.0
     if h2m > eq.depth_cutoff
+        # eq(...) expects w and Bface (eq converts to h2 internally)
         fluxminus = eq(direction, faceminus..., Bface)
-        λm = compute_eigenvalues(eq, direction, faceminus...) # no Bface
+
+        # eigenvalues expect physical h2 (not w)
+        λm = compute_eigenvalues(eq, direction,
+            faceminus[h1idx], faceminus[m1idx], h2m, faceminus[m2idx]
+        )
         λmax_m = maximum(λm); λmin_m = minimum(λm)
 
         u1m = desingularize(eq, faceminus[h1idx], faceminus[m1idx])
-        u2m = desingularize(eq, faceminus[h2idx], faceminus[m2idx])
+        u2m = desingularize(eq, h2m,               faceminus[m2idx])
     end
 
     # --- plus state
@@ -125,11 +129,14 @@ function (centralupwind::CentralUpwind)(eq::AllTwoLayerSWE, faceminus, faceplus,
     u1p = 0.0; u2p = 0.0
     if h2p > eq.depth_cutoff
         fluxplus = eq(direction, faceplus..., Bface)
-        λp = compute_eigenvalues(eq, direction, faceplus...)
+
+        λp = compute_eigenvalues(eq, direction,
+            faceplus[h1idx], faceplus[m1idx], h2p, faceplus[m2idx]
+        )
         λmax_p = maximum(λp); λmin_p = minimum(λp)
 
         u1p = desingularize(eq, faceplus[h1idx], faceplus[m1idx])
-        u2p = desingularize(eq, faceplus[h2idx], faceplus[m2idx])
+        u2p = desingularize(eq, h2p,              faceplus[m2idx])
     end
 
     aplus  = max(0.0, λmax_m, λmax_p, u1m, u2m, u1p, u2p)
@@ -138,8 +145,9 @@ function (centralupwind::CentralUpwind)(eq::AllTwoLayerSWE, faceminus, faceplus,
     if abs(denom) < eq.desingularizing_kappa
         return zero(faceminus), 0.0
     end
-    
-    F = (aplus .* fluxminus .- aminus .* fluxplus) ./ denom .+ ((aplus * aminus) / denom) .* (faceplus .- faceminus)
+
+    F = (aplus .* fluxminus .- aminus .* fluxplus) ./ denom .+
+        ((aplus * aminus) / denom) .* (faceplus .- faceminus)
 
     if h2m < eq.depth_cutoff && h2p < eq.depth_cutoff
         return F, 0.0
