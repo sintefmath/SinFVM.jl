@@ -15,7 +15,7 @@
 
 struct SourceTermNonConservative <: SourceTerm end
 
-function evaluate_directional_source_term!(::SourceTermNonConservative, output, current_state, cs::ConservedSystem, dir::Direction)
+function evaluate_directional_source_term!(::SourceTermNonConservative, output, current_state, cs::ConservedSystem{<:Any,<:Any,<:Any,<:AllTwoLayerSWE}, dir::Direction)
     delta = compute_dx(cs.grid, dir)
     eq = cs.equation; g  = eq.g; r  = eq.ρ1 / eq.ρ2
 
