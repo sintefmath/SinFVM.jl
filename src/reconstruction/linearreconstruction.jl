@@ -119,158 +119,54 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
     nothing
 end
 
-# Two-layer SWE 1D reconstruction (PHYSICAL storage with well-balanced lift):
-# input  (cell values):  U = (h1, q1, h2, q2)
-# reconstruct in:        V = (h1, q1, w,  q2) with w = h2 + B_cell
-# output (face values):  U_face = (h1, q1, h2, q2) with h2_face = w_face - B_face
 
-@inline function fix_slope_w(slope, fix_val)
-    # adjust only the w-slope (component 3)
-    return typeof(slope)(slope[1], slope[2], fix_val, slope[4])
-end
-
-function reconstruct!(backend, linRec::LinearLimiterReconstruction,
-    output_left, output_right, input_conserved, grid::Grid,
-    eq::TwoLayerShallowWaterEquations1D, direction::Direction)
+#Two-Layer reconstruction: reconstruct in equilibrium variable w = h2 + B, but return face values in physical variables (h2 = w - B)
+function reconstruct!(backend, linRec::LinearLimiterReconstruction, output_left, output_right, input_conserved,
+    grid::Grid, eq::AllTwoLayerSWE, direction::Direction)
 
     @assert grid.ghostcells[1] > 1
     lim = linRec.limiter
 
-    @fvmloop for_each_inner_cell(backend, grid, direction; ghostcells=1) do ileft, imiddle, iright
-        #Collect cell-centered conserved variables and bathymetry for the 3 cells needed for reconstruction
-        Ul = input_conserved[ileft]; Um = input_conserved[imiddle]; Ur = input_conserved[iright]
-        Blc = B_cell(eq.B, ileft,   direction); Bmc = B_cell(eq.B, imiddle, direction); Brc = B_cell(eq.B, iright,  direction)
+    # IMPORTANT CONVENTION:
+    # input_conserved.h2 is actually w = h2 + B_cell (equilibrium storage)
+    w_input = input_conserved.h2
 
-        # Create equilibrium variables for the 3 cells (h1, q1, w, q2) with w = h2 + B_cell
-        Vl = typeof(Ul)(Ul[1], Ul[2], Ul[3] + Blc, Ul[4])
-        Vm = typeof(Um)(Um[1], Um[2], Um[3] + Bmc, Um[4])
-        Vr = typeof(Ur)(Ur[1], Ur[2], Ur[3] + Brc, Ur[4])
-        
-        # Compute slope in equilibrium variables
-        s = slope(lim, Vl, Vm, Vr)
+    # physical output storage
+    h2_left  = output_left.h2
+    h2_right = output_right.h2
 
-        #Collect face bathymetry (needed for positivity in h2_face = w_face - B_face)
-        B_left  = B_face_left(eq.B,  imiddle, direction)
-        B_right = B_face_right(eq.B, imiddle, direction)
-
-        # Enforce h2_face >= 0  <=>  w_face >= B_face
-        wm = Vm[3]
-        sw = s[3]
-        if (wm - 0.5*sw < B_left)
-            s = fix_slope_w(s, 2.0*(wm - B_left))
-        elseif (wm + 0.5*sw < B_right)
-            s = fix_slope_w(s, 2.0*(B_right - wm))
-        end
-
-        #Reconstruct equilibrium variables at faces
-        VL = Vm .- 0.5 .* s ; VR = Vm .+ 0.5 .* s
-        h1L, q1L, wL, q2L = VL; h1R, q1R, wR, q2R = VR
-
-        #Convert w -> h2 at faces (physical output)
-        h2L = wL - B_left
-        h2R = wR - B_right
-
-        #Desingularize if needed (keep momenta consistent)
-        if h1L < eq.depth_cutoff
-            q1L = h1L * desingularize(eq, h1L, q1L)
-        end
-        if h1R < eq.depth_cutoff
-            q1R = h1R * desingularize(eq, h1R, q1R)
-        end
-        if h2L < eq.depth_cutoff
-            q2L = h2L * desingularize(eq, h2L, q2L)
-        end
-        if h2R < eq.depth_cutoff
-            q2R = h2R * desingularize(eq, h2R, q2R)
-        end
-
-        # OUTPUT: physical conserved variables (h1,q1,h2,q2)
-        output_left[imiddle]  = typeof(Um)(h1L, q1L, h2L, q2L)
-        output_right[imiddle] = typeof(Um)(h1R, q1R, h2R, q2R)
+    # adjust only slope of w (component 3 in 1D, 4 in 2D)
+    function fix_slope_w(slope, fix_val, ::TwoLayerShallowWaterEquations1D)
+        return typeof(slope)(slope[1], slope[2], fix_val, slope[4]) # V = (h1, q1, w, q2)
+    end
+    function fix_slope_w(slope, fix_val, ::TwoLayerShallowWaterEquations2D)
+        return typeof(slope)(slope[1], slope[2], slope[3], fix_val, slope[5], slope[6]) # V = (h1, q1, p1, w, q2, p2
     end
 
-    return nothing
-end
-
-
-
-###########################################################################################
-
-# ------------------------------------------------------------
-# Two-layer SWE 2D:
-# Input (cell values):  (h1, q1, p1, h2, q2, p2)
-# Reconstruction vars:  (h1, q1, p1, w,  q2, p2) with w = h2 + B
-# Output (face values): (h1, q1, p1, h2, q2, p2)
-# ------------------------------------------------------------
-
-@inline function fix_slope_w(slope, fix_val, ::TwoLayerShallowWaterEquations2D)
-    # Only adjust w slope (component 4)
-    return typeof(slope)(slope[1], slope[2], slope[3], fix_val, slope[5], slope[6])
-end
-
-function reconstruct!(backend, linRec::LinearLimiterReconstruction, output_left, output_right, input_conserved, grid::Grid, eq::TwoLayerShallowWaterEquations2D, direction::Direction,
-)
-    @assert grid.ghostcells[1] > 1
-    lim = linRec.limiter
+    # Find index of w in conserved state vector, depending on dimension
+    w_of(V, ::TwoLayerShallowWaterEquations1D) = V[3]
+    w_of(V, ::TwoLayerShallowWaterEquations2D) = V[4]
 
     @fvmloop for_each_inner_cell(backend, grid, direction; ghostcells=1) do ileft, imiddle, iright
-        # physical: U = (h1, q1, p1, h2, q2, p2)
-        Ul = input_conserved[ileft]; Um = input_conserved[imiddle]; Ur = input_conserved[iright]
+        s = slope(lim, input_conserved[ileft], input_conserved[imiddle], input_conserved[iright])
+        B_left  = B_face_left(eq.B,  imiddle, direction); B_right = B_face_right(eq.B, imiddle, direction)
+        w  = w_of(input_conserved[imiddle], eq)
+        sw = w_of(s, eq)
 
-        # cell-centered bottom values
-        Blc = B_cell(eq.B, ileft, direction); Bmc = B_cell(eq.B, imiddle, direction); Brc = B_cell(eq.B, iright, direction)
-
-        # equilibrium vars V = (h1, q1, p1, ω, q2, p2), ω = h2 + B
-        Vl = typeof(Ul)(Ul[1], Ul[2], Ul[3], Ul[4] + Blc, Ul[5], Ul[6])
-        Vm = typeof(Um)(Um[1], Um[2], Um[3], Um[4] + Bmc, Um[5], Um[6])
-        Vr = typeof(Ur)(Ur[1], Ur[2], Ur[3], Ur[4] + Brc, Ur[5], Ur[6])
-
-        # slope in equilibrium variables
-        s = slope(lim, Vl, Vm, Vr)
-
-        # face bathymetry (needed for positivity in h2_face = ω_face - B_face)
-        B_left  = B_face_left(eq.B, imiddle, direction); B_right = B_face_right(eq.B, imiddle, direction)
-        ωm = Vm[4]; sω = s[4]
-
-        # enforce ω_face >= B_face  <=> h2_face >= 0
-        if (ωm - 0.5*sω < B_left)
-            s = fix_slope_w(s, 2.0 * (ωm - B_left), eq)
-        elseif (ωm + 0.5*sω < B_right)
-            s = fix_slope_w(s, 2.0 * (B_right - ωm), eq)
+        # 2) Adjust slope of w so that h2_face = w_face - B_face >= 0
+        if (w - 0.5 * sw < B_left)
+            s = fix_slope_w(s, 2.0 * (w - B_left), eq)
+        elseif (w + 0.5 * sw < B_right)
+            s = fix_slope_w(s, 2.0 * (B_right - w), eq)
         end
 
-        # reconstruct equilibrium variables at faces
-        VL = Vm .- 0.5 .* s
-        VR = Vm .+ 0.5 .* s
+        # 3) Reconstruct face values in EQUILIBRIUM variables
+        output_left[imiddle]  = input_conserved[imiddle] .- 0.5 .* s
+        output_right[imiddle] = input_conserved[imiddle] .+ 0.5 .* s
 
-        # convert ω -> h2 at faces (physical output)
-        h2L = VL[4] - B_left
-        h2R = VR[4] - B_right
-
-        h1L, q1L, p1L, q2L, p2L = VL[1], VL[2], VL[3], VL[5], VL[6]
-        h1R, q1R, p1R, q2R, p2R = VR[1], VR[2], VR[3], VR[5], VR[6]
-
-        # desingularize if needed (keep momenta consistent)
-        if h1L < eq.depth_cutoff
-            q1L = h1L * desingularize(eq, h1L, q1L)
-            p1L = h1L * desingularize(eq, h1L, p1L)
-        end
-        if h1R < eq.depth_cutoff
-            q1R = h1R * desingularize(eq, h1R, q1R)
-            p1R = h1R * desingularize(eq, h1R, p1R)
-        end
-        if h2L < eq.depth_cutoff
-            q2L = h2L * desingularize(eq, h2L, q2L)
-            p2L = h2L * desingularize(eq, h2L, p2L)
-        end
-        if h2R < eq.depth_cutoff
-            q2R = h2R * desingularize(eq, h2R, q2R)
-            p2R = h2R * desingularize(eq, h2R, p2R)
-        end
-
-        # OUTPUT: physical conserved variables (h1,q1,p1,h2,q2,p2)
-        output_left[imiddle]  = typeof(VL)(h1L, q1L, p1L, h2L, q2L, p2L)
-        output_right[imiddle] = typeof(VR)(h1R, q1R, p1R, h2R, q2R, p2R)
+        # 4) Lift back to PHYSICAL by converting w -> h2 in-place on outputs
+        h2_left[imiddle]  -= B_left
+        h2_right[imiddle] -= B_right
     end
 
     return nothing
