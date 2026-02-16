@@ -74,7 +74,7 @@ function run_case(; nx=256, gc=2, cfl=0.15, Tshow=1.0,
     equation = SinFVM.TwoLayerShallowWaterEquations1D(bottom_obj; ρ1=ρ1, ρ2=ρ2, g=g)
     numericalflux = SinFVM.CentralUpwind(equation)
 
-    reconstruction = SinFVM.LinearLimiterReconstruction(SinFVM.VanLeerLimiter())
+    reconstruction = SinFVM.LinearLimiterReconstruction(SinFVM.MinmodLimiter(1))
 
     bottom_src = SinFVM.SourceTermBottom()
     ncp_src    = SinFVM.SourceTermNonConservative()
