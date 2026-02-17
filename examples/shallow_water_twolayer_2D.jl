@@ -7,46 +7,80 @@ using SinFVM
 #   U = (h1, q1, p1, w, q2, p2)   where w = h2 + B
 # ============================================================
 
-xwrap(x) = x - floor(x)
+# ----------------------------
+# New bathymetry: quadrant step
+# ----------------------------
+function make_bottom_quadrant_step_2d(; Bll=0.45, Bother=0.55, backend, grid)
+    x_faces = SinFVM.cell_faces(grid, SinFVM.XDIR; interior=false)
+    y_faces = SinFVM.cell_faces(grid, SinFVM.YDIR; interior=false)
 
-bottom_cosine_2d(; B0=-3.0, A=0.4, mx=1, my=1) =
-    (x, y) -> (B0 + A*cos(2π*mx*x) * cos(2π*my*y))
-function make_bottom_intersections_2d(Bfun, backend, grid)
-    nxg, nyg = size(grid) .+ 1   # includes ghosts automatically
+    nxg = length(x_faces)
+    nyg = length(y_faces)
 
-    x0 = SinFVM.start_extent(grid, SinFVM.XDIR)
-    x1 = SinFVM.end_extent(grid,   SinFVM.XDIR)
-    y0 = SinFVM.start_extent(grid, SinFVM.YDIR)
-    y1 = SinFVM.end_extent(grid,   SinFVM.YDIR)
+    # split point (middle of domain in face coordinates)
+    x0 = 0.5 * (x_faces[1] + x_faces[end])
+    y0 = 0.5 * (y_faces[1] + y_faces[end])
 
-    Lx = x1 - x0
-    Ly = y1 - y0
+    Bint = Matrix{Float64}(undef, nxg, nyg)
+    @inbounds for j in 1:nyg, i in 1:nxg
+        Bint[i, j] = (x_faces[i] < x0 && y_faces[j] < y0) ? Bll : Bother
+    end
 
-    dx = Lx / (size(grid)[1])
-    dy = Ly / (size(grid)[2])
+    return SinFVM.BottomTopography2D(Bint, backend, grid)
+end
 
-    gcx, gcy = grid.ghostcells
+"""
+Create BottomTopography2D with a single step at one edge.
+
+edge ∈ (:left, :right, :bottom, :top)
+
+Bedge   = value on the chosen edge side
+Bother  = value elsewhere
+"""
+function make_bottom_edge_step_2d(; edge::Symbol,
+                                   Bedge=0.45,
+                                   Bother=0.55,
+                                   backend,
+                                   grid)
+
+    x_faces = SinFVM.cell_faces(grid, SinFVM.XDIR; interior=false)
+    y_faces = SinFVM.cell_faces(grid, SinFVM.YDIR; interior=false)
+
+    nxg = length(x_faces)
+    nyg = length(y_faces)
+
+    # reference split positions
+    x0 = 0.5 * (x_faces[1] + x_faces[end])
+    y0 = 0.5 * (y_faces[1] + y_faces[end])
 
     Bint = Matrix{Float64}(undef, nxg, nyg)
 
-    for j in 1:nyg
-        for i in 1:nxg
-            x = x0 + (i - gcx - 1)*dx
-            y = y0 + (j - gcy - 1)*dy
+    @inbounds for j in 1:nyg, i in 1:nxg
 
-            x̂ = xwrap((x - x0)/Lx)
-            ŷ = xwrap((y - y0)/Ly)
+        if edge == :left
+            cond = x_faces[i] < x0
 
-            Bint[i,j] = Bfun(x̂, ŷ)
+        elseif edge == :right
+            cond = x_faces[i] > x0
+
+        elseif edge == :bottom
+            cond = y_faces[j] < y0
+
+        elseif edge == :top
+            cond = y_faces[j] > y0
+
+        else
+            error("edge must be :left, :right, :bottom, or :top")
         end
+
+        Bint[i, j] = cond ? Bedge : Bother
     end
 
     return SinFVM.BottomTopography2D(Bint, backend, grid)
 end
 
 
-
-function ic_equilibrium_w(; h10=1.0, w0=-1.0, min_h=1e-10)
+function ic_equilibrium_w(; h10=1.0, w0, min_h=1e-10)
     return (xy, Bcell) -> begin
         h1 = max(h10, min_h)
         h2 = w0 - Bcell
@@ -82,16 +116,16 @@ end
 # ============================================================
 
 backend = SinFVM.make_cpu_backend()
-nx, ny = 10, 10
+nx, ny = 64, 64
 gc = 2
 grid = SinFVM.CartesianGrid(nx, ny; gc=gc, boundary=SinFVM.PeriodicBC())
 
-# --- Bathymetry as before (intersections incl ghosts)
-B0, A, mx, my = -3.0, 0.4, 1, 1
-Bfun   = bottom_cosine_2d(B0=B0, A=A, mx=mx, my=my)
-
-#bottom = make_bottom_intersections_2d(Bfun, backend, grid)
-bottom = ConstantBottomTopography(B0, backend, grid)  # for testing
+# --- New bathymetry (quadrant step) on intersections including ghosts
+#bottom = make_bottom_quadrant_step_2d(; Bll=0.45, Bother=0.55, backend=backend, grid=grid)
+#bottom = make_bottom_edge_step_2d(; edge=:left, Bedge=0.10, Bother=0.55, backend=backend, grid=grid)
+#bottom = make_bottom_edge_step_2d(; edge=:right, Bedge=0.10, Bother=0.55, backend=backend, grid=grid)
+#bottom = make_bottom_edge_step_2d(; edge=:bottom, Bedge=0.10, Bother=0.55, backend=backend, grid=grid)
+bottom = make_bottom_edge_step_2d(; edge=:top, Bedge=0.10, Bother=0.55, backend=backend, grid=grid)
 
 equation = SinFVM.TwoLayerShallowWaterEquations2D(bottom; ρ1=1.00, ρ2=1.02, g=9.81)
 numericalflux = SinFVM.CentralUpwind(equation)
@@ -102,13 +136,13 @@ ncp_src    = SinFVM.SourceTermNonConservative()
 cs  = SinFVM.ConservedSystem(backend, reconstruction, numericalflux, equation, grid, [bottom_src, ncp_src])
 sim = SinFVM.Simulator(backend, cs, SinFVM.RungeKutta2(), grid; cfl=0.6)
 
-# --- IC MUST be interior-sized for set_current_state!
-ic = ic_equilibrium_w(h10=1.0, w0=-1.0)
-
+# --- IC (equilibrium): pick w0 safely so h2 = w0 - Bcell > 0 everywhere
 xy_int = SinFVM.cell_centers(grid; interior=true)
 B_int  = SinFVM.collect_topography_cells(equation.B, grid; interior=true)
-
 @assert size(xy_int) == size(B_int) == SinFVM.interior_size(grid)
+
+w0 = maximum(B_int) + 1.0
+ic = ic_equilibrium_w(h10=1.0, w0=w0)
 
 initial = [ic(xy_int[I], B_int[I]) for I in eachindex(xy_int)]
 SinFVM.set_current_state!(sim, initial)
@@ -124,9 +158,9 @@ println("---- initial checks (interior) ----")
 @show maximum(abs.(fld0.u2)) maximum(abs.(fld0.v2))
 @show minimum(fld0.η) maximum(fld0.η)
 
-# --- Plot setup (Observables so it updates)
-Tshow = 0.1
-title = "Equilibrium test (2D): constant h1 and constant w on cosine bathymetry"
+# --- Plot setup
+Tshow = 10.0
+title = "Equilibrium test (2D): constant h1 and constant w on quadrant-step bathymetry"
 
 f = Figure(size=(1600, 900), fontsize=18)
 Label(f[0, 1:2], "$title | nx=$nx, ny=$ny, T=$Tshow", fontsize=22, padding=(0,0,10,0))
@@ -134,17 +168,17 @@ Label(f[0, 1:2], "$title | nx=$nx, ny=$ny, T=$Tshow", fontsize=22, padding=(0,0,
 ax_B  = Axis(f[1, 1], title=L"B(x,y)")
 ax_w  = Axis(f[1, 2], title=L"w = h_2 + B")
 ax_η  = Axis(f[2, 1], title=L"\eta = h_1 + w")
-ax_u2 = Axis(f[2, 2], title=L"u_2")
+ax_v2 = Axis(f[2, 2], title=L"v_2")  # y-velocity layer 2 (since y is where you see issues)
 
 B_obs  = Observable(fld0.Bcell)
 w_obs  = Observable(fld0.w)
 η_obs  = Observable(fld0.η)
-u2_obs = Observable(fld0.u2)
+v2_obs = Observable(fld0.v2)
 
 hm_B  = heatmap!(ax_B,  B_obs);  Colorbar(f[1, 3], hm_B,  label=L"B")
 hm_w  = heatmap!(ax_w,  w_obs);  Colorbar(f[1, 4], hm_w,  label=L"w")
 hm_η  = heatmap!(ax_η,  η_obs);  Colorbar(f[2, 3], hm_η,  label=L"\eta")
-hm_u2 = heatmap!(ax_u2, u2_obs); Colorbar(f[2, 4], hm_u2, label=L"u_2")
+hm_v2 = heatmap!(ax_v2, v2_obs); Colorbar(f[2, 4], hm_v2, label=L"v_2")
 
 display(f)
 
@@ -175,7 +209,7 @@ println("---- final checks (interior) ----")
 B_obs[]  = fld.Bcell
 w_obs[]  = fld.w
 η_obs[]  = fld.η
-u2_obs[] = fld.u2
+v2_obs[] = fld.v2
 display(f)
 
 f
