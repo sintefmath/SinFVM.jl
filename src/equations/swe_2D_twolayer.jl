@@ -75,18 +75,17 @@ function (eq::TwoLayerShallowWaterEquations2D)(::YDIRT, h1, q1, p1, w, q2, p2, B
     r = eq.ρ1 / eq.ρ2
     h2 = w - Bface
 
-    u1 = desingularize(eq, h1, q1); v1 = desingularize(eq, h1, p1)
-    u2 = desingularize(eq, h2, q2); v2 = desingularize(eq, h2, p2)
+    v1 = desingularize(eq, h1, p1); v2 = desingularize(eq, h2, p2)
 
     return @SVector[
         # layer 1
         p1,
-        p1*u1,
+        q1*v1,
         p1*v1 + g*h1*(h1 + w),
 
         # layer 2
         p2,
-        p2*u2,
+        q2*v2,
         p2*v2 + 0.5*g*w^2 - 0.5*g*r*h1^2 - g*Bface*(r*h1 + w)
     ]
 end
@@ -109,7 +108,7 @@ function compute_eigenvalues(eq::TwoLayerShallowWaterEquations2D, ::YDIRT, h1, m
     eq1d = TwoLayerShallowWaterEquations1D(eq.B; ρ1=eq.ρ1, ρ2=eq.ρ2, g=eq.g,
                                           depth_cutoff=eq.depth_cutoff,
                                           desingularizing_kappa=eq.desingularizing_kappa)
-    return compute_eigenvalues(eq1d, XDIRT(), h1, m1, h2, m2)
+    return compute_eigenvalues(eq1d, YDIRT(), h1, m1, h2, m2)
 end
 
 
