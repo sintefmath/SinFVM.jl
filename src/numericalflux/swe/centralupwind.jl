@@ -93,10 +93,8 @@ function (centralupwind::CentralUpwind)(eq::AllTwoLayerSWE, faceminus, faceplus,
     end
 
     # physical depths at this interface
-    h1m = faceminus[h1idx]
-    h1p = faceplus[h1idx]
-    h2m = faceminus[widx] - Bface
-    h2p = faceplus[widx]  - Bface
+    h1m = faceminus[h1idx]; h1p = faceplus[h1idx]
+    h2m = faceminus[widx] - Bface; h2p = faceplus[widx]  - Bface
 
     wet_m = (h1m > eq.depth_cutoff) && (h2m > eq.depth_cutoff)
     wet_p = (h1p > eq.depth_cutoff) && (h2p > eq.depth_cutoff)
@@ -119,7 +117,6 @@ function (centralupwind::CentralUpwind)(eq::AllTwoLayerSWE, faceminus, faceplus,
         fluxplus = eq(direction, faceplus..., Bface)
         λp = compute_eigenvalues(eq, direction, h1p, faceplus[m1idx], h2p, faceplus[m2idx])
         λmin_p = minimum(λp); λmax_p = maximum(λp)
-
         u1p = desingularize(eq, h1p, faceplus[m1idx])
         u2p = desingularize(eq, h2p, faceplus[m2idx])
     end
