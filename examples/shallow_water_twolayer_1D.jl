@@ -220,7 +220,7 @@ f, sim = run_case(
     gc=2,
     bottom=bottom,
     ic_fun=ic,
-    Tshow=1,
+    Tshow=100,
     cfl=0.6,
     title="Equilibrium test: constant h1 and constant w on cosine bathymetry"
 )

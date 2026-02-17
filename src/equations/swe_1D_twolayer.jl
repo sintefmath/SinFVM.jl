@@ -94,7 +94,7 @@ function lagrange_bounds(c1, c2, c3, c4)
 end
 
 # See Kurganov and Petrova (2009) "Central-Upwind Schemes for Two-Layer Shallow Water Equations" eq. (2.18) - (2.24)
-function compute_eigenvalues(eq::TwoLayerShallowWaterEquations1D, direction::Direction, h1, q1, h2, q2)
+function compute_eigenvalues(eq::AllTwoLayerSWE, direction::Direction, h1, q1, h2, q2)
     g  = eq.g
     ρ1 = eq.ρ1
     ρ2 = eq.ρ2
@@ -127,7 +127,7 @@ function compute_eigenvalues(eq::TwoLayerShallowWaterEquations1D, direction::Dir
 end
 
 
-function compute_max_abs_eigenvalue(eq::TwoLayerShallowWaterEquations1D, direction::Direction, h1, q1, h2, q2)
+function compute_max_abs_eigenvalue(eq::AllTwoLayerSWE, direction::Direction, h1, q1, h2, q2)
     λ = compute_eigenvalues(eq, direction, h1, q1, h2, q2)
     return maximum(abs, λ)
 end

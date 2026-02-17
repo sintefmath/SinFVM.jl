@@ -29,55 +29,35 @@ function make_bottom_quadrant_step_2d(; Bll=0.45, Bother=0.55, backend, grid)
     return SinFVM.BottomTopography2D(Bint, backend, grid)
 end
 
-"""
-Create BottomTopography2D with a single step at one edge.
 
-edge ∈ (:left, :right, :bottom, :top)
+function make_bottom_cos_sin_2d_cellcenter(; B0=-3.0,
+    Ax=0.4, Ay=0.3, mx=1, my=1, φx=0.0, φy=0.0,
+    backend, grid::SinFVM.CartesianGrid{2})
 
-Bedge   = value on the chosen edge side
-Bother  = value elsewhere
-"""
-function make_bottom_edge_step_2d(; edge::Symbol,
-                                   Bedge=0.45,
-                                   Bother=0.55,
-                                   backend,
-                                   grid)
+    xy = SinFVM.cell_centers(grid; interior=false)  # array of SVector(x,y), includes ghosts
+    nxg, nyg = size(xy)
 
-    x_faces = SinFVM.cell_faces(grid, SinFVM.XDIR; interior=false)
-    y_faces = SinFVM.cell_faces(grid, SinFVM.YDIR; interior=false)
+    x0 = SinFVM.start_extent(grid, SinFVM.XDIR)
+    x1 = SinFVM.end_extent(grid,   SinFVM.XDIR)
+    y0 = SinFVM.start_extent(grid, SinFVM.YDIR)
+    y1 = SinFVM.end_extent(grid,   SinFVM.YDIR)
+    Lx = x1 - x0
+    Ly = y1 - y0
 
-    nxg = length(x_faces)
-    nyg = length(y_faces)
-
-    # reference split positions
-    x0 = 0.5 * (x_faces[1] + x_faces[end])
-    y0 = 0.5 * (y_faces[1] + y_faces[end])
-
-    Bint = Matrix{Float64}(undef, nxg, nyg)
-
+    B = Matrix{Float64}(undef, nxg, nyg)
     @inbounds for j in 1:nyg, i in 1:nxg
-
-        if edge == :left
-            cond = x_faces[i] < x0
-
-        elseif edge == :right
-            cond = x_faces[i] > x0
-
-        elseif edge == :bottom
-            cond = y_faces[j] < y0
-
-        elseif edge == :top
-            cond = y_faces[j] > y0
-
-        else
-            error("edge must be :left, :right, :bottom, or :top")
-        end
-
-        Bint[i, j] = cond ? Bedge : Bother
+        x = xy[i, j][1]
+        y = xy[i, j][2]
+        xhat = (x - x0) / Lx
+        yhat = (y - y0) / Ly
+        B[i, j] = B0 + Ax*cos(2π*mx*xhat + φx) + Ay*sin(2π*my*yhat + φy)
     end
 
-    return SinFVM.BottomTopography2D(Bint, backend, grid)
+    return SinFVM.BottomTopography2D(B, backend, grid)
 end
+
+
+
 
 
 function ic_equilibrium_w(; h10=1.0, w0, min_h=1e-10)
@@ -120,16 +100,21 @@ nx, ny = 64, 64
 gc = 2
 grid = SinFVM.CartesianGrid(nx, ny; gc=gc, boundary=SinFVM.PeriodicBC())
 
+
 # --- New bathymetry (quadrant step) on intersections including ghosts
 #bottom = make_bottom_quadrant_step_2d(; Bll=0.45, Bother=0.55, backend=backend, grid=grid)
 #bottom = make_bottom_edge_step_2d(; edge=:left, Bedge=0.10, Bother=0.55, backend=backend, grid=grid)
 #bottom = make_bottom_edge_step_2d(; edge=:right, Bedge=0.10, Bother=0.55, backend=backend, grid=grid)
 #bottom = make_bottom_edge_step_2d(; edge=:bottom, Bedge=0.10, Bother=0.55, backend=backend, grid=grid)
-bottom = make_bottom_edge_step_2d(; edge=:top, Bedge=0.10, Bother=0.55, backend=backend, grid=grid)
+#bottom = make_bottom_edge_step_2d(; edge=:top, Bedge=0.10, Bother=0.55, backend=backend, grid=grid)
+bottom = make_bottom_cos_sin_2d_cellcenter(; B0=-3.0, Ax=0.0, Ay=0.3, mx=1, my=1, backend=backend, grid=grid)
+#bottom = SinFVM.ConstantBottomTopography(-3.0)
+
 
 equation = SinFVM.TwoLayerShallowWaterEquations2D(bottom; ρ1=1.00, ρ2=1.02, g=9.81)
+reconstruction = SinFVM.LinearLimiterReconstruction(SinFVM.MinmodLimiter(1.0))
 numericalflux = SinFVM.CentralUpwind(equation)
-reconstruction = SinFVM.LinearLimiterReconstruction(SinFVM.VanLeerLimiter())
+
 
 bottom_src = SinFVM.SourceTermBottom()
 ncp_src    = SinFVM.SourceTermNonConservative()
@@ -159,7 +144,7 @@ println("---- initial checks (interior) ----")
 @show minimum(fld0.η) maximum(fld0.η)
 
 # --- Plot setup
-Tshow = 10.0
+Tshow = 9
 title = "Equilibrium test (2D): constant h1 and constant w on quadrant-step bathymetry"
 
 f = Figure(size=(1600, 900), fontsize=18)

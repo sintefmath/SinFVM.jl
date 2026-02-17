@@ -127,10 +127,13 @@ function reconstruct!(backend, linRec::LinearLimiterReconstruction, output_left,
         sw = w_of(s, eq)
 
         if (w - 0.5 * sw < B_left)
-            s = fix_slope_w(s, 2.0 * (w - B_left), eq)
+            sw = 2*(w - B_left)
+            s = fix_slope_w(s, sw, eq)
         elseif (w + 0.5 * sw < B_right)
-            s = fix_slope_w(s, 2.0 * (B_right - w), eq)
+            sw = 2*(B_right - w)
+            s = fix_slope_w(s, sw, eq)
         end
+
 
         output_left[imiddle]  = input_conserved[imiddle] .- 0.5 .* s
         output_right[imiddle] = input_conserved[imiddle] .+ 0.5 .* s

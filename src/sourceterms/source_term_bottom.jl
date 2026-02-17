@@ -41,6 +41,7 @@ function evaluate_directional_source_term!(::SourceTermBottom, output, current_s
     g  = cs.equation.g
     r  = cs.equation.ρ1 / cs.equation.ρ2
     out_m2 = (dir == XDIR) ? output.q2 : output.p2
+
     h1R = cs.right_buffer.h1; h1L = cs.left_buffer.h1
     wR  = cs.right_buffer.w;  wL  = cs.left_buffer.w
     @fvmloop for_each_inner_cell(cs.backend, cs.grid, dir) do ileft, imiddle, iright
