@@ -122,7 +122,7 @@ function compute_eigenvalues(eq::AllTwoLayerSWE, direction::Direction, h1, q1, h
         c4 = u1^2*u2^2 - g*(u1^2*h2 + u2^2*h1) + g^2*(1 - r)*h1*h2
 
         λmin, λmax = lagrange_bounds(c1, c2, c3, c4)
-        return @SVector [λmin, λmax]
+        return @SVector [λmax, λmin, λmax, λmin]
     end
 end
 

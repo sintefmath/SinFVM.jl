@@ -91,28 +91,6 @@ function (eq::TwoLayerShallowWaterEquations2D)(::YDIRT, h1, q1, p1, w, q2, p2, B
 end
 
 # ============================================================
-# Eigenvalues
-# Keep using h2 as in the 1D routine since the eigenvalues only depend on the local state and Bface
+# Eigenvalues:
+# Just use the 1D eigenvalues in each direction since the system is hyperbolic and the y-flux has the same structure as the x-flux with u↔v swap.
 # ============================================================
-
-# core: XDIR uses q1,q2 as momenta
-function compute_eigenvalues(eq::TwoLayerShallowWaterEquations2D, ::XDIRT, h1, m1, h2, m2)
-    eq1d = TwoLayerShallowWaterEquations1D(eq.B; ρ1=eq.ρ1, ρ2=eq.ρ2, g=eq.g,
-                                          depth_cutoff=eq.depth_cutoff,
-                                          desingularizing_kappa=eq.desingularizing_kappa)
-    return compute_eigenvalues(eq1d, XDIRT(), h1, m1, h2, m2)
-end
-
-# core: YDIR uses p1,p2 as momenta in the 1D routine
-function compute_eigenvalues(eq::TwoLayerShallowWaterEquations2D, ::YDIRT, h1, m1, h2, m2)
-    eq1d = TwoLayerShallowWaterEquations1D(eq.B; ρ1=eq.ρ1, ρ2=eq.ρ2, g=eq.g,
-                                          depth_cutoff=eq.depth_cutoff,
-                                          desingularizing_kappa=eq.desingularizing_kappa)
-    return compute_eigenvalues(eq1d, YDIRT(), h1, m1, h2, m2)
-end
-
-
-function compute_max_abs_eigenvalue(eq::TwoLayerShallowWaterEquations2D, dir, h1, m1, h2, m2)
-    λ = compute_eigenvalues(eq, dir, h1, m1, h2, m2)
-    return maximum(abs, λ)
-end
