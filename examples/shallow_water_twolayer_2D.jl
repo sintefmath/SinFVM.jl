@@ -7,52 +7,45 @@ using SinFVM
 #   U = (h1, q1, p1, w, q2, p2)   where w = h2 + B
 # ============================================================
 
-# --- periodic wrap to [0,1)
 xwrap(x) = x - floor(x)
-
-# ----------------------------
-# Bottom builders (built-in types)
-# ----------------------------
-make_bottom_constant(B0) = SinFVM.ConstantBottomTopography(B0)
 
 bottom_cosine_2d(; B0=-3.0, A=0.4, mx=1, my=1) =
     (x, y) -> (B0 + A*cos(2π*mx*x) * cos(2π*my*y))
+function make_bottom_intersections_2d(Bfun, backend, grid)
+    nxg, nyg = size(grid) .+ 1   # includes ghosts automatically
 
-"""
-Build BottomTopography2D from an analytic function Bfun(x̂,ŷ) where x̂,ŷ are in [0,1),
-using the grid's *actual* face coordinates (including ghosts).
-This matches SinFVM's expected intersection array size == size(grid) .+ 1.
-"""
-function make_bottom_intersections_2d(Bfun, backend, grid::SinFVM.CartesianGrid{2})
-    # 1D face coordinate vectors (length totalcells[dir] + 1)
-    x_faces = SinFVM.cell_faces(grid, SinFVM.XDIR; interior=false)
-    y_faces = SinFVM.cell_faces(grid, SinFVM.YDIR; interior=false)
-
-    # extents for normalization to [0,1) (important if extent != [0,1])
     x0 = SinFVM.start_extent(grid, SinFVM.XDIR)
     x1 = SinFVM.end_extent(grid,   SinFVM.XDIR)
     y0 = SinFVM.start_extent(grid, SinFVM.YDIR)
     y1 = SinFVM.end_extent(grid,   SinFVM.YDIR)
+
     Lx = x1 - x0
     Ly = y1 - y0
 
-    nxg = length(x_faces) - 1
-    nyg = length(y_faces) - 1
-    Bint = Matrix{Float64}(undef, nxg + 1, nyg + 1)
+    dx = Lx / (size(grid)[1])
+    dy = Ly / (size(grid)[2])
 
-    @inbounds for j in 1:(nyg + 1), i in 1:(nxg + 1)
-        # normalize to [0,1) and wrap periodically
-        x̂ = xwrap((x_faces[i] - x0) / Lx)
-        ŷ = xwrap((y_faces[j] - y0) / Ly)
-        Bint[i, j] = Bfun(x̂, ŷ)
+    gcx, gcy = grid.ghostcells
+
+    Bint = Matrix{Float64}(undef, nxg, nyg)
+
+    for j in 1:nyg
+        for i in 1:nxg
+            x = x0 + (i - gcx - 1)*dx
+            y = y0 + (j - gcy - 1)*dy
+
+            x̂ = xwrap((x - x0)/Lx)
+            ŷ = xwrap((y - y0)/Ly)
+
+            Bint[i,j] = Bfun(x̂, ŷ)
+        end
     end
 
     return SinFVM.BottomTopography2D(Bint, backend, grid)
 end
 
-# ----------------------------
-# IC: equilibrium in (h1,q1,p1,w,q2,p2)
-# ----------------------------
+
+
 function ic_equilibrium_w(; h10=1.0, w0=-1.0, min_h=1e-10)
     return (xy, Bcell) -> begin
         h1 = max(h10, min_h)
@@ -64,9 +57,6 @@ function ic_equilibrium_w(; h10=1.0, w0=-1.0, min_h=1e-10)
     end
 end
 
-# ----------------------------
-# Utility: extract interior fields for plotting/printing
-# ----------------------------
 function interior_fields(sim, eq, grid)
     st = SinFVM.current_interior_state(sim)
     Bcell = SinFVM.collect_topography_cells(eq.B, grid; interior=true)
@@ -88,18 +78,20 @@ function interior_fields(sim, eq, grid)
 end
 
 # ============================================================
-# Main script (no wrapper function)
+# Main script
 # ============================================================
 
 backend = SinFVM.make_cpu_backend()
-nx, ny = 64, 64
+nx, ny = 10, 10
 gc = 2
 grid = SinFVM.CartesianGrid(nx, ny; gc=gc, boundary=SinFVM.PeriodicBC())
 
-# --- Bathymetry as before (built-in BottomTopography2D on intersections)
+# --- Bathymetry as before (intersections incl ghosts)
 B0, A, mx, my = -3.0, 0.4, 1, 1
-Bfun = bottom_cosine_2d(B0=B0, A=A, mx=mx, my=my)
-bottom = make_bottom_intersections_2d(Bfun, backend, grid)
+Bfun   = bottom_cosine_2d(B0=B0, A=A, mx=mx, my=my)
+
+#bottom = make_bottom_intersections_2d(Bfun, backend, grid)
+bottom = ConstantBottomTopography(B0, backend, grid)  # for testing
 
 equation = SinFVM.TwoLayerShallowWaterEquations2D(bottom; ρ1=1.00, ρ2=1.02, g=9.81)
 numericalflux = SinFVM.CentralUpwind(equation)
@@ -110,11 +102,15 @@ ncp_src    = SinFVM.SourceTermNonConservative()
 cs  = SinFVM.ConservedSystem(backend, reconstruction, numericalflux, equation, grid, [bottom_src, ncp_src])
 sim = SinFVM.Simulator(backend, cs, SinFVM.RungeKutta2(), grid; cfl=0.6)
 
-# --- IC on full indexing space
+# --- IC MUST be interior-sized for set_current_state!
 ic = ic_equilibrium_w(h10=1.0, w0=-1.0)
-xy_all = SinFVM.cell_centers(grid)  # interior=false by default for your grid code
-B_all  = SinFVM.collect_topography_cells(equation.B, grid; interior=false)
-initial = [ic(xy_all[I], B_all[I]) for I in eachindex(xy_all)]
+
+xy_int = SinFVM.cell_centers(grid; interior=true)
+B_int  = SinFVM.collect_topography_cells(equation.B, grid; interior=true)
+
+@assert size(xy_int) == size(B_int) == SinFVM.interior_size(grid)
+
+initial = [ic(xy_int[I], B_int[I]) for I in eachindex(xy_int)]
 SinFVM.set_current_state!(sim, initial)
 
 # --- Initial diagnostics
@@ -128,8 +124,8 @@ println("---- initial checks (interior) ----")
 @show maximum(abs.(fld0.u2)) maximum(abs.(fld0.v2))
 @show minimum(fld0.η) maximum(fld0.η)
 
-# --- Plot setup (Observables so it updates after simulation)
-Tshow = 5.0
+# --- Plot setup (Observables so it updates)
+Tshow = 0.1
 title = "Equilibrium test (2D): constant h1 and constant w on cosine bathymetry"
 
 f = Figure(size=(1600, 900), fontsize=18)
