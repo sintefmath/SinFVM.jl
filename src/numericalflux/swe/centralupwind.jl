@@ -80,14 +80,18 @@ function (centralupwind::CentralUpwind)(eq::AllTwoLayerSWE, faceminus, faceplus,
     nvars = length(faceminus)
     @assert nvars == length(faceplus)
 
-    if nvars == 4
-        # 1D: (h1,q1,w,q2)
-        h1idx = 1; m1idx = 2; widx = 3; m2idx = 4
-    elseif nvars == 6
-        # 2D: (h1,q1,p1,w,q2,p2)
-        h1idx = 1; widx = 4
-        m1idx = _m1_idx(direction)
-        m2idx = _m2_idx(direction)
+    if nvars == 4 # 1D: (h1, q1, w, q2)
+    h1idx = 1; m1idx = 2; widx  = 3; m2idx = 4 
+
+    elseif nvars == 6 # 2D: (h1, q1, p1, w, q2, p2)
+        h1idx = 1; widx  = 4
+        if direction == XDIR
+            m1idx = 2; m2idx = 5 
+        elseif direction == YDIR
+            m1idx = 3; m2idx = 6  
+        else
+            throw(ArgumentError("Unsupported direction $direction"))
+        end
     else
         throw(ArgumentError("Unsupported state size $nvars for two-layer CentralUpwind"))
     end

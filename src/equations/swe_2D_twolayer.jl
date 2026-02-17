@@ -3,10 +3,13 @@ using Adapt
 using SinFVM
 
 # ============================================================
-# Two-layer SWE in 2D
+# Two-layer SWE in 2D (w-storage)
 # Conserved variables:
-#   U = (h1, q1, p1, h2, q2, p2)
-# where q_i = h_i u_i,  p_i = h_i v_i
+#   U = (h1, q1, p1, w, q2, p2)
+# where:
+#   q_i = h_i u_i,  p_i = h_i v_i
+#   w = h2 + B   (equilibrium/storage variable)
+# Physical h2 at faces: h2 = w - Bface
 # ============================================================
 
 struct TwoLayerShallowWaterEquations2D{T, S} <: Equation
@@ -39,14 +42,14 @@ function Adapt.adapt_structure(to, eq::TwoLayerShallowWaterEquations2D{T,S}) whe
         depth_cutoff=depth_cutoff, desingularizing_kappa=desingularizing_kappa)
 end
 
-conserved_variable_names(::Type{T}) where {T<:TwoLayerShallowWaterEquations2D} = (:h1, :q1, :p1, :h2, :q2, :p2)
 
-# x-direction (F(U,B))
-function (eq::TwoLayerShallowWaterEquations2D)(::XDIRT, h1, q1, p1, h2, q2, p2, Bface)
-    g  = eq.g
-    ρ1 = eq.ρ1
-    ρ2 = eq.ρ2
-    r = ρ1/ρ2
+conserved_variable_names(::Type{T}) where {T<:TwoLayerShallowWaterEquations2D} = (:h1, :q1, :p1, :w, :q2, :p2)
+
+# F(U,B)
+function (eq::TwoLayerShallowWaterEquations2D)(::XDIRT, h1, q1, p1, w, q2, p2, Bface)
+    g = eq.g
+    r = eq.ρ1 / eq.ρ2
+    h2 = w - Bface
 
     u1 = desingularize(eq, h1, q1); v1 = desingularize(eq, h1, p1)
     u2 = desingularize(eq, h2, q2); v2 = desingularize(eq, h2, p2)
@@ -54,22 +57,23 @@ function (eq::TwoLayerShallowWaterEquations2D)(::XDIRT, h1, q1, p1, h2, q2, p2, 
     return @SVector[
         # layer 1
         q1,
-        q1*u1 + g*h1*(h1 + h2 + Bface),
+        q1*u1 + g*h1*(h1 + w),
         q1*v1,
 
         # layer 2
         q2,
-        q2*u2 + 0.5*g*(h2 +Bface)^2 -0.5*g*r*(h1)^2 - g*Bface*(r*h1 + h2 + Bface), 
+        q2*u2 + 0.5*g*w^2 - 0.5*g*r*h1^2 - g*Bface*(r*h1 + w),
         q2*v2
     ]
 end
 
-# y-direction G(U,B)
-function (eq::TwoLayerShallowWaterEquations2D)(::YDIRT, h1, q1, p1, h2, q2, p2, Bface)
-    g  = eq.g
-    ρ1 = eq.ρ1
-    ρ2 = eq.ρ2
-    r = ρ1/ρ2
+# ----------------------------
+# Flux in y-direction: G(U,B)
+# ----------------------------
+function (eq::TwoLayerShallowWaterEquations2D)(::YDIRT, h1, q1, p1, w, q2, p2, Bface)
+    g = eq.g
+    r = eq.ρ1 / eq.ρ2
+    h2 = w - Bface
 
     u1 = desingularize(eq, h1, q1); v1 = desingularize(eq, h1, p1)
     u2 = desingularize(eq, h2, q2); v2 = desingularize(eq, h2, p2)
@@ -78,29 +82,38 @@ function (eq::TwoLayerShallowWaterEquations2D)(::YDIRT, h1, q1, p1, h2, q2, p2, 
         # layer 1
         p1,
         p1*u1,
-        p1*v1 + g*h1*(h1 + h2 + Bface),
+        p1*v1 + g*h1*(h1 + w),
 
         # layer 2
         p2,
         p2*u2,
-        p2*v2 + 0.5*g*(h2 +Bface)^2 - 0.5*g*r*(h1)^2 - g*Bface*(r*h1 + h2 + Bface)
+        p2*v2 + 0.5*g*w^2 - 0.5*g*r*h1^2 - g*Bface*(r*h1 + w)
     ]
 end
 
+# ============================================================
+# Eigenvalues
+# Keep using h2 as in the 1D routine since the eigenvalues only depend on the local state and Bface
+# ============================================================
 
-#Make 1D version of equation to compute eigenvalues in each direction using the same code as in the 1D case
-function compute_eigenvalues(eq::TwoLayerShallowWaterEquations2D, ::XDIRT, h1, q1, p1, h2, q2, p2)
-    return compute_eigenvalues(TwoLayerShallowWaterEquations1D(eq.B; ρ1=eq.ρ1, ρ2=eq.ρ2, g=eq.g,depth_cutoff=eq.depth_cutoff, desingularizing_kappa=eq.desingularizing_kappa),
-                               XDIRT(), h1, q1, h2, q2)
+# core: XDIR uses q1,q2 as momenta
+function compute_eigenvalues(eq::TwoLayerShallowWaterEquations2D, ::XDIRT, h1, m1, h2, m2)
+    eq1d = TwoLayerShallowWaterEquations1D(eq.B; ρ1=eq.ρ1, ρ2=eq.ρ2, g=eq.g,
+                                          depth_cutoff=eq.depth_cutoff,
+                                          desingularizing_kappa=eq.desingularizing_kappa)
+    return compute_eigenvalues(eq1d, XDIRT(), h1, m1, h2, m2)
 end
 
-#Need to pass XDIRT rutine in 1D to compute the eigenvalues in the y-direction by passing the y-components of the conserved variables instead of the x-components
-function compute_eigenvalues(eq::TwoLayerShallowWaterEquations2D, ::YDIRT, h1, q1, p1, h2, q2, p2)
-    return compute_eigenvalues(TwoLayerShallowWaterEquations1D(eq.B; ρ1=eq.ρ1, ρ2=eq.ρ2, g=eq.g, depth_cutoff=eq.depth_cutoff, desingularizing_kappa=eq.desingularizing_kappa),
-                               XDIRT(), h1, p1, h2, p2)
+# core: YDIR uses p1,p2 as momenta in the 1D routine
+function compute_eigenvalues(eq::TwoLayerShallowWaterEquations2D, ::YDIRT, h1, m1, h2, m2)
+    eq1d = TwoLayerShallowWaterEquations1D(eq.B; ρ1=eq.ρ1, ρ2=eq.ρ2, g=eq.g,
+                                          depth_cutoff=eq.depth_cutoff,
+                                          desingularizing_kappa=eq.desingularizing_kappa)
+    return compute_eigenvalues(eq1d, XDIRT(), h1, m1, h2, m2)
 end
 
-function compute_max_abs_eigenvalue(eq::TwoLayerShallowWaterEquations2D, dir, h1, q1, p1, h2, q2, p2)
-    λ = compute_eigenvalues(eq, dir, h1, q1, p1, h2, q2, p2)
+
+function compute_max_abs_eigenvalue(eq::TwoLayerShallowWaterEquations2D, dir, h1, m1, h2, m2)
+    λ = compute_eigenvalues(eq, dir, h1, m1, h2, m2)
     return maximum(abs, λ)
 end

@@ -3,134 +3,183 @@ using StaticArrays
 using SinFVM
 
 # ============================================================
-# Two-layer SWE 2D runner (PHYSICAL STORAGE)
-#   U = (h1, q1, p1, h2, q2, p2)
-# Reconstruction internally uses equilibrium variable ω = h2 + B
-# but returns face states in PHYSICAL variables.
+# Two-layer SWE 2D runner (EQUILIBRIUM STORAGE)
+#   U = (h1, q1, p1, w, q2, p2)   where w = h2 + B
+# ============================================================
+
+# --- periodic wrap to [0,1)
+xwrap(x) = x - floor(x)
+
+# ----------------------------
+# Bottom builders (built-in types)
+# ----------------------------
+make_bottom_constant(B0) = SinFVM.ConstantBottomTopography(B0)
+
+bottom_cosine_2d(; B0=-3.0, A=0.4, mx=1, my=1) =
+    (x, y) -> (B0 + A*cos(2π*mx*x) * cos(2π*my*y))
+
+"""
+Build BottomTopography2D from an analytic function Bfun(x̂,ŷ) where x̂,ŷ are in [0,1),
+using the grid's *actual* face coordinates (including ghosts).
+This matches SinFVM's expected intersection array size == size(grid) .+ 1.
+"""
+function make_bottom_intersections_2d(Bfun, backend, grid::SinFVM.CartesianGrid{2})
+    # 1D face coordinate vectors (length totalcells[dir] + 1)
+    x_faces = SinFVM.cell_faces(grid, SinFVM.XDIR; interior=false)
+    y_faces = SinFVM.cell_faces(grid, SinFVM.YDIR; interior=false)
+
+    # extents for normalization to [0,1) (important if extent != [0,1])
+    x0 = SinFVM.start_extent(grid, SinFVM.XDIR)
+    x1 = SinFVM.end_extent(grid,   SinFVM.XDIR)
+    y0 = SinFVM.start_extent(grid, SinFVM.YDIR)
+    y1 = SinFVM.end_extent(grid,   SinFVM.YDIR)
+    Lx = x1 - x0
+    Ly = y1 - y0
+
+    nxg = length(x_faces) - 1
+    nyg = length(y_faces) - 1
+    Bint = Matrix{Float64}(undef, nxg + 1, nyg + 1)
+
+    @inbounds for j in 1:(nyg + 1), i in 1:(nxg + 1)
+        # normalize to [0,1) and wrap periodically
+        x̂ = xwrap((x_faces[i] - x0) / Lx)
+        ŷ = xwrap((y_faces[j] - y0) / Ly)
+        Bint[i, j] = Bfun(x̂, ŷ)
+    end
+
+    return SinFVM.BottomTopography2D(Bint, backend, grid)
+end
+
+# ----------------------------
+# IC: equilibrium in (h1,q1,p1,w,q2,p2)
+# ----------------------------
+function ic_equilibrium_w(; h10=1.0, w0=-1.0, min_h=1e-10)
+    return (xy, Bcell) -> begin
+        h1 = max(h10, min_h)
+        h2 = w0 - Bcell
+        if h2 <= 0
+            error("IC makes h2<=0 at xy=$xy: h2=w0-Bcell=$w0-$Bcell=$h2. Choose w0 > max(Bcell).")
+        end
+        @SVector [h1, 0.0, 0.0, w0, 0.0, 0.0]
+    end
+end
+
+# ----------------------------
+# Utility: extract interior fields for plotting/printing
+# ----------------------------
+function interior_fields(sim, eq, grid)
+    st = SinFVM.current_interior_state(sim)
+    Bcell = SinFVM.collect_topography_cells(eq.B, grid; interior=true)
+
+    h1 = collect(st.h1)
+    q1 = collect(st.q1); p1 = collect(st.p1)
+    w  = collect(st.w)
+    q2 = collect(st.q2); p2 = collect(st.p2)
+
+    h2 = w .- Bcell
+    η  = h1 .+ w
+
+    u1 = SinFVM.desingularize.(Ref(eq), h1, q1)
+    v1 = SinFVM.desingularize.(Ref(eq), h1, p1)
+    u2 = SinFVM.desingularize.(Ref(eq), h2, q2)
+    v2 = SinFVM.desingularize.(Ref(eq), h2, p2)
+
+    return (; Bcell, h1,q1,p1,w,q2,p2,h2,η,u1,v1,u2,v2)
+end
+
+# ============================================================
+# Main script (no wrapper function)
 # ============================================================
 
 backend = SinFVM.make_cpu_backend()
-nx, ny = 32, 32
-grid = SinFVM.CartesianGrid(nx, ny; gc=2, boundary=SinFVM.PeriodicBC())
+nx, ny = 64, 64
+gc = 2
+grid = SinFVM.CartesianGrid(nx, ny; gc=gc, boundary=SinFVM.PeriodicBC())
 
-B0 = -3.0
-bottom = SinFVM.ConstantBottomTopography(B0)
+# --- Bathymetry as before (built-in BottomTopography2D on intersections)
+B0, A, mx, my = -3.0, 0.4, 1, 1
+Bfun = bottom_cosine_2d(B0=B0, A=A, mx=mx, my=my)
+bottom = make_bottom_intersections_2d(Bfun, backend, grid)
 
 equation = SinFVM.TwoLayerShallowWaterEquations2D(bottom; ρ1=1.00, ρ2=1.02, g=9.81)
 numericalflux = SinFVM.CentralUpwind(equation)
-
 reconstruction = SinFVM.LinearLimiterReconstruction(SinFVM.VanLeerLimiter())
 
 bottom_src = SinFVM.SourceTermBottom()
 ncp_src    = SinFVM.SourceTermNonConservative()
+cs  = SinFVM.ConservedSystem(backend, reconstruction, numericalflux, equation, grid, [bottom_src, ncp_src])
+sim = SinFVM.Simulator(backend, cs, SinFVM.RungeKutta2(), grid; cfl=0.6)
 
-conserved_system = SinFVM.ConservedSystem(
-    backend, reconstruction, numericalflux, equation, grid, [bottom_src, ncp_src]
-)
+# --- IC on full indexing space
+ic = ic_equilibrium_w(h10=1.0, w0=-1.0)
+xy_all = SinFVM.cell_centers(grid)  # interior=false by default for your grid code
+B_all  = SinFVM.collect_topography_cells(equation.B, grid; interior=false)
+initial = [ic(xy_all[I], B_all[I]) for I in eachindex(xy_all)]
+SinFVM.set_current_state!(sim, initial)
 
-timestepper = SinFVM.RungeKutta2()
-simulator = SinFVM.Simulator(backend, conserved_system, timestepper, grid; cfl=0.6)
+# --- Initial diagnostics
+fld0 = interior_fields(sim, equation, grid)
+println("---- initial checks (interior) ----")
+@show extrema(fld0.Bcell)
+@show minimum(fld0.h1) maximum(fld0.h1)
+@show minimum(fld0.w)  maximum(fld0.w)
+@show minimum(fld0.h2) maximum(fld0.h2)
+@show maximum(abs.(fld0.u1)) maximum(abs.(fld0.v1))
+@show maximum(abs.(fld0.u2)) maximum(abs.(fld0.v2))
+@show minimum(fld0.η) maximum(fld0.η)
 
-# ------------------------------------------------------------
-# Grid data (FULL grid incl. ghost cells) for initialization
-# ------------------------------------------------------------
-# IMPORTANT: keep x, Bvals, and initial consistent (same indexing space)
-x_all    = SinFVM.cell_centers(grid)  # typically includes ghost cells when gc>0
-B_all    = SinFVM.collect_topography_cells(equation.B, grid; interior=false)
-
-ε0 = 0.0
-
-u1fun(xy) = 0.0
-v1fun(xy) = 0.0
-u2fun(xy) = 0.0
-v2fun(xy) = 0.0
-
-h2fun(xy) = exp(-((xy[1] - 0.5)^2 + (xy[2] - 0.5)^2) / 0.02) + 1.5
-
-u0 = (xy, Bi) -> begin
-    h2 = h2fun(xy)
-    h1 = ε0 - (Bi + h2)  # ε = B + h2 + h1
-
-    # (q,p) are x- and y-momenta
-    q1 = h1 * u1fun(xy)
-    p1 = h1 * v1fun(xy)
-    q2 = h2 * u2fun(xy)
-    p2 = h2 * v2fun(xy)
-
-    @SVector [h1, q1, p1, h2, q2, p2]
-end
-
-# Build initial state on the SAME index set as x_all and B_all
-initial = [u0(x_all[I], B_all[I]) for I in eachindex(x_all)]
-SinFVM.set_current_state!(simulator, initial)
-
-# ------------------------------------------------------------
-# Interior arrays for plotting
-# ------------------------------------------------------------
-B_int = SinFVM.collect_topography_cells(equation.B, grid; interior=true)
-
-function interior_fields(simulator, Bvals_int)
-    st = SinFVM.current_interior_state(simulator)
-
-    h1 = collect(st.h1); q1 = collect(st.q1); p1 = collect(st.p1)
-    h2 = collect(st.h2); q2 = collect(st.q2); p2 = collect(st.p2)
-
-    ω = Bvals_int .+ h2
-    ε = ω .+ h1
-
-    u1 = q1 ./ max.(h1, 1e-8)
-    v1 = p1 ./ max.(h1, 1e-8)
-    u2 = q2 ./ max.(h2, 1e-8)
-    v2 = p2 ./ max.(h2, 1e-8)
-
-    return (; h1,q1,p1,h2,q2,p2, ω, ε, u1,v1,u2,v2)
-end
-
-# ------------------------------------------------------------
-# Visualization
-# ------------------------------------------------------------
-Tshow = 10
+# --- Plot setup (Observables so it updates after simulation)
+Tshow = 5.0
+title = "Equilibrium test (2D): constant h1 and constant w on cosine bathymetry"
 
 f = Figure(size=(1600, 900), fontsize=18)
-Label(f[0, 1:2], "Two-layer SWE 2D — nx=$(nx), ny=$(ny), T=$(Tshow)", fontsize=22, padding=(0, 0, 10, 0))
+Label(f[0, 1:2], "$title | nx=$nx, ny=$ny, T=$Tshow", fontsize=22, padding=(0,0,10,0))
 
-ax_ω  = Axis(f[1, 1], title=L"\omega = B + h_2", xlabel=L"x", ylabel=L"y")
-ax_ε  = Axis(f[1, 2], title=L"\varepsilon = B + h_2 + h_1", xlabel=L"x", ylabel=L"y")
-ax_u1 = Axis(f[2, 1], title=L"u_1 = q_1/h_1", xlabel=L"x", ylabel=L"y")
-ax_u2 = Axis(f[2, 2], title=L"u_2 = q_2/h_2", xlabel=L"x", ylabel=L"y")
+ax_B  = Axis(f[1, 1], title=L"B(x,y)")
+ax_w  = Axis(f[1, 2], title=L"w = h_2 + B")
+ax_η  = Axis(f[2, 1], title=L"\eta = h_1 + w")
+ax_u2 = Axis(f[2, 2], title=L"u_2")
 
-fld0 = interior_fields(simulator, B_int)
+B_obs  = Observable(fld0.Bcell)
+w_obs  = Observable(fld0.w)
+η_obs  = Observable(fld0.η)
+u2_obs = Observable(fld0.u2)
 
-hm_ω0 = heatmap!(ax_ω, fld0.ω);  Colorbar(f[1, 3], hm_ω0, label=L"\omega")
-hm_ε0 = heatmap!(ax_ε, fld0.ε);  Colorbar(f[1, 4], hm_ε0, label=L"\varepsilon")
-hm_u10 = heatmap!(ax_u1, fld0.u1); Colorbar(f[2, 3], hm_u10, label=L"u_1")
-hm_u20 = heatmap!(ax_u2, fld0.u2); Colorbar(f[2, 4], hm_u20, label=L"u_2")
-
-println("---- initial checks ----")
-@show minimum(fld0.h1) minimum(fld0.h2)
-@show maximum(abs.(fld0.u1)) maximum(abs.(fld0.u2))
-@show minimum(fld0.ε) maximum(fld0.ε)
+hm_B  = heatmap!(ax_B,  B_obs);  Colorbar(f[1, 3], hm_B,  label=L"B")
+hm_w  = heatmap!(ax_w,  w_obs);  Colorbar(f[1, 4], hm_w,  label=L"w")
+hm_η  = heatmap!(ax_η,  η_obs);  Colorbar(f[2, 3], hm_η,  label=L"\eta")
+hm_u2 = heatmap!(ax_u2, u2_obs); Colorbar(f[2, 4], hm_u2, label=L"u_2")
 
 display(f)
 
-# ------------------------------------------------------------
-# Run
-# ------------------------------------------------------------
-@time SinFVM.simulate_to_time(simulator, Tshow)
+# --- Micro-step sanity
+println("---- micro-step sanity (t = 1e-4) ----")
+SinFVM.simulate_to_time(sim, 1e-4)
+fldm = interior_fields(sim, equation, grid)
+@show any(isnan, fldm.h1) any(isnan, fldm.w) any(isnan, fldm.q1) any(isnan, fldm.q2)
+@show minimum(fldm.h2)
 
-# ------------------------------------------------------------
-# Final update
-# ------------------------------------------------------------
-fld = interior_fields(simulator, B_int)
+# reset to IC
+SinFVM.set_current_state!(sim, initial)
 
-println("---- final checks ----")
-@show minimum(fld.h1) minimum(fld.h2)
-@show maximum(abs.(fld.u1)) maximum(abs.(fld.u2))
-@show minimum(fld.ε) maximum(fld.ε)
+# --- Run
+println("---- run to Tshow ----")
+@time SinFVM.simulate_to_time(sim, Tshow)
 
-hm_ω0[3][]  = fld.ω
-hm_ε0[3][]  = fld.ε
-hm_u10[3][] = fld.u1
-hm_u20[3][] = fld.u2
+# --- Final diagnostics + update plot
+fld = interior_fields(sim, equation, grid)
+println("---- final checks (interior) ----")
+@show minimum(fld.h1) maximum(fld.h1)
+@show minimum(fld.w)  maximum(fld.w)
+@show minimum(fld.h2) maximum(fld.h2)
+@show maximum(abs.(fld.u1)) maximum(abs.(fld.v1))
+@show maximum(abs.(fld.u2)) maximum(abs.(fld.v2))
+@show minimum(fld.η) maximum(fld.η)
+
+B_obs[]  = fld.Bcell
+w_obs[]  = fld.w
+η_obs[]  = fld.η
+u2_obs[] = fld.u2
+display(f)
 
 f

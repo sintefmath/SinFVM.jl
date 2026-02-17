@@ -36,7 +36,6 @@ end
 
 
 function evaluate_directional_source_term!(::SourceTermBottom, output, current_state, cs::ConservedSystem{<:Any,<:Any,<:Any,<:AllTwoLayerSWE}, dir::Direction)
-    println("DEBUG: Two-layer bottom source called, dir=", dir)
     dx = compute_dx(cs.grid, dir)
     B  = cs.equation.B
     g  = cs.equation.g
