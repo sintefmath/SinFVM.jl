@@ -85,9 +85,9 @@ function (centralupwind::CentralUpwind)(eq::AllTwoLayerSWE, faceminus, faceplus,
 
     elseif nvars == 6 # 2D: (h1, q1, p1, w, q2, p2)
         h1idx = 1; widx  = 4
-        if direction == XDIR
+        if direction == XDIR # Update x momentum, in both layers
             m1idx = 2; m2idx = 5 
-        elseif direction == YDIR
+        elseif direction == YDIR # Update y momentum, in both layers
             m1idx = 3; m2idx = 6  
         else
             throw(ArgumentError("Unsupported direction $direction"))
@@ -97,35 +97,40 @@ function (centralupwind::CentralUpwind)(eq::AllTwoLayerSWE, faceminus, faceplus,
     end
 
     # physical depths at this interface
-    h1m = faceminus[h1idx]; h1p = faceplus[h1idx]
-    h2m = faceminus[widx] - Bface; h2p = faceplus[widx]  - Bface
+    h1m = faceminus[h1idx]; h1p = faceplus[h1idx] #h1 at face
+    h2m = faceminus[widx] - Bface; h2p = faceplus[widx]  - Bface #h2 at face, using w-B
 
+    #Checking wet/dry states using phisical depths
     wet_m = (h1m > eq.depth_cutoff) && (h2m > eq.depth_cutoff)
     wet_p = (h1p > eq.depth_cutoff) && (h2p > eq.depth_cutoff)
 
-    # minus state
+    #Minus state at face
     fluxminus = zero(faceminus)
     λmin_m = 0.0; λmax_m = 0.0; u1m = 0.0; u2m = 0.0
     if wet_m
-        fluxminus = eq(direction, faceminus..., Bface)
-        λm = compute_eigenvalues(eq, direction, h1m, faceminus[m1idx], h2m, faceminus[m2idx])
-        λmin_m = minimum(λm); λmax_m = maximum(λm)
+        fluxminus = eq(direction, faceminus..., Bface) #Compute flux using face values and equation
+        λm = compute_eigenvalues(eq, direction, h1m, faceminus[m1idx], h2m, faceminus[m2idx]) #Compute eigenvalues using correct momentum
+        λmin_m = minimum(λm); λmax_m = maximum(λm) #Find min and max eigenvalues for minus state
+
+        #Desingularize directional velocities for minus state
         u1m = desingularize(eq, h1m, faceminus[m1idx])
         u2m = desingularize(eq, h2m, faceminus[m2idx])
     end
 
-    # plus state
+    #Plus state at face
     fluxplus = zero(faceplus)
     λmin_p = 0.0; λmax_p = 0.0; u1p = 0.0; u2p = 0.0
     if wet_p
-        fluxplus = eq(direction, faceplus..., Bface)
-        λp = compute_eigenvalues(eq, direction, h1p, faceplus[m1idx], h2p, faceplus[m2idx])
-        λmin_p = minimum(λp); λmax_p = maximum(λp)
+        fluxplus = eq(direction, faceplus..., Bface) #Compute flux using face values and equation
+        λp = compute_eigenvalues(eq, direction, h1p, faceplus[m1idx], h2p, faceplus[m2idx]) #Compute eigenvalues using correct momentum
+        λmin_p = minimum(λp); λmax_p = maximum(λp) #Find min and max eigenvalues for plus state
+
+        #Desingularize directional velocities for plus state
         u1p = desingularize(eq, h1p, faceplus[m1idx])
         u2p = desingularize(eq, h2p, faceplus[m2idx])
     end
 
-    # bounds using eigenvalues AND velocities
+    #Bounds using eigenvalues and velocities for given direction
     aplus  = max(0.0, λmax_m, λmax_p, u1m, u2m, u1p, u2p)
     aminus = min(0.0, λmin_m, λmin_p, u1m, u2m, u1p, u2p)
 
@@ -134,7 +139,8 @@ function (centralupwind::CentralUpwind)(eq::AllTwoLayerSWE, faceminus, faceplus,
         return zero(faceminus), zero(aminus)
     end
     
-    F = (aplus .* fluxminus .- aminus .* fluxplus) ./ denom .+ ((aplus * aminus) / denom) .* (faceplus .- faceminus)
+    #Calculate the flux over the interface
+    F = ((aplus*fluxminus - aminus*fluxplus) / denom) + ((aplus*aminus)/denom) * (faceplus - faceminus)
 
     if !wet_m && !wet_p
         return F, zero(aplus)
