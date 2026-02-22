@@ -12,6 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+include("swe/centralupwind.jl")
+include("swe/pathconservative_CU.jl")
+include("advection/godunov.jl")
+include("advection/rusanov.jl")
+include("burgers/godunov.jl")
+include("burgers/rusanov.jl")
+
+
 function compute_flux!(backend, F::NumericalFlux, output, left, right, wavespeeds, grid, equation::Equation, direction)
     Δx = compute_dx(grid, direction)
 
@@ -85,12 +94,4 @@ function compute_flux!(backend, F::PathConservativeCentralUpwind, output, left, 
     return maximum(wavespeeds)
 end
 
-
-
-include("swe/centralupwind.jl")
-include("swe/pathconservative_CU.jl")
-include("advection/godunov.jl")
-include("advection/rusanov.jl")
-include("burgers/godunov.jl")
-include("burgers/rusanov.jl")
 

@@ -94,3 +94,44 @@ end
 # Eigenvalues:
 # Just use the 1D eigenvalues in each direction since the system is hyperbolic and the y-flux has the same structure as the x-flux with u↔v swap.
 # ============================================================
+
+# See Kurganov and Petrova (2009) "Central-Upwind Schemes for Two-Layer Shallow Water Equations" eq. (2.18) - (2.24)
+function compute_eigenvalues(eq::TwoLayerShallowWaterEquations2D, direction::Direction, h1, q1, h2, q2)
+    g  = eq.g
+    ρ1 = eq.ρ1
+    ρ2 = eq.ρ2
+    r  = ρ1 / ρ2
+    H = h1 + h2
+
+    # In 1D this is just q/h, but direction is now available for 2D reuse
+    u1 = desingularize(eq, h1, q1)
+    u2 = desingularize(eq, h2, q2)
+
+    # Kurganov & Petrova eigenvalues
+    if (u2 - u1)^2 < (1 - r)*g*H
+        Um = (h1*u1 + h2*u2)/H
+        Uc = (h1*u2 + h2*u1)/H
+
+        c_ext = sqrt(g*H)
+        c_int = sqrt((1 - r)*g*(h1*h2/H) *
+                     (1 - (u2 - u1)^2/((1 - r)*g*H)))
+
+        return @SVector [Um + c_ext, Um - c_ext, Uc + c_int, Uc - c_int]
+    else
+        c1 = -2*(u1 + u2)
+        c2 = (u1 + u2)^2 + 2*u1*u2 - g*H
+        c3 = -2*u1*u2*(u1 + u2) + 2*g*(u1*h2 + u2*h1)
+        c4 = u1^2*u2^2 - g*(u1^2*h2 + u2^2*h1) + g^2*(1 - r)*h1*h2
+
+        λmin, λmax = lagrange_bounds(c1, c2, c3, c4)
+        return @SVector [λmax, λmin, λmax, λmin]
+    end
+end
+
+
+function compute_max_abs_eigenvalue(eq::TwoLayerShallowWaterEquations2D, direction::Direction, h1, q1, h2, q2)
+    λ = compute_eigenvalues(eq, direction, h1, q1, h2, q2)
+    return maximum(abs, λ)
+end
+
+
