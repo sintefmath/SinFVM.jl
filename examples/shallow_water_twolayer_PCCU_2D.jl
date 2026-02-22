@@ -109,7 +109,7 @@ gc = 2
 grid = SinFVM.CartesianGrid(nx, ny; gc=gc, boundary=SinFVM.PeriodicBC())
 
 # --- Bathymetry on faces including ghosts
-bottom = make_bottom_cos_sin_2d(; B0=-3.0, Ax=0.0, Ay=0.3, mx=1, my=1, backend=backend, grid=grid)
+bottom = make_bottom_cos_sin_2d(; B0=-3.0, Ax=0.4, Ay=0.3, mx=1, my=1, backend=backend, grid=grid)
 # bottom = make_bottom_quadrant_step_2d(; Bll=0.45, Bother=0.55, backend=backend, grid=grid)
 # bottom = SinFVM.ConstantBottomTopography(-3.0)
 

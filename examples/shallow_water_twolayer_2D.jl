@@ -148,7 +148,7 @@ println("---- initial checks (interior) ----")
 @show minimum(fld0.η) maximum(fld0.η)  # should be ~0
 
 # --- Plot setup
-Tshow = 9.0
+Tshow = 2.0
 title = "Equilibrium test (2D): η=0 (free surface), constant h1 and w=-h1"
 
 f = Figure(size=(1600, 900), fontsize=18)
