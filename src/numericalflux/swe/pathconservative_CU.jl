@@ -28,19 +28,19 @@ function compute_path_integral(eq, faceminus, faceplus, Bface_minus, Bface_plus)
     g = eq.g
     r = eq.ρ1 / eq.ρ2
 
-    h1m = faceminus[1]; wm  = faceminus[3]
-    h1p = faceplus[1]; wp  = faceplus[3]
+    h1m = faceminus[1]; wm = faceminus[3]
+    h1p = faceplus[1];  wp = faceplus[3]
 
     # BΨ term
-    Bpsi = @SVector [
+    Bpsi = @SVector[
         0.0,
         0.5*g*(h1p + wp + h1m + wm)*(h1p - h1m),
         0.0,
         -0.5*g*r*(h1p + wp + h1m + wm)*(h1p - h1m)
     ]
 
-    # SΨ term 
-    Spsi = @SVector [
+    # SΨ term (bottom jump contribution)
+    Spsi = @SVector[
         0.0,
         0.0,
         0.0,
@@ -51,42 +51,29 @@ function compute_path_integral(eq, faceminus, faceplus, Bface_minus, Bface_plus)
 end
 
 
-"""
-Path-Conservative Central-Upwind flux
-Consistent with Castro et al. (2019), eq. (4.13)
-"""
 function (pccu::PathConservativeCentralUpwind)(faceminus, faceplus, direction::Direction, Bface_minus, Bface_plus)
     eq = pccu.eq
 
     # Physical fluxes using correct face bottoms
     fluxminus = eq(direction, faceminus..., Bface_minus)
-    fluxplus = eq(direction, faceplus..., Bface_plus)
+    fluxplus  = eq(direction, faceplus...,  Bface_plus)
 
     # Physical depths
     h1m = faceminus[1]; h2m = faceminus[3] - Bface_minus
-    h1p = faceplus[1]; h2p = faceplus[3] - Bface_plus
+    h1p = faceplus[1];  h2p = faceplus[3]  - Bface_plus
 
     # Eigenvalues
     λm = compute_eigenvalues(eq, direction, h1m, faceminus[2], h2m, faceminus[4])
-    λp = compute_eigenvalues(eq, direction, h1p, faceplus[2], h2p, faceplus[4])
+    λp = compute_eigenvalues(eq, direction, h1p, faceplus[2],  h2p, faceplus[4])
 
     # Wave speed bounds
-    aplus = max(maximum(λm), maximum(λp), 0.0)
+    aplus  = max(maximum(λm), maximum(λp), 0.0)
     aminus = min(minimum(λm), minimum(λp), 0.0)
-    denom = aplus - aminus
+    denom  = aplus - aminus
 
     if abs(denom) < eq.desingularizing_kappa
-        return zero(faceminus), zero(denom)
+        return zero(faceminus), aplus, aminus
     end
-
-    # Standard CU flux
     F = ((aplus * fluxminus - aminus * fluxplus) / denom) + ((aplus * aminus) / denom) * (faceplus - faceminus)
-
-    # PCCU correction term
-    Dpsi = compute_path_integral(eq, faceminus, faceplus, Bface_minus, Bface_plus)
-
-    # Apply correction
-    F -= (aminus / denom) * Dpsi
-
-    return F, max(abs(aplus), abs(aminus))
+    return F, aplus, aminus
 end
