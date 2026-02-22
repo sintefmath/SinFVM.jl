@@ -78,8 +78,8 @@ function compute_flux!(backend, F::PathConservativeCentralUpwind, output, left, 
         denom_r = aplus_r - aminus_r; denom_l = aplus_l - aminus_l
 
         # Path integrals at interfaces (BΨ + SΨ)
-        Dpsi_r = compute_path_integral(equation, Um_r, Up_r, Zm_r, Zp_r)
-        Dpsi_l = compute_path_integral(equation, Um_l, Up_l, Zm_l, Zp_l)
+        Dpsi_r = compute_path_integral(equation, Um_r, Up_r, Zm_r, Zp_r, direction)
+        Dpsi_l = compute_path_integral(equation, Um_l, Up_l, Zm_l, Zp_l, direction)
 
         # PCCU interface corrections from (4.13)
         corr_r = (abs(denom_r) < equation.desingularizing_kappa) ? zero(Dpsi_r) : (aminus_r/denom_r)*Dpsi_r
@@ -87,7 +87,7 @@ function compute_flux!(backend, F::PathConservativeCentralUpwind, output, left, 
 
         #Update cell average with flux difference and PCCU correction
         output[imiddle] -= (H_r - H_l + corr_r - corr_l) / Δx
-
+        
         wavespeeds[imiddle] = max(max(abs(aplus_r), abs(aminus_r)), max(abs(aplus_l), abs(aminus_l)))
         nothing
     end
