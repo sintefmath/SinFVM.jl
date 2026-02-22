@@ -18,7 +18,6 @@ end
 
 Adapt.@adapt_structure CentralUpwind
 
-
 function (centralupwind::CentralUpwind)(faceminus, faceplus, direction::Direction)
     centralupwind(centralupwind.eq, faceminus, faceplus, direction)
 end
