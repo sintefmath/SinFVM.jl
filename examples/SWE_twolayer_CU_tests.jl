@@ -103,8 +103,8 @@ function plot_epsilon(sim_grid_pairs; title="", plot_fluctuation=false)
 end
 
 function main()
-    scheme   = :pccu
-    boundary = :neumann   # <-- matches the paper-style plot much better than periodic at t=0.15
+    scheme   = :cu
+    boundary = :periodic   # <-- matches the paper-style plot much better than periodic at t=0.15
     cfl = 0.45
     θ = 1.0
 
