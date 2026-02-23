@@ -36,7 +36,7 @@ end
 function update_bc!(backend, ::NeumannBC, grid::CartesianGrid{1}, ::Equation, data)
     @fvmloop for_each_ghost_cell(backend, grid, XDIR) do ghostcell
         data[ghostcell] = data[2 * grid.ghostcells[1] - ghostcell + 1]
-        data[grid.totalcells[1]-(grid.ghostcells[1]-ghostcell)] = data[grid.totalcells[1] - ghostcell + 1]
+        data[grid.totalcells[1]-(grid.ghostcells[1]-ghostcell)] = data[grid.totalcells[1] - grid.ghostcells[1] + 1 - ghostcell]
     end
 end
 
@@ -44,12 +44,12 @@ function update_bc!(backend, ::NeumannBC, grid::CartesianGrid{2}, ::Equation, da
     # TODO: Introduce some helper functions here...
     @fvmloop for_each_ghost_cell(backend, grid, XDIR) do ghostcell
         data[ghostcell[1], ghostcell[2]] = data[2 * grid.ghostcells[1] - ghostcell[1] + 1, ghostcell[2]]
-        data[grid.totalcells[1]-(grid.ghostcells[1]-ghostcell[1]), ghostcell[2]] = data[grid.totalcells[1] - ghostcell[1] + 1, ghostcell[2]]
+        data[grid.totalcells[1]-(grid.ghostcells[1]-ghostcell[1]), ghostcell[2]] = data[grid.totalcells[1] - grid.ghostcells[1] + 1 - ghostcell[1], ghostcell[2]]
     end
 
     @fvmloop for_each_ghost_cell(backend, grid, YDIR) do ghostcell
         data[ghostcell[1], ghostcell[2]] = data[ghostcell[1], grid.totalcells[2]+ghostcell[2]-2*grid.ghostcells[2]]
-        data[ghostcell[1], grid.totalcells[2]-(grid.ghostcells[2]-ghostcell[2])] = data[ghostcell[1], grid.totalcells[2]  - ghostcell[2] + 1]
+        data[ghostcell[1], grid.totalcells[2]-(grid.ghostcells[2]-ghostcell[2])] = data[ghostcell[1], grid.totalcells[2] - grid.ghostcells[2] + 1 - ghostcell[2]]
     end
 end
 
