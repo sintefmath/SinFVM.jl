@@ -115,12 +115,14 @@ bottom = make_bottom_cos_sin_2d(; B0=-3.0, Ax=0.4, Ay=0.3, mx=1, my=1, backend=b
 
 equation = SinFVM.TwoLayerShallowWaterEquations2D(bottom; ρ1=1.00, ρ2=1.02, g=9.81)
 reconstruction = SinFVM.LinearLimiterReconstruction(SinFVM.MinmodLimiter(1.0))
-numericalflux  = SinFVM.CentralUpwind(equation)
+numericalflux  = SinFVM.PathConservativeCentralUpwind(equation)
 
 bottom_src = SinFVM.SourceTermBottom()
 ncp_src    = SinFVM.SourceTermNonConservative()
 cs  = SinFVM.ConservedSystem(backend, reconstruction, numericalflux, equation, grid, [bottom_src, ncp_src])
-sim = SinFVM.Simulator(backend, cs, SinFVM.RungeKutta2(), grid; cfl=0.6)
+# Paper Theorem 3.1: 2D non-split positivity bound is dt ≤ min(Δx/(4a), Δy/(4b)), i.e. cfl ≤ 0.25.
+# In 1D the bound is cfl ≤ 0.5; the extra factor of 2 comes from both x and y sweeps.
+sim = SinFVM.Simulator(backend, cs, SinFVM.RungeKutta2(), grid; cfl=0.20)
 
 # --- IC: enforce η=0
 xy_int = SinFVM.cell_centers(grid; interior=true)
