@@ -40,7 +40,7 @@ State stored is V = (h1, q1, w, q2).
 
 Physical h2 in cells is h2(x) = w0 - Bcell(x), so you must choose w0 > max(Bcell).
 """
-function ic_uniform_h1_w(; h10=1.0, w0=-1.0, u0=0.0, min_h=1e-10)
+function ic_uniform_h1_w(; h10=1.0, w0=-1.0, u1=0.0, u2=0.0, min_h=1e-10)
     return (x, Bcell) -> begin
         h1 = max(h10, min_h)
 
@@ -51,8 +51,8 @@ function ic_uniform_h1_w(; h10=1.0, w0=-1.0, u0=0.0, min_h=1e-10)
         end
         h2 = max(h2, min_h)
 
-        q1 = h1 * u0
-        q2 = 0.0
+        q1 = h1 * u1
+        q2 = h2 * u2
 
         # store equilibrium variable w, not h2
         @SVector [h1, q1, w0, q2]
@@ -213,14 +213,14 @@ bottom = bottom_cosine_faces(B0=-2.0, A=0.4, m=1)
 # bottom = make_bottom_constant(-2.0)
 
 # Well-balanced equilibrium test: constant h1 and constant w, zero momenta
-ic = ic_uniform_h1_w(h10=1.0, w0=-1.0, u0=0.0)
+ic = ic_uniform_h1_w(h10=1.5, w0=-1.5, u1=0.1, u2 = 0.0)
 
 f, sim = run_case(
     nx=128,
     gc=2,
     bottom=bottom,
     ic_fun=ic,
-    Tshow=100,
+    Tshow=10,
     cfl=0.6,
     title="Equilibrium test: constant h1 and constant w on cosine bathymetry"
 )
