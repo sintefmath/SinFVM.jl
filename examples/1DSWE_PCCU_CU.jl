@@ -3,12 +3,20 @@
 # Paper-faithful setup (domain [-10,10], flat bottom, periodic forcing on LEFT
 # for h1 and h2, and q1/q2 by zero-order interpolation; open BC on RIGHT).
 #
+# Reference: Castro, Kurganov, Morales de Luna (2019) ESAIM:M2AN 53, 959–985
+#            Kurganov & Petrova (2009) SIAM J. Sci. Comput. 31, 1742–1773
+#
 # Storage in SinFVM:
-#   V = (h1, q1, w, q2), with w = h2 + B, and B=0 here => w=h2
+#   V = (h1, q1, w, q2), with w = h2 + B
+#   B = Zref = –0.5*(h1L+h2L+h1R+h2R)  (paper eq. (5.5), "CUc" reference level)
 #
 # Plots (paper):
-#   water surface  ξ = h1 + h2 + Zref
-#   interface      ω = h2 + Zref
+#   water surface  ξ = h1 + h2 + Zref = h1 + w   (since w = h2 + Zref)
+#   interface      ω = h2 + Zref       = w
+#
+# Key fixes vs. original:
+#   - g = 9.81 (paper §5: “the constant gravitational acceleration g = 9.81”)
+#   - B = Zref (so w = h2 + Zref; ensures CU matches paper’s CUc scheme)
 # ============================================================
 
 using CairoMakie
@@ -69,13 +77,14 @@ function bc_callback!(t, sim, grid, UL, UR)
     last_interior  = grid.totalcells[1] - gc
 
     Zref = compute_Zref(UL, UR)
-    h1L, h2L = left_boundary_heights(t, UL, Zref)
+    h1L, h2L = left_boundary_heights(t, UL, Zref)  # physical heights
 
     # Zero-order interpolation for q1,q2 on the left edge
     q1L = U[first_interior][2]
     q2L = U[first_interior][4]
 
-    Uleft = @SVector [h1L, q1L, h2L, q2L]
+    # State vector is (h1, q1, w, q2) with w = h2 + Zref
+    Uleft = @SVector [h1L, q1L, h2L + Zref, q2L]
 
     # LEFT ghost cells: indices immediately left of first interior
     @inbounds for i in 1:gc
@@ -95,7 +104,7 @@ end
 # Runner
 # ----------------------------
 function run_example_5_4_1d(; nx=1000, gc=2, cfl=0.45, T=64.0,
-    scheme=:pccu, ρ1=0.98, ρ2=1.0, g=10.0,
+    scheme=:pccu, ρ1=0.98, ρ2=1.0, g=9.81,
     checkpoints = [10.0, 25.0, 60.0, 64.0])
 
     backend = SinFVM.make_cpu_backend()
@@ -104,7 +113,11 @@ function run_example_5_4_1d(; nx=1000, gc=2, cfl=0.45, T=64.0,
     grid = SinFVM.CartesianGrid(nx; gc=gc, extent=[-10.0 10.0], boundary=NoBC())
     x    = SinFVM.cell_centers(grid; interior=true)
 
-    bottom   = SinFVM.ConstantBottomTopography(0.0)  # flat B=0
+    # Paper eq. (5.5): reference bottom level for CU well-balancing ("CUc" choice)
+    # PCCU is invariant to this choice; CU gives best results with this Zref.
+    Zref = compute_Zref(UL_paper, UR_paper)
+
+    bottom   = SinFVM.ConstantBottomTopography(Zref)  # flat B = Zref
     equation = SinFVM.TwoLayerShallowWaterEquations1D(bottom; ρ1=ρ1, ρ2=ρ2, g=g)
 
     reconstruction = SinFVM.LinearLimiterReconstruction(SinFVM.MinmodLimiter(1.0))
@@ -121,24 +134,34 @@ function run_example_5_4_1d(; nx=1000, gc=2, cfl=0.45, T=64.0,
     sim = SinFVM.Simulator(backend, cs, SinFVM.RungeKutta2(), grid; cfl=cfl)
 
     # IC: Riemann data at x=0
-    initial = [riemann_ic(x[i], UL_paper, UR_paper) for i in eachindex(x)]
+    # State vector is (h1, q1, w, q2) with w = h2 + B = h2 + Zref
+    function riemann_ic_w(xi)
+        if xi < 0.0
+            return @SVector [UL_paper.h1, UL_paper.q1, UL_paper.h2 + Zref, UL_paper.q2]
+        else
+            return @SVector [UR_paper.h1, UR_paper.q1, UR_paper.h2 + Zref, UR_paper.q2]
+        end
+    end
+    initial = [riemann_ic_w(x[i]) for i in eachindex(x)]
     SinFVM.set_current_state!(sim, initial)
 
     # Enforce BC at t=0 (after IC is set)
     bc_callback!(0.0, sim, grid, UL_paper, UR_paper)
 
     # Helper to read fields (interior) and produce paper variables
+    # With B = Zref: w = h2 + Zref, so h2 = w - Zref
+    # Paper water surface ξ = h1 + h2 + Zref = h1 + w
+    # Paper interface    ω = h2 + Zref          = w
     function fields()
         st = SinFVM.current_interior_state(sim)
         h1 = collect(st.h1)
         q1 = collect(st.q1)
-        w  = collect(st.w)      # = h2 (since B=0)
+        w  = collect(st.w)      # w = h2 + Zref (equilibrium variable)
         q2 = collect(st.q2)
-        h2 = w
+        h2 = w .- Zref          # physical lower-layer depth
 
-        Zref = compute_Zref(UL_paper, UR_paper)
-        ξ = h1 .+ h2 .+ Zref     # paper water surface
-        ω = h2 .+ Zref           # paper interface
+        ξ = h1 .+ w             # paper water surface ξ = h1 + h2 + Zref = h1 + w
+        ω = w                   # paper interface ω = h2 + Zref = w
 
         return (; h1, q1, h2, q2, ξ, ω, Zref)
     end
@@ -192,9 +215,9 @@ fig, sim = run_example_5_4_1d(
     gc=2,
     T=64.0,
     cfl=0.45,
-    scheme=:pccu,   # :cu or :pccu
+    scheme=:cu,   # :cu or :pccu
     ρ1=0.98,
     ρ2=1.0,
-    g=10.0,
+    g=9.81,         # paper uses g=9.81 (stated in §5)
     checkpoints=[10.0, 25.0, 60.0, 64.0]
 )
