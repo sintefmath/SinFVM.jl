@@ -173,7 +173,7 @@ function run_example_5_4_1d(; nx=1000, gc=2, cfl=0.45, T=64.0,
     Label(fig[0, 1:2],
         "Example 5.4 (1D) | scheme=$(scheme) | nx=$nx | T=$T",
         fontsize=22)
-
+    
     axξ = Axis(fig[1, 1], title="Water surface ξ = h₁ + h₂ + Zref", xlabel="x", ylabel="ξ")
     axω = Axis(fig[1, 2], title="Interface ω = h₂ + Zref",           xlabel="x", ylabel="ω")
 
@@ -215,7 +215,7 @@ fig, sim = run_example_5_4_1d(
     gc=2,
     T=64.0,
     cfl=0.45,
-    scheme=:cu,   # :cu or :pccu
+    scheme=:pccu,   # :cu or :pccu
     ρ1=0.98,
     ρ2=1.0,
     g=9.81,         # paper uses g=9.81 (stated in §5)

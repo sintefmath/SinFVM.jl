@@ -78,8 +78,9 @@ function run_case(; nx=256, gc=2, cfl=0.15, Tshow=1.0,
 
     bottom_src = SinFVM.SourceTermBottom()
     ncp_src    = SinFVM.SourceTermNonConservative()
+    cor_src   = SinFVM.SourceTermCoriolis(0.001)  # example Coriolis source term (not in equilibrium)
 
-    cs = SinFVM.ConservedSystem(backend, reconstruction, numericalflux, equation, grid, [bottom_src, ncp_src])
+    cs = SinFVM.ConservedSystem(backend, reconstruction, numericalflux, equation, grid, [bottom_src, ncp_src, cor_src])
     simulator = SinFVM.Simulator(backend, cs, SinFVM.RungeKutta2(), grid; cfl=cfl)
 
     # Interior coords and cell-centered bathymetry
