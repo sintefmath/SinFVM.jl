@@ -72,6 +72,24 @@ function update_bc!(backend, ::WallBC, grid::CartesianGrid{1}, ::AllSWE1D, data)
 end
 
 
+function update_bc!(backend, ::WallBC, grid::CartesianGrid{1}, ::TwoLayerShallowWaterEquations1D, data)
+    function local_update_ghostcell!(data, ghost, inner)
+        # h1(ghost) = h1(inner),  q1(ghost) = -q1(inner), h2(ghost) = h2(inner), q2(ghost) = -q2(inner)
+        data[ghost] = typeof(data[ghost])(data[inner][1], -data[inner][2], data[inner][3], -data[inner][4])
+    end
+
+    @fvmloop for_each_ghost_cell(backend, grid, XDIR) do ghostcell
+        left_ghostcell = ghostcell
+        left_innercell = grid.ghostcells[1] * 2 + 1 - ghostcell
+        local_update_ghostcell!(data, left_ghostcell, left_innercell)
+
+        right_ghostcell = grid.totalcells[1] - grid.ghostcells[1] + ghostcell
+        right_innercell = grid.totalcells[1] - grid.ghostcells[1] - ghostcell + 1
+        local_update_ghostcell!(data, right_ghostcell, right_innercell)
+    end
+end
+
+
 function update_bc!(backend, ::WallBC, grid::CartesianGrid{2}, ::AllSWE2D, data)
 
     function local_update_ghostcell!(data, ghost, inner, ::XDIRT)
