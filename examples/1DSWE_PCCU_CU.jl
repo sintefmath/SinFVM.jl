@@ -55,20 +55,7 @@ end
 # IMPORTANT: disable built-in BC updates
 # (otherwise SinFVM may overwrite your ghost cells each substep)
 # ----------------------------
-struct NoBC <: SinFVM.BoundaryCondition end
-SinFVM.update_bc!(backend, ::NoBC, grid, eq, data) = nothing
 
-# ----------------------------
-# Boundary condition callback (paper-faithful)
-# LEFT:
-#   - h1,h2: Dirichlet-in-time forcing
-#   - q1,q2: zero-order interpolation (copy from first interior cell)
-# RIGHT:
-#   - open boundary (zero-order extrapolation of full state)
-#
-# NOTE: We fill ghost cells by indexing relative to first/last interior
-# to ensure correct placement.
-# ----------------------------
 function bc_callback!(t, sim, grid, UL, UR)
     gc = SinFVM.ghost_cells(grid, SinFVM.XDIR)
     U  = SinFVM.current_state(sim)
@@ -110,7 +97,7 @@ function run_example_5_4_1d(; nx=1000, gc=2, cfl=0.45, T=64.0,
     backend = SinFVM.make_cpu_backend()
 
     # Paper domain [-10,10]
-    grid = SinFVM.CartesianGrid(nx; gc=gc, extent=[-10.0 10.0], boundary=NoBC())
+    grid = SinFVM.CartesianGrid(nx; gc=gc, extent=[-10.0 10.0], boundary=SinFVM.NeumannBC())
     x    = SinFVM.cell_centers(grid; interior=true)
 
     # Paper eq. (5.5): reference bottom level for CU well-balancing ("CUc" choice)

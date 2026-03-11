@@ -21,8 +21,8 @@ struct TwoLayerShallowWaterEquations1D{T, S} <: Equation
     desingularizing_kappa::T
     function TwoLayerShallowWaterEquations1D(
         B::BottomType = ConstantBottomTopography();
-        ρ1 = 1.0,
-        ρ2 = 1.02,
+        ρ1 = 0.98,
+        ρ2 = 1.00,
         g = 9.81,
         depth_cutoff = 1e-5,
         desingularizing_kappa = 1e-5,
