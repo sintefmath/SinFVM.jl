@@ -53,7 +53,7 @@ end
 #The positivity preservation is taken care of in the reconstruction step corrections, hence we only need to enforce hyperbolicity here.
 function post_proc_substep!(output, system::System, eq::AllTwoLayerSWE, dt)
     for dir in directions(system.grid)
-        enforce_hyperbolicity!(system.backend, output, system.grid, eq, dir, dt)
+        enforce_hyperbolicity!(system.backend, output, system.grid, eq, dt)
     end
     return nothing
 end

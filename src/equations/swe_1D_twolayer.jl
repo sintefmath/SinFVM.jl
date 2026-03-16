@@ -137,53 +137,35 @@ conserved_variable_names(::Type{T}) where {T<:TwoLayerShallowWaterEquations1D} =
 
 
 # Enforce hyperbolicity by adding friction source term if needed for all two-layer equations, following Section 4 in Castro et al. (2010) "Numerical Treatment of the Loss of Hyperbolicity of the Two-Layer Shallow-Water System"
-# Extract directional state components:  # returns (h1, m1, w, m2), where m1,m2 are the layer momenta in `direction`
-directional_state(V, ::TwoLayerShallowWaterEquations1D, ::XDIRT) =
-    (V[1], V[2], V[3], V[4])   # (h1, q1, w, q2)
-directional_state(V, ::TwoLayerShallowWaterEquations2D, ::XDIRT) =
-    (V[1], V[2], V[4], V[5])   # (h1, q1, w, q2)
-directional_state(V, ::TwoLayerShallowWaterEquations2D, ::YDIRT) =
-    (V[1], V[3], V[4], V[6])   # (h1, p1, w, p2)
-
-#Replace correct momentum component in the state vector with the corrected value after hyperbolicity enforcement
-replace_directional_momenta(V, h1, m1, w, m2, ::TwoLayerShallowWaterEquations1D, ::XDIRT) =
-    typeof(V)(h1, m1, w, m2)
-replace_directional_momenta(V, h1, m1, w, m2, ::TwoLayerShallowWaterEquations2D, ::XDIRT) =
-    typeof(V)(h1, m1, V[3], w, m2, V[6])
-replace_directional_momenta(V, h1, m1, w, m2, ::TwoLayerShallowWaterEquations2D, ::YDIRT) =
-    typeof(V)(h1, V[2], m1, w, V[5], m2)
-
-
-function enforce_hyperbolicity!(backend, U, grid::Grid, eq::AllTwoLayerSWE, direction::Direction, dt)
+#
+function enforce_hyperbolicity!(backend, U, grid::Grid, eq::TwoLayerShallowWaterEquations1D, dt)
     ρ1 = eq.ρ1; ρ2 = eq.ρ2; r  = ρ1 / ρ2
     g  = eq.g; gp = g * (ρ2 - ρ1) / ρ2
     @fvmloop for_each_cell(backend, grid) do imiddle
-        V = U[imiddle]
-        h1, m1, w, m2 = directional_state(V, eq, direction)
+        V = U[imiddle]; h1 = V[1]; q1 = V[2]; w  = V[3]; q2 = V[4]
         B  = B_cell(eq.B, imiddle)
         h2 = w - B
         if h1 > eq.depth_cutoff && h2 > eq.depth_cutoff
-            u1m = desingularize(eq, h1, m1)
-            u2m = desingularize(eq, h2, m2)
-            crit = gp * (h1 + h2)
-            shear = abs(u1m - u2m)
+            u1m = desingularize(eq, h1, q1)
+            u2m = desingularize(eq, h2, q2)
+
+            crit   = gp * (h1 + h2)
+            shear  = abs(u1m - u2m)
+
             if shear^2 > crit
                 # Castro et al. practical coefficient
                 c = inv(dt) * max(shear / sqrt(crit) - 1, 0)
-
                 # Scaled coefficient used in the momentum correction
                 ctilde = c * h1 * h2 / (h2 + r * h1)
 
-                # Update velocities using implicit discretization of friction source term
+                #Update velocities with friction correction
                 denom = 1 + dt * ctilde * (1 / h1 + r / h2)
-                Δu = (u1m - u2m) / denom
+                Δu    = (u1m - u2m) / denom
                 u1 = u1m - dt * ctilde / h1 * Δu
                 u2 = u2m + dt * r * ctilde / h2 * Δu
-                
-                # Update momenta with corrected velocities
-                U[imiddle] = replace_directional_momenta(V, h1, h1*u1, w, h2*u2, eq, direction)
+
+                U[imiddle] = typeof(V)(h1, h1 * u1, w, h2 * u2)
             end
-    
         end
     end
 

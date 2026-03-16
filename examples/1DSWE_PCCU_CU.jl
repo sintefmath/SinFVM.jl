@@ -202,7 +202,7 @@ fig, sim = run_example_5_4_1d(
     gc=2,
     T=64.0,
     cfl=0.45,
-    scheme=:cu,   # :cu or :pccu
+    scheme=:pccu,   # :cu or :pccu
     ρ1=0.999,
     ρ2=1.0,
     g=9.81,         # paper uses g=9.81 (stated in §5)

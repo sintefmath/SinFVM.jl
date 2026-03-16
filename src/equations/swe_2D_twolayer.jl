@@ -135,3 +135,49 @@ function compute_max_abs_eigenvalue(eq::TwoLayerShallowWaterEquations2D, directi
 end
 
 
+#Hyperbolicity correction for 2D two-layer SWE
+function enforce_hyperbolicity!(backend, U, grid::Grid, eq::TwoLayerShallowWaterEquations2D, dt)
+    ρ1 = eq.ρ1; ρ2 = eq.ρ2; r  = ρ1 / ρ2
+    g  = eq.g; gp = g * (ρ2 - ρ1) / ρ2
+    @fvmloop for_each_cell(backend, grid) do imiddle
+        V = U[imiddle]; h1 = V[1]; q1 = V[2]; p1 = V[3]; w  = V[4]; q2 = V[5]; p2 = V[6]
+        B  = B_cell(eq.B, imiddle)
+        h2 = w - B
+
+        if h1 > eq.depth_cutoff && h2 > eq.depth_cutoff
+            u1x = desingularize(eq, h1, q1); u1y = desingularize(eq, h1, p1)
+            u2x = desingularize(eq, h2, q2); u2y = desingularize(eq, h2, p2)
+            Δux = u1x - u2x
+            Δuy = u1y - u2y
+
+            shear2 = Δux^2 + Δuy^2
+            crit   = gp * (h1 + h2)
+
+            if shear2 > crit
+                shear = sqrt(shear2)
+
+                # Same practical coefficient idea as in 1D,
+                # but driven by the magnitude of the vector shear.
+                c = inv(dt) * max(shear / sqrt(crit) - 1, 0)
+
+                ctilde = c * h1 * h2 / (h2 + r * h1)
+
+                # Semi-implicit update of the relative velocity vector
+                denom = 1 + dt * ctilde * (1 / h1 + r / h2)
+                Δux_new = Δux / denom 
+                Δuy_new = Δuy / denom
+
+                u1x_new = u1x - dt * ctilde / h1 * Δux_new
+                u1y_new = u1y - dt * ctilde / h1 * Δuy_new
+                u2x_new = u2x + dt * r * ctilde / h2 * Δux_new
+                u2y_new = u2y + dt * r * ctilde / h2 * Δuy_new
+
+                U[imiddle] = typeof(V)(h1,h1 * u1x_new, h1 * u1y_new, w, h2 * u2x_new, h2 * u2y_new)
+            end
+        end
+    end
+
+    return nothing
+end
+
+
