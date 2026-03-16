@@ -136,37 +136,61 @@ end
 conserved_variable_names(::Type{T}) where {T<:TwoLayerShallowWaterEquations1D} = (:h1, :q1, :w, :q2)
 
 
-# Enforce hyperbolicity by adding friction source term if needed, following Section 4 in Castro et al. (2010) "Numerical Treatment of the Loss of Hyperbolicity of the Two-Layer Shallow-Water System"
+# Enforce hyperbolicity by adding friction source term if needed for all two-layer equations, following Section 4 in Castro et al. (2010) "Numerical Treatment of the Loss of Hyperbolicity of the Two-Layer Shallow-Water System"
+function enforce_hyperbolicity!(backend, U, grid::Grid, eq::AllTwoLayerSWE, direction::Direction, dt)
+    ρ1 = eq.ρ1; ρ2 = eq.ρ2; r  = ρ1 / ρ2
+    g  = eq.g; gp = g * (ρ2 - ρ1) / ρ2
 
-function enforce_hyperbolicity!(U, grid, equation::TwoLayerShallowWaterEquations1D, dir::Direction, dt)
-    gc = ghost_cells(grid, dir)
-    ρ1 = equation.ρ1; ρ2 = equation.ρ2; r  = ρ1 / ρ2
-    g  = equation.g; gp = g * (ρ2 - ρ1) / ρ2
-    @fvmloop for_each_cell(grid, dir; ghostcells=gc) do imiddle
-        state = U[imiddle]; h1 = state[1]; q1 = state[2]; w = state[3]; q2 = state[4]
-        B  = B_cell(equation.B, imiddle)
+    # Extract directional state components:  # returns (h1, m1, w, m2), where m1,m2 are the layer momenta in `direction`
+    function directional_state(V, ::TwoLayerShallowWaterEquations1D, ::XDIRT)
+        return V[1], V[2], V[3], V[4]                  # (h1,q1,w,q2)
+    end
+    function directional_state(V, ::TwoLayerShallowWaterEquations2D, ::XDIRT)
+        return V[1], V[2], V[4], V[5]                  # (h1,q1,w,q2)
+    end
+    function directional_state(V, ::TwoLayerShallowWaterEquations2D, ::YDIRT)
+        return V[1], V[3], V[4], V[6]                  # (h1,p1,w,p2)
+    end
+
+    # Replace corrected directional momenta back into the state
+    function replace_directional_momenta(V, h1, m1, w, m2, ::TwoLayerShallowWaterEquations1D, ::XDIRT)
+        return typeof(V)(h1, m1, w, m2)                # (h1,q1,w,q2)
+    end
+    function replace_directional_momenta(V, h1, m1, w, m2, ::TwoLayerShallowWaterEquations2D, ::XDIRT)
+        return typeof(V)(h1, m1, V[3], w, m2, V[6])    # (h1,q1,p1,w,q2,p2)
+    end
+    function replace_directional_momenta(V, h1, m1, w, m2, ::TwoLayerShallowWaterEquations2D, ::YDIRT)
+        return typeof(V)(h1, V[2], m1, w, V[5], m2)    # (h1,q1,p1,w,q2,p2)
+    end
+
+    gc = ghost_cells(grid, direction)
+    @fvmloop for_each_cell(backend, grid, direction; ghostcells=gc) do imiddle
+        V = U[imiddle]
+        h1, m1, w, m2 = directional_state(V, eq, direction)
+        B  = B_cell(eq.B, imiddle)
         h2 = w - B
-
-        if h1 > equation.depth_cutoff && h2 > equation.depth_cutoff
-            u1m = desingularize(equation, h1, q1)
-            u2m = desingularize(equation, h2, q2)
+        if h1 > eq.depth_cutoff && h2 > eq.depth_cutoff
+            u1m = desingularize(eq, h1, m1)
+            u2m = desingularize(eq, h2, m2)
             crit = gp * (h1 + h2)
-            if (u2m - u1m)^2 > crit
+            shear = abs(u1m - u2m)
+            if shear^2 > crit
                 # Castro et al. practical coefficient
-                c = inv(dt) * max(abs(u1m - u2m) / sqrt(crit) - 1, 0)
-                # Scaled coefficient used in momentum correction
-                ctilde = c*h1*h2/(h2 + r*h1)
+                c = inv(dt) * max(shear / sqrt(crit) - 1, 0)
 
-                #Correct velocities to restore hyperbolicity 
+                # Scaled coefficient used in the momentum correction
+                ctilde = c * h1 * h2 / (h2 + r * h1)
+
+                # Update velocities using implicit discretization of friction source term
                 denom = 1 + dt * ctilde * (1 / h1 + r / h2)
                 Δu = (u1m - u2m) / denom
-
                 u1 = u1m - dt * ctilde / h1 * Δu
                 u2 = u2m + dt * r * ctilde / h2 * Δu
-
-                #Update momentum to enforce hyperbolicity
-                U[imiddle] = @SVector [h1, h1 * u1, w, h2 * u2]
+                
+                # Update momenta with corrected velocities
+                U[imiddle] = replace_directional_momenta(V, h1, h1*u1, w, h2*u2, eq, direction)
             end
+    
         end
     end
 

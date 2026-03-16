@@ -162,7 +162,8 @@ function perform_step!(simulator::Simulator, max_dt)
         post_proc_substep!(
             simulator.substep_outputs[substep+1],
             simulator.system,
-            simulator.system.equation
+            simulator.system.equation,
+            simulator..current_timestep[1],
         )
         update_bc!(simulator, simulator.substep_outputs[substep+1])
     end

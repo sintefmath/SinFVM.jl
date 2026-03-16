@@ -20,6 +20,11 @@ function post_proc_substep!(output, ::System, ::Equation)
     return nothing
 end
 
+#Add one more for hyperbolicity enforcement, which is only relevant for two-layer SWE and falls back to the default for other equations
+function post_proc_substep!(output, system::System, equation::Equation, dt)
+    return post_proc_substep!(output, system, equation)
+end
+
 function post_proc_substep!(output, system::System, eq::ShallowWaterEquations1D)
  
     @fvmloop for_each_cell(system.backend, system.grid) do index       
@@ -43,6 +48,16 @@ function post_proc_substep!(output, system::System, eq::ShallowWaterEquations)
     end
     return nothing
 end
+
+#Add one more for hyperbolicity enforcement, which is only relevant for two-layer SWE. 
+#The positivity preservation is taken care of in the reconstruction step corrections, hence we only need to enforce hyperbolicity here.
+function post_proc_substep!(output, system::System, eq::AllTwoLayerSWE, dt)
+    for dir in directions(system.grid)
+        enforce_hyperbolicity!(system.backend, output, system.grid, eq, dir, dt)
+    end
+    return nothing
+end
+
 
 function implicit_substep!(output, previous_state, system, dt)
     return nothing
