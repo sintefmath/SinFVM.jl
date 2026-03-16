@@ -137,34 +137,27 @@ conserved_variable_names(::Type{T}) where {T<:TwoLayerShallowWaterEquations1D} =
 
 
 # Enforce hyperbolicity by adding friction source term if needed for all two-layer equations, following Section 4 in Castro et al. (2010) "Numerical Treatment of the Loss of Hyperbolicity of the Two-Layer Shallow-Water System"
+# Extract directional state components:  # returns (h1, m1, w, m2), where m1,m2 are the layer momenta in `direction`
+directional_state(V, ::TwoLayerShallowWaterEquations1D, ::XDIRT) =
+    (V[1], V[2], V[3], V[4])   # (h1, q1, w, q2)
+directional_state(V, ::TwoLayerShallowWaterEquations2D, ::XDIRT) =
+    (V[1], V[2], V[4], V[5])   # (h1, q1, w, q2)
+directional_state(V, ::TwoLayerShallowWaterEquations2D, ::YDIRT) =
+    (V[1], V[3], V[4], V[6])   # (h1, p1, w, p2)
+
+#Replace correct momentum component in the state vector with the corrected value after hyperbolicity enforcement
+replace_directional_momenta(V, h1, m1, w, m2, ::TwoLayerShallowWaterEquations1D, ::XDIRT) =
+    typeof(V)(h1, m1, w, m2)
+replace_directional_momenta(V, h1, m1, w, m2, ::TwoLayerShallowWaterEquations2D, ::XDIRT) =
+    typeof(V)(h1, m1, V[3], w, m2, V[6])
+replace_directional_momenta(V, h1, m1, w, m2, ::TwoLayerShallowWaterEquations2D, ::YDIRT) =
+    typeof(V)(h1, V[2], m1, w, V[5], m2)
+
+
 function enforce_hyperbolicity!(backend, U, grid::Grid, eq::AllTwoLayerSWE, direction::Direction, dt)
     ρ1 = eq.ρ1; ρ2 = eq.ρ2; r  = ρ1 / ρ2
     g  = eq.g; gp = g * (ρ2 - ρ1) / ρ2
-
-    # Extract directional state components:  # returns (h1, m1, w, m2), where m1,m2 are the layer momenta in `direction`
-    function directional_state(V, ::TwoLayerShallowWaterEquations1D, ::XDIRT)
-        return V[1], V[2], V[3], V[4]                  # (h1,q1,w,q2)
-    end
-    function directional_state(V, ::TwoLayerShallowWaterEquations2D, ::XDIRT)
-        return V[1], V[2], V[4], V[5]                  # (h1,q1,w,q2)
-    end
-    function directional_state(V, ::TwoLayerShallowWaterEquations2D, ::YDIRT)
-        return V[1], V[3], V[4], V[6]                  # (h1,p1,w,p2)
-    end
-
-    # Replace corrected directional momenta back into the state
-    function replace_directional_momenta(V, h1, m1, w, m2, ::TwoLayerShallowWaterEquations1D, ::XDIRT)
-        return typeof(V)(h1, m1, w, m2)                # (h1,q1,w,q2)
-    end
-    function replace_directional_momenta(V, h1, m1, w, m2, ::TwoLayerShallowWaterEquations2D, ::XDIRT)
-        return typeof(V)(h1, m1, V[3], w, m2, V[6])    # (h1,q1,p1,w,q2,p2)
-    end
-    function replace_directional_momenta(V, h1, m1, w, m2, ::TwoLayerShallowWaterEquations2D, ::YDIRT)
-        return typeof(V)(h1, V[2], m1, w, V[5], m2)    # (h1,q1,p1,w,q2,p2)
-    end
-
-    gc = ghost_cells(grid, direction)
-    @fvmloop for_each_cell(backend, grid, direction; ghostcells=gc) do imiddle
+    @fvmloop for_each_cell(backend, grid) do imiddle
         V = U[imiddle]
         h1, m1, w, m2 = directional_state(V, eq, direction)
         B  = B_cell(eq.B, imiddle)

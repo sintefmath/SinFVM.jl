@@ -203,7 +203,7 @@ fig, sim = run_example_5_4_1d(
     T=64.0,
     cfl=0.45,
     scheme=:pccu,   # :cu or :pccu
-    ρ1=0.98,
+    ρ1=0.999,
     ρ2=1.0,
     g=9.81,         # paper uses g=9.81 (stated in §5)
     checkpoints=[10.0, 25.0, 60.0, 64.0]
