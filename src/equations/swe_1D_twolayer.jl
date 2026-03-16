@@ -134,3 +134,41 @@ end
 
 
 conserved_variable_names(::Type{T}) where {T<:TwoLayerShallowWaterEquations1D} = (:h1, :q1, :w, :q2)
+
+
+# Enforce hyperbolicity by adding friction source term if needed, following Section 4 in Castro et al. (2010) "Numerical Treatment of the Loss of Hyperbolicity of the Two-Layer Shallow-Water System"
+
+function enforce_hyperbolicity!(U, grid, equation::TwoLayerShallowWaterEquations1D, dir::Direction, dt)
+    gc = ghost_cells(grid, dir)
+    ρ1 = equation.ρ1; ρ2 = equation.ρ2; r  = ρ1 / ρ2
+    g  = equation.g; gp = g * (ρ2 - ρ1) / ρ2
+    @fvmloop for_each_cell(grid, dir; ghostcells=gc) do imiddle
+        state = U[imiddle]; h1 = state[1]; q1 = state[2]; w = state[3]; q2 = state[4]
+        B  = B_cell(equation.B, imiddle)
+        h2 = w - B
+
+        if h1 > equation.depth_cutoff && h2 > equation.depth_cutoff
+            u1m = desingularize(equation, h1, q1)
+            u2m = desingularize(equation, h2, q2)
+            crit = gp * (h1 + h2)
+            if (u2m - u1m)^2 > crit
+                # Castro et al. practical coefficient
+                c = inv(dt) * max(abs(u1m - u2m) / sqrt(crit) - 1, 0)
+                # Scaled coefficient used in momentum correction
+                ctilde = c*h1*h2/(h2 + r*h1)
+
+                #Correct velocities to restore hyperbolicity 
+                denom = 1 + dt * ctilde * (1 / h1 + r / h2)
+                Δu = (u1m - u2m) / denom
+
+                u1 = u1m - dt * ctilde / h1 * Δu
+                u2 = u2m + dt * r * ctilde / h2 * Δu
+
+                #Update momentum to enforce hyperbolicity
+                U[imiddle] = @SVector [h1, h1 * u1, w, h2 * u2]
+            end
+        end
+    end
+
+    return nothing
+end
