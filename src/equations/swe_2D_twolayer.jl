@@ -145,12 +145,12 @@ function enforce_hyperbolicity!(backend, U, grid::Grid, eq::TwoLayerShallowWater
         h2 = w - B
 
         if h1 > eq.depth_cutoff && h2 > eq.depth_cutoff
-            u1x = desingularize(eq, h1, q1); u1y = desingularize(eq, h1, p1)
-            u2x = desingularize(eq, h2, q2); u2y = desingularize(eq, h2, p2)
-            Δux = u1x - u2x
-            Δuy = u1y - u2y
+            u1 = desingularize(eq, h1, q1); v1 = desingularize(eq, h1, p1)
+            u2 = desingularize(eq, h2, q2); v2 = desingularize(eq, h2, p2)
+            Δu = u1 - u2
+            Δv = v1 - v2
 
-            shear2 = Δux^2 + Δuy^2
+            shear2 = Δu^2 + Δv^2
             crit   = gp * (h1 + h2)
 
             if shear2 > crit
@@ -164,15 +164,15 @@ function enforce_hyperbolicity!(backend, U, grid::Grid, eq::TwoLayerShallowWater
 
                 # Semi-implicit update of the relative velocity vector
                 denom = 1 + dt * ctilde * (1 / h1 + r / h2)
-                Δux_new = Δux / denom 
-                Δuy_new = Δuy / denom
+                Δu_new = Δu / denom
+                Δv_new = Δv / denom
 
-                u1x_new = u1x - dt * ctilde / h1 * Δux_new
-                u1y_new = u1y - dt * ctilde / h1 * Δuy_new
-                u2x_new = u2x + dt * r * ctilde / h2 * Δux_new
-                u2y_new = u2y + dt * r * ctilde / h2 * Δuy_new
+                u1_new = u1 - dt * ctilde / h1 * Δu_new
+                v1_new = v1 - dt * ctilde / h1 * Δv_new
+                u2_new = u2 + dt * r * ctilde / h2 * Δu_new
+                v2_new = v2 + dt * r * ctilde / h2 * Δv_new
 
-                U[imiddle] = typeof(V)(h1,h1 * u1x_new, h1 * u1y_new, w, h2 * u2x_new, h2 * u2y_new)
+                U[imiddle] = typeof(V)(h1,h1 * u1_new, h1 * v1_new, w, h2 * u2_new, h2 * v2_new)
             end
         end
     end

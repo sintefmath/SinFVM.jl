@@ -171,3 +171,123 @@ function enforce_hyperbolicity!(backend, U, grid::Grid, eq::TwoLayerShallowWater
 
     return nothing
 end
+
+##############################################################################
+######## Trying new eigenvalue computation and friction correction ###########
+""" See: M.J. Castro Díaz et al. “Discussion on different numerical treatments on the loss of
+hyperbolicity for the two-layer shallow water system”. In: Advances in Water Re-
+sources 182 (2023), p. 104587. issn: 0309-1708. url: https://www.sciencedirect.
+com/science/article/pii/S030917082300221X."""
+# -----------------------------------------------------------------------------
+# New approximate eigenvalues from Theorem 1, using conserved variables
+# -----------------------------------------------------------------------------
+
+function compute_eigenvalues(eq::TwoLayerShallowWaterEquations1D,
+                             direction::Direction, h1, q1, h2, q2)
+    T = promote_type(typeof(h1), typeof(q1), typeof(h2), typeof(q2), typeof(eq.g))
+    g = T(eq.g); r = T(eq.ρ1 / eq.ρ2)
+    u1 = desingularize(eq, h1, q1)
+    u2 = desingularize(eq, h2, q2)
+    H = h1 + h2
+    if H <= zero(T)
+        return @SVector zeros(T, 4)
+    end
+
+    Δu = u1 - u2
+    # Eq. (9d)
+    γc_sq = (g * H / 2)^2 + (r - one(T)) * g^2 * h1 * h2 + (2 * g * h1 * h2 / H) * Δu^2
+    γc = sqrt(max(zero(T), γc_sq))
+
+    # Eqs. (9b)-(9c)
+    base = g * H / 2 + (h1 * h2 / H^2) * Δu^2
+    c_ext_sq = base + γc
+    c_int_sq = base - γc
+    c_ext = sqrt(max(zero(T), c_ext_sq))
+    c_int = sqrt(max(zero(T), c_int_sq))
+
+    # Eq. (9a)
+    Uext = (u1 * h1 + u2 * h2) / H
+    Uint = (u1 * h2 + u2 * h1) / H
+
+    return @SVector [Uext + c_ext, Uext - c_ext, Uint + c_int, Uint - c_int]
+end
+
+
+function compute_max_abs_eigenvalue(eq::TwoLayerShallowWaterEquations1D,
+                                    direction::Direction, h1, q1, h2, q2)
+    λ = compute_eigenvalues(eq, direction, h1, q1, h2, q2)
+    return maximum(abs, λ)
+end
+
+
+# -----------------------------------------------------------------------------
+# New hyperbolicity bounds from eq. (16), using depths only
+# -----------------------------------------------------------------------------
+
+@inline function enforce_hyperbolicity!(eq::TwoLayerShallowWaterEquations1D, h1, h2)
+    T = promote_type(typeof(h1), typeof(h2), typeof(eq.g))
+    g = T(eq.g)
+    r = T(eq.ρ1 / eq.ρ2)
+
+    H = h1 + h2
+    if h1 <= zero(T) || h2 <= zero(T) || H <= zero(T)
+        return zero(T), zero(T)
+    end
+
+    disc = 1 - 4 * (1 - r) * (h1 * h2) / H^2
+    disc = max(zero(T), disc)
+    sdisc = sqrt(disc)
+
+    pref = g * H^3 / (2 * h1 * h2)
+
+    # lower boundary from eq. (16b)
+    FL_sq = pref * (1 - sdisc)
+
+    # right boundary from eq. (16c)
+    FR_sq = 2 * g * H * (1 + sqrt(max(zero(T), r)))
+
+    FL = sqrt(max(zero(T), FL_sq))
+    FR = sqrt(max(zero(T), FR_sq))
+
+    return FL, FR
+end
+
+
+# -----------------------------------------------------------------------------
+# New friction treatment (NFT), using conserved variables only
+# -----------------------------------------------------------------------------
+
+function enforce_hyperbolicity!(backend, U, grid::Grid, eq::TwoLayerShallowWaterEquations1D, dt)
+    ρ1 = eq.ρ1; ρ2 = eq.ρ2; r = ρ1 / ρ2
+    g  = eq.g
+    @fvmloop for_each_cell(backend, grid) do imiddle
+        V = U[imiddle]; h1 = V[1]; q1 = V[2]; w = V[3]; q2 = V[4]
+        B = B_cell(eq.B, imiddle)
+        h2 = w - B
+
+        if h1 > eq.depth_cutoff && h2 > eq.depth_cutoff
+            u1m = desingularize(eq, h1, q1)
+            u2m = desingularize(eq, h2, q2)
+
+            shear = abs(u1m - u2m)
+            H = h1 + h2
+
+            disc  = max(0.0, 1 - 4 * (1 - r) * (h1 * h2) / H^2)
+            FL    = sqrt(max(0.0, g * H^3 / (2 * h1 * h2) * (1 - sqrt(disc))))
+            FR    = sqrt(max(0.0, 2 * g * H * (1 + sqrt(r))))
+            if FL < shear < FR
+                ctilde = (h1 * h2) / (dt * (h2 + r * h1)) * max(shear / FL - 1, 0.0)
+
+                #Same correction idea with new values
+                denom = 1 + dt * ctilde * (1 / h1 + r / h2)
+                Δu    = (u1m - u2m) / denom
+                u1    = u1m - dt * ctilde / h1 * Δu
+                u2    = u2m + dt * r * ctilde / h2 * Δu
+
+                U[imiddle] = typeof(V)(h1, h1 * u1, w, h2 * u2)
+            end
+        end
+    end
+
+    return nothing
+end
