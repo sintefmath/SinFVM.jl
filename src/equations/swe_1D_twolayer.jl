@@ -61,6 +61,7 @@ function (eq::TwoLayerShallowWaterEquations1D)(::XDIRT, h1, q1, w, q2, Bface)
     ]
 end
 
+"""
 
 # Helper function to compute eigenvalue bounds using Lagrange method
 function lagrange_bounds(c1, c2, c3, c4)
@@ -171,6 +172,8 @@ function enforce_hyperbolicity!(backend, U, grid::Grid, eq::TwoLayerShallowWater
 
     return nothing
 end
+
+"""
 
 ##############################################################################
 ######## Trying new eigenvalue computation and friction correction ###########
