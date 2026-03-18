@@ -20,6 +20,7 @@ struct TwoLayerShallowWaterEquations1D{T, S} <: Equation
     depth_cutoff::T
     desingularizing_kappa::T
     eigenvalue_method::Symbol
+    hyperbolicity_correction::Bool
     function TwoLayerShallowWaterEquations1D(
         B::BottomType = ConstantBottomTopography();
         ρ1 = 0.98,
@@ -27,10 +28,11 @@ struct TwoLayerShallowWaterEquations1D{T, S} <: Equation
         g = 9.81,
         depth_cutoff = 1e-5,
         desingularizing_kappa = 1e-5,
-        eigenvalue_method = :old #:old or :new 
+        eigenvalue_method = :old, #:old or :new 
+        hyperbolicity_correction = true
     ) where {BottomType <: AbstractBottomTopography}
         new{typeof(g), typeof(B)}(
-            B, ρ1, ρ2, g, depth_cutoff, desingularizing_kappa, eigenvalue_method
+            B, ρ1, ρ2, g, depth_cutoff, desingularizing_kappa, eigenvalue_method, hyperbolicity_correction
         )
     end
 end
@@ -44,8 +46,9 @@ function Adapt.adapt_structure(to, eq::TwoLayerShallowWaterEquations1D{T, S}) wh
     depth_cutoff = Adapt.adapt_structure(to, eq.depth_cutoff)
     desingularizing_kappa = Adapt.adapt_structure(to, eq.desingularizing_kappa)
     eigenvalue_method = Adapt.adapt_structure(to, eq.eigenvalue_method)
+    hyperbolicity_correction = Adapt.adapt_structure(to, eq.hyperbolicity_correction)
 
-    TwoLayerShallowWaterEquations1D(B; ρ1 = ρ1, ρ2 = ρ2, g = g, depth_cutoff = depth_cutoff, desingularizing_kappa = desingularizing_kappa, eigenvalue_method = eigenvalue_method)
+    TwoLayerShallowWaterEquations1D(B; ρ1 = ρ1, ρ2 = ρ2, g = g, depth_cutoff = depth_cutoff, desingularizing_kappa = desingularizing_kappa, eigenvalue_method = eigenvalue_method, hyperbolicity_correction = hyperbolicity_correction)
 end
 
 function (eq::TwoLayerShallowWaterEquations1D)(::XDIRT, h1, q1, w, q2, Bface)
