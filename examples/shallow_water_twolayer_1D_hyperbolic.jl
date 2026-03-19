@@ -17,8 +17,8 @@ end
 # ============================================================
 
 const B0 = 0.0
-const UL_test = (h1 = 0.50, q1 = 1.0, h2 = 0.50, q2 = -0.10)
-const UR_test = (h1 = 0.50, q1 = 0.05, h2 = 0.50, q2 = 0.04)
+const UL_test = (h1 = 0.50, q1 = 5.0, h2 = 0.50, q2 = -0.10)
+const UR_test = (h1 = 0.50, q1 = 4.9, h2 = 0.50, q2 = 0.04)
 
 const FOUR_CASES = [
     ("old eig, no corr", :old, false),
@@ -72,6 +72,7 @@ function run_case_1d(; nx=800, gc=2, T=0.25, cfl=0.45,
 
     reconstruction = SinFVM.LinearLimiterReconstruction(SinFVM.MinmodLimiter(1.0))
     flux = SinFVM.PathConservativeCentralUpwind(eq)
+    #flux = SinFVM.CentralUpwind(eq)
     sources = [SinFVM.SourceTermBottom(), SinFVM.SourceTermNonConservative()]
 
     cs = SinFVM.ConservedSystem(backend, reconstruction, flux, eq, grid, sources)
@@ -126,27 +127,26 @@ function make_axes_4panel(fig; title="", row0=0)
     Label(fig[row0, 1:2], title, fontsize=24)
     ax11 = Axis(fig[row0 + 1, 1], title="Upper-layer depth h₁", xlabel="x", ylabel="h₁")
     ax12 = Axis(fig[row0 + 1, 2], title="Lower-layer depth h₂", xlabel="x", ylabel="h₂")
-    ax21 = Axis(fig[row0 + 2, 1], title="Velocities u₁ and u₂", xlabel="x", ylabel="velocity")
-    ax22 = Axis(fig[row0 + 2, 2], title="Interfacial shear |u₁-u₂|", xlabel="x", ylabel="shear")
+    ax21 = Axis(fig[row0 + 2, 1], title="Upper-layer velocity u₁", xlabel="x", ylabel="u₁")
+    ax22 = Axis(fig[row0 + 2, 2], title="Lower-layer velocity u₂", xlabel="x", ylabel="u₂")
     return ax11, ax12, ax21, ax22
 end
 
 function plot_fields_comparison(results, x; title="Comparison")
     fig = Figure(size=(1700, 1100), fontsize=18)
-    axh, axw, axu, axs = make_axes_4panel(fig; title=title)
+    axh1, axh2, axu1, axu2 = make_axes_4panel(fig; title=title)
 
     for (label, fld) in results
-        lines!(axh, x, fld.h1, linewidth=2, label=label)
-        lines!(axw, x, fld.h2, linewidth=2, label=label)
-        lines!(axu, x, fld.u1, linewidth=2, label="$label (u₁)")
-        lines!(axu, x, fld.u2, linewidth=2, linestyle=:dash, label="$label (u₂)")
-        lines!(axs, x, fld.shear, linewidth=2, label=label)
+        lines!(axh1, x, fld.h1, linewidth=2, label=label)
+        lines!(axh2, x, fld.h2, linewidth=2, label=label)
+        lines!(axu1, x, fld.u1, linewidth=2, label=label)
+        lines!(axu2, x, fld.u2, linewidth=2, label=label)
     end
 
-    axislegend(axh, position=:rb)
-    axislegend(axw, position=:rb)
-    axislegend(axu, position=:rb)
-    axislegend(axs, position=:rb)
+    axislegend(axh1, position=:rt)
+    axislegend(axu1, position=:rt)
+    axislegend(axh2, position=:rb)
+    axislegend(axu2, position=:rb)
 
     display(fig)
     return fig
@@ -180,10 +180,11 @@ function plot_corrected_resolution_comparison_1d(study; T=0.25, nxs=(200, 800, 3
         lines!(ax22, new.x, new.fields.h2, linewidth=lw, linestyle=ls, label=lab)
     end
 
-    axislegend(ax11, position=:rb)
+    axislegend(ax11, position=:rt)
+    axislegend(ax21, position=:rt)
     axislegend(ax12, position=:rb)
-    axislegend(ax21, position=:rb)
     axislegend(ax22, position=:rb)
+
 
     display(fig)
     return fig
@@ -247,6 +248,8 @@ end
 # Example runs
 # ============================================================
 
+"""
+#Run 1:
 study4 = run_four_case_study_1d(
     nx=100,
     gc=2,
@@ -268,3 +271,42 @@ study_corr = run_corrected_resolution_study_1d(
 )
 
 fig_corr = plot_corrected_resolution_comparison_1d(study_corr; T=0.25, nxs=(200, 800, 3200))
+
+
+#Save plots
+save_plot(study4.fig_ic, "IC_1.png")
+save_plot(study4.fig_final, "Correction_1.png")
+save_plot(fig_corr, "Resolution_1.png")
+"""
+
+
+#Run 2:
+study4 = run_four_case_study_1d(
+    nx=100,
+    gc=2,
+    T=0.25,
+    cfl=0.45,
+    ρ1=0.99,
+    ρ2=1.0,
+    g=9.81,
+)
+
+study_corr = run_corrected_resolution_study_1d(
+    nxs=(200, 800, 3200),
+    gc=2,
+    T=0.25,
+    cfl=0.45,
+    ρ1=0.99,
+    ρ2=1.0,
+    g=9.81,
+)
+
+fig_corr = plot_corrected_resolution_comparison_1d(study_corr; T=0.25, nxs=(200, 800, 3200))
+
+"""
+#Save plots
+save_plot(study4.fig_ic, "IC_2.png")
+save_plot(study4.fig_final, "Correction_2.png")
+save_plot(fig_corr, "Resolution_2.png")
+"""
+
