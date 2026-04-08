@@ -34,22 +34,29 @@ function update_bc!(backend, ::PeriodicBC, grid::CartesianGrid{2}, ::Equation, d
 end
 
 function update_bc!(backend, ::NeumannBC, grid::CartesianGrid{1}, ::Equation, data)
+    g = grid.ghostcells[1]
+    N = grid.totalcells[1]
+
     @fvmloop for_each_ghost_cell(backend, grid, XDIR) do ghostcell
-        data[ghostcell] = data[2 * grid.ghostcells[1] - ghostcell + 1]
-        data[grid.totalcells[1]-(grid.ghostcells[1]-ghostcell)] = data[grid.totalcells[1] - grid.ghostcells[1] + 1 - ghostcell]
+        data[ghostcell] = data[g + 1]
+        data[N - g + ghostcell] = data[N - g]
     end
 end
 
 function update_bc!(backend, ::NeumannBC, grid::CartesianGrid{2}, ::Equation, data)
-    # TODO: Introduce some helper functions here...
+    gx, gy = grid.ghostcells
+    Nx, Ny = grid.totalcells
+
     @fvmloop for_each_ghost_cell(backend, grid, XDIR) do ghostcell
-        data[ghostcell[1], ghostcell[2]] = data[2 * grid.ghostcells[1] - ghostcell[1] + 1, ghostcell[2]]
-        data[grid.totalcells[1]-(grid.ghostcells[1]-ghostcell[1]), ghostcell[2]] = data[grid.totalcells[1] - grid.ghostcells[1] + 1 - ghostcell[1], ghostcell[2]]
+        i, j = ghostcell[1], ghostcell[2]
+        data[i, j] = data[gx + 1, j]                # Left ghost cells: copy first interior column
+        data[Nx - gx + i, j] = data[Nx - gx, j]     # Right ghost cells: copy last interior column
     end
 
     @fvmloop for_each_ghost_cell(backend, grid, YDIR) do ghostcell
-        data[ghostcell[1], ghostcell[2]] = data[ghostcell[1], grid.totalcells[2]+ghostcell[2]-2*grid.ghostcells[2]]
-        data[ghostcell[1], grid.totalcells[2]-(grid.ghostcells[2]-ghostcell[2])] = data[ghostcell[1], grid.totalcells[2] - grid.ghostcells[2] + 1 - ghostcell[2]]
+        i, j = ghostcell[1], ghostcell[2]
+        data[i, j] = data[i, gy + 1]                # Bottom ghost cells: copy first interior row
+        data[i, Ny - gy + j] = data[i, Ny - gy]     # Top ghost cells: copy last interior row
     end
 end
 

@@ -17,8 +17,8 @@ end
 # ============================================================
 
 const B0 = 0.0
-const UL_test = (h1 = 0.50, q1 = 5.0, h2 = 0.50, q2 = -0.10)
-const UR_test = (h1 = 0.50, q1 = 4.9, h2 = 0.50, q2 = 0.04)
+const UL_test = (h1 = 0.50, q1 = 3.2, h2 = 0.50, q2 = 0.04)
+const UR_test = (h1 = 0.50, q1 = 0.05, h2 = 0.50, q2 = 0.04)
 
 const FOUR_CASES = [
     ("old eig, no corr", :old, false),
@@ -61,7 +61,7 @@ function run_case_1d(; nx=800, gc=2, T=0.25, cfl=0.45,
                      hyperbolicity_correction=true)
 
     backend = SinFVM.make_cpu_backend()
-    grid = SinFVM.CartesianGrid(nx; gc=gc, extent=[-1.0 1.0], boundary=SinFVM.NeumannBC())
+    grid = SinFVM.CartesianGrid(nx; gc=gc, extent=[-1.0 1.0], boundary=SinFVM.PeriodicBC())
     x = SinFVM.cell_centers(grid; interior=true)
 
     eq = make_equation_1d(
@@ -125,7 +125,7 @@ end
 
 function make_axes_4panel(fig; title="", row0=0)
     Label(fig[row0, 1:2], title, fontsize=24)
-    ax11 = Axis(fig[row0 + 1, 1], title="Upper-layer depth h₁", xlabel="x", ylabel="h₁")
+    ax11 = Axis(fig[row0 + 1, 1], title="Free surface ξ", xlabel="x", ylabel="ξ")
     ax12 = Axis(fig[row0 + 1, 2], title="Lower-layer depth h₂", xlabel="x", ylabel="h₂")
     ax21 = Axis(fig[row0 + 2, 1], title="Upper-layer velocity u₁", xlabel="x", ylabel="u₁")
     ax22 = Axis(fig[row0 + 2, 2], title="Lower-layer velocity u₂", xlabel="x", ylabel="u₂")
@@ -134,16 +134,16 @@ end
 
 function plot_fields_comparison(results, x; title="Comparison")
     fig = Figure(size=(1700, 1100), fontsize=18)
-    axh1, axh2, axu1, axu2 = make_axes_4panel(fig; title=title)
+    axξ, axh2, axu1, axu2 = make_axes_4panel(fig; title=title)
 
     for (label, fld) in results
-        lines!(axh1, x, fld.h1, linewidth=2, label=label)
+        lines!(axξ,  x, fld.ξ,  linewidth=2, label=label)
         lines!(axh2, x, fld.h2, linewidth=2, label=label)
         lines!(axu1, x, fld.u1, linewidth=2, label=label)
         lines!(axu2, x, fld.u2, linewidth=2, label=label)
     end
 
-    axislegend(axh1, position=:rt)
+    axislegend(axξ,  position=:rt)
     axislegend(axu1, position=:rt)
     axislegend(axh2, position=:rb)
     axislegend(axu2, position=:rb)
@@ -152,19 +152,25 @@ function plot_fields_comparison(results, x; title="Comparison")
     return fig
 end
 
+
 function plot_ic_1d(ic, x)
     plot_fields_comparison(Dict("initial" => ic), x; title="Initial conditions at t = 0")
 end
 
-function plot_corrected_resolution_comparison_1d(study; T=0.25, nxs=(200, 800, 3200))
+function plot_corrected_resolution_comparison_1d(study; T=0.25, nxs=(800, 3200, 6400))
     fig = Figure(size=(1800, 1000), fontsize=18)
 
     Label(fig[0, 1:2], "Corrected schemes: grid refinement comparison at t = $T", fontsize=24)
 
-    ax11 = Axis(fig[1, 1], title="old eig, corr — h₁", xlabel="x", ylabel="h₁")
-    ax12 = Axis(fig[1, 2], title="old eig, corr — h₂", xlabel="x", ylabel="h₂")
-    ax21 = Axis(fig[2, 1], title="new eig, corr — h₁", xlabel="x", ylabel="h₁")
-    ax22 = Axis(fig[2, 2], title="new eig, corr — h₂", xlabel="x", ylabel="h₂")
+    ax11 = Axis(fig[1, 1], title="old eig, corr — free surface ξ", xlabel="x", ylabel="ξ")
+    ax12 = Axis(fig[1, 2], title="old eig, corr — lower-layer depth h₂", xlabel="x", ylabel="h₂")
+    ax21 = Axis(fig[2, 1], title="old eig, corr — upper velocity u₁", xlabel="x", ylabel="u₁")
+    ax22 = Axis(fig[2, 2], title="old eig, corr — lower velocity u₂", xlabel="x", ylabel="u₂")
+
+    ax31 = Axis(fig[3, 1], title="new eig, corr — free surface ξ", xlabel="x", ylabel="ξ")
+    ax32 = Axis(fig[3, 2], title="new eig, corr — lower-layer depth h₂", xlabel="x", ylabel="h₂")
+    ax41 = Axis(fig[4, 1], title="new eig, corr — upper velocity u₁", xlabel="x", ylabel="u₁")
+    ax42 = Axis(fig[4, 2], title="new eig, corr — lower velocity u₂", xlabel="x", ylabel="u₂")
 
     for nx in nxs
         lw = nx == maximum(nxs) ? 3 : 2
@@ -174,17 +180,26 @@ function plot_corrected_resolution_comparison_1d(study; T=0.25, nxs=(200, 800, 3
         old = study["old eig, corr"][nx]
         new = study["new eig, corr"][nx]
 
-        lines!(ax11, old.x, old.fields.h1, linewidth=lw, linestyle=ls, label=lab)
+        lines!(ax11, old.x, old.fields.ξ,  linewidth=lw, linestyle=ls, label=lab)
         lines!(ax12, old.x, old.fields.h2, linewidth=lw, linestyle=ls, label=lab)
-        lines!(ax21, new.x, new.fields.h1, linewidth=lw, linestyle=ls, label=lab)
-        lines!(ax22, new.x, new.fields.h2, linewidth=lw, linestyle=ls, label=lab)
+        lines!(ax21, old.x, old.fields.u1, linewidth=lw, linestyle=ls, label=lab)
+        lines!(ax22, old.x, old.fields.u2, linewidth=lw, linestyle=ls, label=lab)
+
+        lines!(ax31, new.x, new.fields.ξ,  linewidth=lw, linestyle=ls, label=lab)
+        lines!(ax32, new.x, new.fields.h2, linewidth=lw, linestyle=ls, label=lab)
+        lines!(ax41, new.x, new.fields.u1, linewidth=lw, linestyle=ls, label=lab)
+        lines!(ax42, new.x, new.fields.u2, linewidth=lw, linestyle=ls, label=lab)
     end
 
     axislegend(ax11, position=:rt)
-    axislegend(ax21, position=:rt)
     axislegend(ax12, position=:rb)
+    axislegend(ax21, position=:rt)
     axislegend(ax22, position=:rb)
 
+    axislegend(ax31, position=:rt)
+    axislegend(ax32, position=:rb)
+    axislegend(ax41, position=:rt)
+    axislegend(ax42, position=:rb)
 
     display(fig)
     return fig
@@ -221,7 +236,7 @@ function run_four_case_study_1d(; nx=800, gc=2, T=0.25, cfl=0.45,
     return (; fig_ic, fig_final, ic, results, x=xref)
 end
 
-function run_corrected_resolution_study_1d(; nxs=(200, 800, 3200), gc=2, T=0.25, cfl=0.45,
+function run_corrected_resolution_study_1d(; nxs=(800, 3200, 6400), gc=2, T=0.25, cfl=0.45,
                                            ρ1=0.99, ρ2=1.0, g=9.81,
                                            UL=UL_test, UR=UR_test)
 
@@ -281,6 +296,7 @@ save_plot(fig_corr, "Resolution_1.png")
 
 
 #Run 2:
+"""
 study4 = run_four_case_study_1d(
     nx=100,
     gc=2,
@@ -292,7 +308,7 @@ study4 = run_four_case_study_1d(
 )
 
 study_corr = run_corrected_resolution_study_1d(
-    nxs=(200, 800, 3200),
+    nxs=(800, 3200, 6400),
     gc=2,
     T=0.25,
     cfl=0.45,
@@ -301,12 +317,140 @@ study_corr = run_corrected_resolution_study_1d(
     g=9.81,
 )
 
-fig_corr = plot_corrected_resolution_comparison_1d(study_corr; T=0.25, nxs=(200, 800, 3200))
+fig_corr = plot_corrected_resolution_comparison_1d(
+    study_corr;
+    T=0.25,
+    nxs=(800, 3200, 6400)
+)
 
-"""
+
 #Save plots
 save_plot(study4.fig_ic, "IC_2.png")
 save_plot(study4.fig_final, "Correction_2.png")
 save_plot(fig_corr, "Resolution_2.png")
 """
 
+# ============================================================
+# Animation
+# ============================================================
+
+function run_case_timeseries_1d(; nx=100, gc=2, T=5.0, cfl=0.45,
+                                ρ1=0.99, ρ2=1.0, g=9.81,
+                                UL=UL_test, UR=UR_test,
+                                eigenvalue_method=:new,
+                                hyperbolicity_correction=true,
+                                nframes=250)
+
+    backend = SinFVM.make_cpu_backend()
+    grid = SinFVM.CartesianGrid(nx; gc=gc, extent=[-1.0 1.0], boundary=SinFVM.NeumannBC())
+    x = SinFVM.cell_centers(grid; interior=true)
+
+    eq = make_equation_1d(
+        ρ1=ρ1, ρ2=ρ2, g=g,
+        eigenvalue_method=eigenvalue_method,
+        hyperbolicity_correction=hyperbolicity_correction,
+    )
+
+    reconstruction = SinFVM.LinearLimiterReconstruction(SinFVM.MinmodLimiter(1.0))
+    flux = SinFVM.PathConservativeCentralUpwind(eq)
+    sources = [SinFVM.SourceTermBottom(), SinFVM.SourceTermNonConservative()]
+
+    cs = SinFVM.ConservedSystem(backend, reconstruction, flux, eq, grid, sources)
+    sim = SinFVM.Simulator(backend, cs, SinFVM.RungeKutta2(), grid; cfl=cfl)
+
+    initial = [riemann_ic_w(xi, UL, UR, B0) for xi in x]
+    SinFVM.set_current_state!(sim, initial)
+
+    times = range(0.0, T; length=nframes)
+
+    frames = Vector{Any}(undef, length(times))
+    frames[1] = extract_fields_1d(sim, eq)
+
+    for k in 2:length(times)
+        println("Animating frame $k / $(length(times))   (t = $(round(times[k], digits=3)))")
+        SinFVM.simulate_to_time(sim, times[k])
+        frames[k] = extract_fields_1d(sim, eq)
+    end
+
+    return (; x, times, frames, eq)
+end
+
+
+function animate_solution_1d(data; filename="two_layer_animation_n100_T5.mp4", folder=PLOT_DIR)
+    mkpath(folder)
+    path = joinpath(folder, filename)
+
+    x = data.x
+    times = data.times
+    frames = data.frames
+
+    # Use all frames to get stable axis limits
+    ξmin = minimum(minimum(f.ξ) for f in frames)
+    ξmax = maximum(maximum(f.ξ) for f in frames)
+
+    h2min = minimum(minimum(f.h2) for f in frames)
+    h2max = maximum(maximum(f.h2) for f in frames)
+
+    u1min = minimum(minimum(f.u1) for f in frames)
+    u1max = maximum(maximum(f.u1) for f in frames)
+
+    u2min = minimum(minimum(f.u2) for f in frames)
+    u2max = maximum(maximum(f.u2) for f in frames)
+
+    fig = Figure(size=(1700, 1100), fontsize=18)
+
+    title_obs = Observable("Two-layer solution at t = 0.00 s")
+    Label(fig[0, 1:2], title_obs, fontsize=24)
+
+    ax11 = Axis(fig[1, 1], title="Free surface ξ", xlabel="x", ylabel="ξ",
+                limits=(minimum(x), maximum(x), ξmin, ξmax))
+    ax12 = Axis(fig[1, 2], title="Lower-layer depth h₂", xlabel="x", ylabel="h₂",
+                limits=(minimum(x), maximum(x), h2min, h2max))
+    ax21 = Axis(fig[2, 1], title="Upper-layer velocity u₁", xlabel="x", ylabel="u₁",
+                limits=(minimum(x), maximum(x), u1min, u1max))
+    ax22 = Axis(fig[2, 2], title="Lower-layer velocity u₂", xlabel="x", ylabel="u₂",
+                limits=(minimum(x), maximum(x), u2min, u2max))
+
+    ξ_obs  = Observable(frames[1].ξ)
+    h2_obs = Observable(frames[1].h2)
+    u1_obs = Observable(frames[1].u1)
+    u2_obs = Observable(frames[1].u2)
+
+    lines!(ax11, x, ξ_obs, linewidth=3)
+    lines!(ax12, x, h2_obs, linewidth=3)
+    lines!(ax21, x, u1_obs, linewidth=3)
+    lines!(ax22, x, u2_obs, linewidth=3)
+
+    record(fig, path, eachindex(times); framerate=30) do k
+        ξ_obs[]  = frames[k].ξ
+        h2_obs[] = frames[k].h2
+        u1_obs[] = frames[k].u1
+        u2_obs[] = frames[k].u2
+        title_obs[] = "Two-layer solution at t = $(round(times[k], digits=3)) s"
+    end
+
+    println("Saved animation to: ", path)
+    return fig
+end
+
+
+# ============================================================
+# Run animation example
+# ============================================================
+
+anim_data = run_case_timeseries_1d(
+    nx=100,
+    gc=2,
+    T=5.0,
+    cfl=0.45,
+    ρ1=0.99,
+    ρ2=1.0,
+    g=9.81,
+    UL=UL_test,
+    UR=UR_test,
+    eigenvalue_method=:new,          # change to :old if you want
+    hyperbolicity_correction=true,
+    nframes=250
+)
+
+animate_solution_1d(anim_data; filename="two_layer_animation_n100_T5.mp4")
