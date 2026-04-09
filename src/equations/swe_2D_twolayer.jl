@@ -179,8 +179,8 @@ function compute_max_abs_eigenvalue(eq::TwoLayerShallowWaterEquations2D,
     return maximum(abs, λ)
 end
 
-
-#Reusing the same hyperbolicity bounds as in 1D, but applied directionally. 
+# Hyperbolicity bounds for 2D
+# Reuse the same formulas as in 1D, since they depend only on h1, h2, ρ1/ρ2, g
 #The hyperbolicity condition should be valid in all possible directions in \mathbb{R}^2, so we use the shear^2 =  (u_1-u_2)^2 + (v_1-v_2)^2 in the bounds computation.
 function enforce_hyperbolicity!(backend, U, grid::Grid, eq::TwoLayerShallowWaterEquations2D, dt)
     ρ1 = eq.ρ1

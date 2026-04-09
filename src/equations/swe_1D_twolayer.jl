@@ -198,7 +198,7 @@ end
 # Friction treatment for old and new eigenvalues
 # -----------------------------------------------------------------------------
 
-function hyperbolicity_bounds_old(eq::TwoLayerShallowWaterEquations1D, h1, h2)
+function hyperbolicity_bounds_old(eq::AllTwoLayerSWE, h1, h2)
     r = eq.ρ1 / eq.ρ2
     g = eq.g
     FL = sqrt((1 - r) * g * (h1 + h2))
@@ -206,7 +206,7 @@ function hyperbolicity_bounds_old(eq::TwoLayerShallowWaterEquations1D, h1, h2)
     return FL, FR
 end
 
-function hyperbolicity_bounds_new(eq::TwoLayerShallowWaterEquations1D, h1, h2)
+function hyperbolicity_bounds_new(eq::AllTwoLayerSWE, h1, h2)
     r = eq.ρ1 / eq.ρ2
     g = eq.g
     H = h1 + h2
