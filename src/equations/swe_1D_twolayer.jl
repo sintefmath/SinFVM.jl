@@ -198,26 +198,6 @@ end
 # Friction treatment for old and new eigenvalues
 # -----------------------------------------------------------------------------
 
-function hyperbolicity_bounds_old(eq::AllTwoLayerSWE, h1, h2)
-    r = eq.ρ1 / eq.ρ2
-    g = eq.g
-    FL = sqrt((1 - r) * g * (h1 + h2))
-    FR = Inf
-    return FL, FR
-end
-
-function hyperbolicity_bounds_new(eq::AllTwoLayerSWE, h1, h2)
-    r = eq.ρ1 / eq.ρ2
-    g = eq.g
-    H = h1 + h2
-
-    disc = max(0.0, 1 - 4 * (1 - r) * (h1 * h2) / H^2)
-    FL = sqrt(max(0.0, g * H^3 / (2 * h1 * h2) * (1 - sqrt(disc))))
-    FR = sqrt(max(0.0, 2 * g * H * (1 + sqrt(r))))
-
-    return FL, FR
-end
-
 function enforce_hyperbolicity!(backend, U, grid::Grid,
                                 eq::TwoLayerShallowWaterEquations1D, dt)
     ρ1 = eq.ρ1
