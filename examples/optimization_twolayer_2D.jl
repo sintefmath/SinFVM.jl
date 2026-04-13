@@ -75,7 +75,7 @@ end
 # -----------------------------------------------------------------------------
 
 function setup_twolayer_simulator_2d(; backend=SinFVM.make_cpu_backend(), wcoeffs, h10::T) where {T}
-    nx, ny, gc = 32, 32, 2
+    nx, ny, gc = 64, 64, 2
     grid = SinFVM.CartesianGrid(nx, ny; gc=gc, boundary=SinFVM.PeriodicBC(), extent=[0.0 100.0; 0.0 50.0])
     bottom = make_bottom_cos_sin_2d(; B0=-3.0, Ax=0.4, Ay=0.3, mx=1, my=1, backend=backend, grid=grid)
     eq = SinFVM.TwoLayerShallowWaterEquations2D(bottom; ρ1=T(1.00), ρ2=T(1.02), g=T(9.81))

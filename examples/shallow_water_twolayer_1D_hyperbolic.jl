@@ -124,37 +124,101 @@ end
 # Plotting
 # ============================================================
 
-function make_axes_4panel(fig; title="", row0=0)
+function make_axes_3panel(fig; title="", row0=0)
     Label(fig[row0, 1:2], title, fontsize=24)
-    ax11 = Axis(fig[row0 + 1, 1], title="Free surface ε", xlabel="x", ylabel="ε")
-    ax12 = Axis(fig[row0 + 1, 2], title="Interface w", xlabel="x", ylabel="w")
-    ax21 = Axis(fig[row0 + 2, 1], title="Upper-layer velocity u₁", xlabel="x", ylabel="u₁")
-    ax22 = Axis(fig[row0 + 2, 2], title="Lower-layer velocity u₂", xlabel="x", ylabel="u₂")
-    return ax11, ax12, ax21, ax22
+
+    axL = Axis(
+        fig[row0 + 1:row0 + 2, 1],
+        title="Free surface ε and interface w",
+        xlabel="x",
+        ylabel="height",
+    )
+
+    axu1 = Axis(
+        fig[row0 + 1, 2],
+        title="Upper-layer velocity u₁",
+        xlabel="x",
+        ylabel="u₁",
+    )
+
+    axu2 = Axis(
+        fig[row0 + 2, 2],
+        title="Lower-layer velocity u₂",
+        xlabel="x",
+        ylabel="u₂",
+    )
+
+    return axL, axu1, axu2
 end
 
 function plot_fields_comparison(results, x; title="Comparison")
-    fig = Figure(size=(1700, 1100), fontsize=18)
-    axξ, axω, axu1, axu2 = make_axes_4panel(fig; title=title)
+    fig = Figure(size=(1700, 900), fontsize=18)
+    axL, axu1, axu2 = make_axes_3panel(fig; title=title)
 
-    for (label, fld) in results
-        lines!(axξ,  x, fld.ξ,  linewidth=2, label=label)
-        lines!(axω,  x, fld.ω,  linewidth=2, label=label)
-        lines!(axu1, x, fld.u1, linewidth=2, label=label)
-        lines!(axu2, x, fld.u2, linewidth=2, label=label)
+    colors = Makie.wong_colors()
+
+    surf_plots = Any[]
+    surf_labels = String[]
+    int_plots = Any[]
+    int_labels = String[]
+    u1_plots = Any[]
+    u1_labels = String[]
+    u2_plots = Any[]
+    u2_labels = String[]
+
+    for (i, (label, fld)) in enumerate(results)
+        color = colors[mod1(i, length(colors))]
+
+        pξ = lines!(axL,  x, fld.ξ,  linewidth=2, color=color, linestyle=:solid)
+        pω = lines!(axL,  x, fld.ω,  linewidth=2, color=color, linestyle=:dash)
+        pu1 = lines!(axu1, x, fld.u1, linewidth=2, color=color)
+        pu2 = lines!(axu2, x, fld.u2, linewidth=2, color=color)
+
+        push!(surf_plots, pξ)
+        push!(surf_labels, "$label: ε")
+
+        push!(int_plots, pω)
+        push!(int_labels, "$label: w")
+
+        push!(u1_plots, pu1)
+        push!(u1_labels, label)
+
+        push!(u2_plots, pu2)
+        push!(u2_labels, label)
     end
 
-    axislegend(axξ,  position=:rt)
-    axislegend(axω,  position=:rt)
-    axislegend(axu1, position=:rt)
-    axislegend(axu2, position=:rt)
+    axislegend(axL, surf_plots, surf_labels; position=:ct)
+    axislegend(axL, int_plots, int_labels; position=:lb)
+
+    axislegend(axu1, u1_plots, u1_labels;  position=:rb)
+    axislegend(axu2, u2_plots, u2_labels; position=:rb)
 
     display(fig)
     return fig
 end
 
 function plot_ic_1d(ic, x)
-    plot_fields_comparison(Dict("initial" => ic), x; title="Initial conditions at t = 0")
+    fig = Figure(size=(1700, 900), fontsize=18)
+    axL, axu1, axu2 = make_axes_3panel(fig; title="Initial conditions at t = 0")
+
+    color = Makie.wong_colors()[1]
+
+    # plots
+    pξ  = lines!(axL,  x, ic.ξ,  linewidth=2, color=color, linestyle=:solid)
+    pω  = lines!(axL,  x, ic.ω,  linewidth=2, color=color, linestyle=:dash)
+    pu1 = lines!(axu1, x, ic.u1, linewidth=2, color=color)
+    pu2 = lines!(axu2, x, ic.u2, linewidth=2, color=color)
+
+    # ---- special IC axis limits ----
+    ylims!(axL, 0, 1.2)
+
+    axislegend(axL,[pξ, pω],["ε", "w"];position=:rb)
+
+    axislegend(axu1, [pu1], ["u₁"]; position=:rt)
+    axislegend(axu2, [pu2], ["u₂"]; position=:rb)
+
+    display(fig)
+    return fig
 end
 
 function plot_corrected_resolution_comparison_1d(study; T=0.25, nxs=(800, 3200, 6400))
@@ -164,44 +228,76 @@ function plot_corrected_resolution_comparison_1d(study; T=0.25, nxs=(800, 3200, 
           "Corrected schemes: grid refinement comparison at t = $T",
           fontsize=24)
 
-    ax11 = Axis(fig[1, 1], title="old eig, corr — free surface ε", xlabel="x", ylabel="ε")
-    ax12 = Axis(fig[1, 2], title="old eig, corr — interface w", xlabel="x", ylabel="w")
-    ax21 = Axis(fig[2, 1], title="old eig, corr — upper velocity u₁", xlabel="x", ylabel="u₁")
-    ax22 = Axis(fig[2, 2], title="old eig, corr — lower velocity u₂", xlabel="x", ylabel="u₂")
+    axL1 = Axis(fig[1:2, 1],
+        title="old eig, corr — free surface ε and interface w",
+        xlabel="x", ylabel="height")
+    axu11 = Axis(fig[1, 2],
+        title="old eig, corr — upper velocity u₁",
+        xlabel="x", ylabel="u₁")
+    axu12 = Axis(fig[2, 2],
+        title="old eig, corr — lower velocity u₂",
+        xlabel="x", ylabel="u₂")
 
-    ax31 = Axis(fig[3, 1], title="new eig, corr — free surface ε", xlabel="x", ylabel="ε")
-    ax32 = Axis(fig[3, 2], title="new eig, corr — interface w", xlabel="x", ylabel="w")
-    ax41 = Axis(fig[4, 1], title="new eig, corr — upper velocity u₁", xlabel="x", ylabel="u₁")
-    ax42 = Axis(fig[4, 2], title="new eig, corr — lower velocity u₂", xlabel="x", ylabel="u₂")
+    axL2 = Axis(fig[3:4, 1],
+        title="new eig, corr — free surface ε and interface w",
+        xlabel="x", ylabel="height")
+    axu21 = Axis(fig[3, 2],
+        title="new eig, corr — upper velocity u₁",
+        xlabel="x", ylabel="u₁")
+    axu22 = Axis(fig[4, 2],
+        title="new eig, corr — lower velocity u₂",
+        xlabel="x", ylabel="u₂")
 
-    for nx in nxs
+    colors = Makie.wong_colors()
+
+    surf1_plots = Any[]; surf1_labels = String[]
+    int1_plots  = Any[]; int1_labels  = String[]
+    u11_plots   = Any[]; u11_labels   = String[]
+    u12_plots   = Any[]; u12_labels   = String[]
+
+    surf2_plots = Any[]; surf2_labels = String[]
+    int2_plots  = Any[]; int2_labels  = String[]
+    u21_plots   = Any[]; u21_labels   = String[]
+    u22_plots   = Any[]; u22_labels   = String[]
+
+    for (i, nx) in enumerate(nxs)
+        color = colors[mod1(i, length(colors))]
         lw = nx == maximum(nxs) ? 3 : 2
-        ls = nx == maximum(nxs) ? :dash : :solid
         lab = nx == maximum(nxs) ? "nx = $nx (ref)" : "nx = $nx"
 
         old = study["old eig, corr"][nx]
         new = study["new eig, corr"][nx]
 
-        lines!(ax11, old.x, old.fields.ξ, linewidth=lw, linestyle=ls, label=lab)
-        lines!(ax12, old.x, old.fields.ω, linewidth=lw, linestyle=ls, label=lab)
-        lines!(ax21, old.x, old.fields.u1, linewidth=lw, linestyle=ls, label=lab)
-        lines!(ax22, old.x, old.fields.u2, linewidth=lw, linestyle=ls, label=lab)
+        pξ1 = lines!(axL1,  old.x, old.fields.ξ,  linewidth=lw, color=color, linestyle=:solid)
+        pω1 = lines!(axL1,  old.x, old.fields.ω,  linewidth=lw, color=color, linestyle=:dash)
+        pu11 = lines!(axu11, old.x, old.fields.u1, linewidth=lw, color=color)
+        pu12 = lines!(axu12, old.x, old.fields.u2, linewidth=lw, color=color)
 
-        lines!(ax31, new.x, new.fields.ξ, linewidth=lw, linestyle=ls, label=lab)
-        lines!(ax32, new.x, new.fields.ω, linewidth=lw, linestyle=ls, label=lab)
-        lines!(ax41, new.x, new.fields.u1, linewidth=lw, linestyle=ls, label=lab)
-        lines!(ax42, new.x, new.fields.u2, linewidth=lw, linestyle=ls, label=lab)
+        push!(surf1_plots, pξ1); push!(surf1_labels, "$lab: ε")
+        push!(int1_plots,  pω1); push!(int1_labels,  "$lab: w")
+        push!(u11_plots,  pu11); push!(u11_labels, lab)
+        push!(u12_plots,  pu12); push!(u12_labels, lab)
+
+        pξ2 = lines!(axL2,  new.x, new.fields.ξ,  linewidth=lw, color=color, linestyle=:solid)
+        pω2 = lines!(axL2,  new.x, new.fields.ω,  linewidth=lw, color=color, linestyle=:dash)
+        pu21 = lines!(axu21, new.x, new.fields.u1, linewidth=lw, color=color)
+        pu22 = lines!(axu22, new.x, new.fields.u2, linewidth=lw, color=color)
+
+        push!(surf2_plots, pξ2); push!(surf2_labels, "$lab: ε")
+        push!(int2_plots,  pω2); push!(int2_labels,  "$lab: w")
+        push!(u21_plots,  pu21); push!(u21_labels, lab)
+        push!(u22_plots,  pu22); push!(u22_labels, lab)
     end
 
-    axislegend(ax11, position=:rt)
-    axislegend(ax12, position=:rt)
-    axislegend(ax21, position=:rt)
-    axislegend(ax22, position=:rt)
+    axislegend(axL1, surf1_plots, surf1_labels; position=:lt)
+    axislegend(axL1, int1_plots, int1_labels; position=:cb)
+    axislegend(axu11, u11_plots, u11_labels; position=:ct)
+    axislegend(axu12, u12_plots, u12_labels; position=:ct)
 
-    axislegend(ax31, position=:rt)
-    axislegend(ax32, position=:rt)
-    axislegend(ax41, position=:rt)
-    axislegend(ax42, position=:rt)
+    axislegend(axL2, surf2_plots, surf2_labels; position=:lt)
+    axislegend(axL2, int2_plots, int2_labels; position=:cb)
+    axislegend(axu21, u21_plots, u21_labels; position=:ct)
+    axislegend(axu22, u22_plots, u22_labels; position=:ct)
 
     display(fig)
     return fig
@@ -269,7 +365,7 @@ end
 # Example runs
 # ============================================================
 
-
+"""
 # Run 1:
 study4 = run_four_case_study_1d(
     nx=200,
@@ -282,6 +378,9 @@ study4 = run_four_case_study_1d(
     g=9.81,
 )
 
+save_plot(study4.fig_ic, "IC_1.png")
+save_plot(study4.fig_final, "Correction_1.png")
+
 study_corr = run_corrected_resolution_study_1d(
     nxs=(200, 1600, 12800),
     gc=2,
@@ -292,18 +391,13 @@ study_corr = run_corrected_resolution_study_1d(
     ρ2=1.0,
     g=9.81,
 )
-
 fig_corr = plot_corrected_resolution_comparison_1d(study_corr; T=0.25, nxs=(200, 1600, 12800))
 
-"""
-save_plot(study4.fig_ic, "IC_1.png")
-save_plot(study4.fig_final, "Correction_1.png")
 save_plot(fig_corr, "Resolution_1.png")
 """
 
-
+"""
 # Run 2:
-
 study4 = run_four_case_study_1d(
     nx=200,
     gc=2,
@@ -315,28 +409,30 @@ study4 = run_four_case_study_1d(
     g=9.81,
 )
 
+save_plot(study4.fig_ic, "IC_2.png")
+save_plot(study4.fig_final, "Correction_2.png")
+"""
 
 study_corr = run_corrected_resolution_study_1d(
     nxs=(200, 1600, 12800),
     gc=2,
-    T=2,
-    cfl=0.8,
+    T=0.25,
+    cfl=0.4,
     B=0.0,
     ρ1=0.99,
     ρ2=1.0,
     g=9.81,
 )
 
+
 fig_corr = plot_corrected_resolution_comparison_1d(
     study_corr;
-    T=2,
+    T=0.25,
     nxs=(200, 1600, 12800)
 )
-"""
-save_plot(study4.fig_ic, "IC_2.png")
-save_plot(study4.fig_final, "Correction_2.png")
+
 save_plot(fig_corr, "Resolution_2.png")
-"""
+
 
 """
 # ============================================================
