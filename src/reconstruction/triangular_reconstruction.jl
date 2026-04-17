@@ -42,14 +42,42 @@ Returns `gradients::Vector{SVector{N,SVector{2,Float64}}}` where `N` is
 the number of conserved variables, giving the limited gradient for each
 variable in each cell.
 """
-function reconstruct_triangular(grid::TriangularGrid, cell_values::AbstractVector{SVector{N,T}}) where {N,T}
+"""
+    reconstruct_triangular(backend, grid, cell_values)
+
+Compute limited piecewise-linear gradients on a `TriangularGrid`.
+
+All loops over triangles are expressed via [`for_each_cell`](@ref)
+(wrapped in [`@fvmloop`](@ref)), so this function is backend-aware.
+
+For every cell *i* with centroid ``\\mathbf{c}_i`` and value ``\\bar U_i``,
+the three candidate gradients are obtained from the planes through
+``\\mathbf{c}_i`` and two of its neighbour centroids:
+
+```math
+\\vec{g}_k = \\text{(finite difference through two centroids)}.
+```
+
+The final gradient is assembled component-wise with the three-argument
+minmod limiter
+
+```math
+g^{(d)} = \\operatorname{minmod}(g_1^{(d)}, g_2^{(d)}, g_3^{(d)}).
+```
+
+Returns `gradients::Vector{SVector{N,SVector{2,Float64}}}` where `N` is
+the number of conserved variables, giving the limited gradient for each
+variable in each cell.
+"""
+function reconstruct_triangular(backend, grid::TriangularGrid,
+                                cell_values::AbstractVector{SVector{N,T}}) where {N,T}
     ncells = number_of_cells(grid)
     # Each element stores per-variable 2D gradient
     gradients = Vector{SVector{N,SVector{2,T}}}(undef, ncells)
 
     zero_grad = SVector{2,T}(zero(T), zero(T))
 
-    for i in 1:ncells
+    @fvmloop for_each_cell(backend, grid) do i
         ci = grid.centroids[i]
 
         # For each conserved variable, compute the limited gradient using
@@ -57,7 +85,6 @@ function reconstruct_triangular(grid::TriangularGrid, cell_values::AbstractVecto
         var_grads = MVector{N, SVector{2,T}}(ntuple(_ -> zero_grad, Val(N)))
 
         for v in 1:N
-            # Collect up to 3 candidate gradient vectors for variable v
             cand_gx = MVector{3,T}(zero(T), zero(T), zero(T))
             cand_gy = MVector{3,T}(zero(T), zero(T), zero(T))
             n_cands = 0
@@ -71,7 +98,6 @@ function reconstruct_triangular(grid::TriangularGrid, cell_values::AbstractVecto
                 dc = cj - ci
                 dist2 = dc[1]^2 + dc[2]^2
                 dU_v = cell_values[nb][v] - cell_values[i][v]
-                # Candidate gradient: g_k = dU_v / |dc|^2 * dc
                 cand_gx[n_cands] = dU_v * dc[1] / dist2
                 cand_gy[n_cands] = dU_v * dc[2] / dist2
             end
@@ -93,9 +119,16 @@ function reconstruct_triangular(grid::TriangularGrid, cell_values::AbstractVecto
         end
 
         gradients[i] = SVector{N,SVector{2,T}}(var_grads)
+        nothing
     end
 
     return gradients
+end
+
+# Backwards-compatible wrapper: uses a default CPU backend.
+function reconstruct_triangular(grid::TriangularGrid,
+                                cell_values::AbstractVector{SVector{N,T}}) where {N,T}
+    return reconstruct_triangular(make_cpu_backend(), grid, cell_values)
 end
 
 """
@@ -138,13 +171,15 @@ function reconstruct!(backend, ::LinearReconstruction, output_left, output_right
         output_left[i] = input_conserved[i]
     end
 
-    # Extract cell values for gradient computation
+    # Extract cell values for gradient computation via the triangular
+    # looping abstraction (no plain for-loop over cells).
     cell_values = Vector{SVector{3, Float64}}(undef, ncells)
-    for i in 1:ncells
+    @fvmloop for_each_cell(backend, grid) do i
         cell_values[i] = input_conserved[i]
+        nothing
     end
 
     # Compute gradients and cache them
-    gradients = reconstruct_triangular(grid, cell_values)
+    gradients = reconstruct_triangular(backend, grid, cell_values)
     _TRI_GRADIENT_CACHE[objectid(grid)] = gradients
 end

@@ -104,7 +104,8 @@ function central_upwind_flux(eq::ShallowWaterEquationsPure,
 end
 
 """
-    compute_triangular_fluxes!(output, grid, eq, cell_values, gradients)
+    compute_triangular_fluxes!(backend, output, grid, eq, cell_values, gradients;
+                               wavespeeds=nothing)
 
 Accumulate the finite-volume right-hand side for every cell of a
 `TriangularGrid`, using the central-upwind numerical flux and
@@ -114,50 +115,71 @@ At interior edges the reconstructed left and right states are used.
 At boundary edges the boundary condition stored in `grid.boundary` is
 applied directly — no ghost cells are needed.
 
-`output` is modified **in-place** and should be zero-initialised before
-calling this function.  Returns the maximum wave speed across all edges.
+All loops over triangles are expressed via the triangular-grid looping
+functions [`for_each_cell`](@ref) and [`for_each_cell_neighbor`](@ref)
+(wrapped in [`@fvmloop`](@ref)) to keep the implementation backend-aware.
+
+`output` is modified **in-place** and is zero-initialised at the start of
+this call.  Returns the maximum wave speed across all edges.
+If `wavespeeds` is supplied it is filled with the per-cell maximum wave
+speed; otherwise a temporary array is allocated.
 """
-function compute_triangular_fluxes!(output::Vector{SVector{3,T}},
+function compute_triangular_fluxes!(backend, output::AbstractVector{SVector{3,T}},
                                     grid::TriangularGrid,
                                     eq::ShallowWaterEquationsPure,
                                     cell_values::AbstractVector{SVector{3,T}},
-                                    gradients::Vector{SVector{3,SVector{2,T}}}) where {T}
+                                    gradients::AbstractVector{SVector{3,SVector{2,T}}};
+                                    wavespeeds::Union{Nothing,AbstractVector{T}}=nothing) where {T}
     ncells = number_of_cells(grid)
-    max_speed = zero(T)
+    ws = wavespeeds === nothing ? zeros(T, ncells) : wavespeeds
 
-    for i in 1:ncells
+    # Zero-initialise outputs
+    @fvmloop for_each_cell(backend, grid) do i
+        output[i] = zero(SVector{3,T})
+        ws[i] = zero(T)
+        nothing
+    end
+
+    # Accumulate flux contributions edge by edge.  The per-cell inner
+    # k-loop is performed inside `for_each_cell_neighbor_kernel`, so the
+    # same triangle is handled by a single thread and updates to
+    # `output[i]` / `ws[i]` are race-free.
+    @fvmloop for_each_cell_neighbor(backend, grid) do i, k, nb
         Ai = grid.areas[i]
         ci = grid.centroids[i]
+        normal = grid.edge_normals[i][k]
+        len    = grid.edge_lengths[i][k]
 
-        for k in 1:3
-            normal = grid.edge_normals[i][k]
-            len    = grid.edge_lengths[i][k]
-            nb     = grid.neighbors[i][k]
+        vi1 = grid.triangles[i][k]
+        vi2 = grid.triangles[i][k % 3 + 1]
+        edge_mid = (grid.nodes[vi1] + grid.nodes[vi2]) / 2.0
 
-            # Edge midpoint
-            vi1 = grid.triangles[i][k]
-            vi2 = grid.triangles[i][k % 3 + 1]
-            edge_mid = (grid.nodes[vi1] + grid.nodes[vi2]) / 2.0
+        U_minus = evaluate_reconstruction(cell_values[i], gradients[i], ci, edge_mid)
 
-            # Interior (minus) state from this cell
-            U_minus = evaluate_reconstruction(cell_values[i], gradients[i], ci, edge_mid)
-
-            # Plus state: either from the neighbour or from the boundary condition
-            if nb != 0
-                cj = grid.centroids[nb]
-                U_plus = evaluate_reconstruction(cell_values[nb], gradients[nb], cj, edge_mid)
-            else
-                # Boundary edge — apply BC without ghost cells
-                U_plus = _boundary_state(grid.boundary, U_minus, normal)
-            end
-
-            F_hat, speed = central_upwind_flux(eq, U_minus, U_plus, normal)
-
-            output[i] -= (len / Ai) .* F_hat
-            max_speed = max(max_speed, speed)
+        if nb != 0
+            cj = grid.centroids[nb]
+            U_plus = evaluate_reconstruction(cell_values[nb], gradients[nb], cj, edge_mid)
+        else
+            U_plus = _boundary_state(grid.boundary, U_minus, normal)
         end
+
+        F_hat, speed = central_upwind_flux(eq, U_minus, U_plus, normal)
+
+        output[i] -= (len / Ai) .* F_hat
+        ws[i] = max(ws[i], speed)
+        nothing
     end
-    return max_speed
+
+    return maximum(ws)
+end
+
+# Backwards-compatible wrapper: uses a default CPU backend.
+function compute_triangular_fluxes!(output::AbstractVector{SVector{3,T}},
+                                    grid::TriangularGrid,
+                                    eq::ShallowWaterEquationsPure,
+                                    cell_values::AbstractVector{SVector{3,T}},
+                                    gradients::AbstractVector{SVector{3,SVector{2,T}}}) where {T}
+    return compute_triangular_fluxes!(make_cpu_backend(), output, grid, eq, cell_values, gradients)
 end
 
 # Dispatch helpers for the two supported boundary types

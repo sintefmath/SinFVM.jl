@@ -49,9 +49,11 @@ function compute_flux!(backend, F::NumericalFlux, output, left, right,
     ncells = number_of_cells(grid)
 
     # Extract cell-averaged values from the left buffer (set by reconstruct!)
+    # using the triangular looping abstraction (no plain for-loop over cells).
     cell_values = Vector{SVector{3, Float64}}(undef, ncells)
-    for i in 1:ncells
+    @fvmloop for_each_cell(backend, grid) do i
         cell_values[i] = left[i]
+        nothing
     end
 
     # Retrieve gradients from cache (set by LinearReconstruction's reconstruct!).
@@ -66,39 +68,17 @@ function compute_flux!(backend, F::NumericalFlux, output, left, right,
         gradients = [SVector{3, SVector{2, Float64}}(zero_grad, zero_grad, zero_grad) for _ in 1:ncells]
     end
 
-    # Zero-initialise an accumulator for the RHS contributions
-    rhs = zeros(SVector{3, Float64}, ncells)
+    # Accumulate flux contributions through the triangular edge loop;
+    # per-cell wavespeeds are filled in the same pass.
+    rhs = Vector{SVector{3, Float64}}(undef, ncells)
+    max_speed = compute_triangular_fluxes!(backend, rhs, grid, equation,
+                                           cell_values, gradients;
+                                           wavespeeds=wavespeeds)
 
-    # Call the existing triangular flux accumulator
-    max_speed = compute_triangular_fluxes!(rhs, grid, equation, cell_values, gradients)
-
-    # Write results into the output Volume and set per-cell wavespeeds
-    for i in 1:ncells
+    # Add the accumulated RHS into the output volume via the looping abstraction.
+    @fvmloop for_each_cell(backend, grid) do i
         output[i] += rhs[i]
-
-        cell_speed = zero(Float64)
-        ci = grid.centroids[i]
-        for k in 1:3
-            normal = grid.edge_normals[i][k]
-            nb = grid.neighbors[i][k]
-
-            vi1 = grid.triangles[i][k]
-            vi2 = grid.triangles[i][k % 3 + 1]
-            edge_mid = (grid.nodes[vi1] + grid.nodes[vi2]) / 2.0
-
-            U_minus = evaluate_reconstruction(cell_values[i], gradients[i], ci, edge_mid)
-
-            if nb != 0
-                cj = grid.centroids[nb]
-                U_plus = evaluate_reconstruction(cell_values[nb], gradients[nb], cj, edge_mid)
-            else
-                U_plus = _boundary_state(grid.boundary, U_minus, normal)
-            end
-
-            _, speed = central_upwind_flux(equation, U_minus, U_plus, normal)
-            cell_speed = max(cell_speed, speed)
-        end
-        wavespeeds[i] = cell_speed
+        nothing
     end
 
     return max_speed
