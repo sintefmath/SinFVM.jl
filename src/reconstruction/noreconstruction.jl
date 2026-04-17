@@ -44,3 +44,16 @@ function reconstruct!(backend, ::NoReconstruction, output_left, output_right, in
         h_right[middle] = h_input[middle] - B_cell(equation.B, middle)
     end
 end
+
+"""
+    reconstruct!(backend, ::NoReconstruction, output_left, output_right, input_conserved, grid::TriangularGrid, equation, direction)
+
+No-reconstruction specialisation for triangular grids.  Cell-averaged values
+are copied into both `output_left` and `output_right`.
+"""
+function reconstruct!(backend, ::NoReconstruction, output_left, output_right, input_conserved, grid::TriangularGrid, equation::Equation, direction::Direction)
+    @fvmloop for_each_cell(backend, grid) do i
+        output_left[i] = input_conserved[i]
+        output_right[i] = input_conserved[i]
+    end
+end

@@ -73,6 +73,10 @@ function interior2full(grid::CartesianGrid{2}, index)
     return i + grid.ghostcells[1] + (j + grid.ghostcells[2]) * nx + 1
 end
 
+function interior2full(grid::TriangularGrid, index)
+    return index
+end
+
 
 
 function interior2full(volume::Volume, index)
@@ -199,6 +203,7 @@ end
     similar(vol._volume, dims)
 
 collect_interior(d::AbstractArray{T, 2}, grid) where {T} = collect(d[grid.ghostcells[1]:(end-grid.ghostcells[1]), :])
+collect_interior(d::AbstractArray{T, 2}, grid::TriangularGrid) where {T} = collect(d)
 function collect_interior(d::AbstractArray{T, 3}, grid) where {T}
     start_x = grid.ghostcells[1]
     end_x = grid.ghostcells[1]

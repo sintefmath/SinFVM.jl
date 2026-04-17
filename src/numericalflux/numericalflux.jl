@@ -32,7 +32,60 @@ function compute_flux!(backend, F::NumericalFlux, output, left, right, wavespeed
     return maximum(wavespeeds)
 end
 
+"""
+    compute_flux!(backend, F, output, left, right, wavespeeds, grid::TriangularGrid, equation, direction)
+
+Specialised `compute_flux!` for triangular grids.  The `direction` argument is
+ignored because all edges are processed in a single pass.  Reconstruction
+gradients are read from the cache populated by the preceding `reconstruct!`
+call, and the central-upwind numerical flux is evaluated on every edge with
+boundary conditions applied directly (no ghost cells).
+
+Cell-averaged values are read from `left` (populated by `reconstruct!`).
+"""
+function compute_flux!(backend, F::NumericalFlux, output, left, right,
+                       wavespeeds, grid::TriangularGrid,
+                       equation::ShallowWaterEquationsPure, direction)
+    ncells = number_of_cells(grid)
+
+    # Extract cell-averaged values from the left buffer (set by reconstruct!)
+    # using the triangular looping abstraction (no plain for-loop over cells).
+    cell_values = Vector{SVector{3, Float64}}(undef, ncells)
+    @fvmloop for_each_cell(backend, grid) do i
+        cell_values[i] = left[i]
+        nothing
+    end
+
+    # Retrieve gradients from cache (set by LinearReconstruction's reconstruct!).
+    # When NoReconstruction is used, no cache entry exists and zero gradients
+    # are used, giving piecewise-constant reconstruction at face values.
+    grid_id = objectid(grid)
+    if haskey(_TRI_GRADIENT_CACHE, grid_id)
+        gradients = _TRI_GRADIENT_CACHE[grid_id]::Vector{SVector{3, SVector{2, Float64}}}
+        delete!(_TRI_GRADIENT_CACHE, grid_id)
+    else
+        zero_grad = SVector{2,Float64}(0.0, 0.0)
+        gradients = [SVector{3, SVector{2, Float64}}(zero_grad, zero_grad, zero_grad) for _ in 1:ncells]
+    end
+
+    # Accumulate flux contributions through the triangular edge loop;
+    # per-cell wavespeeds are filled in the same pass.
+    rhs = Vector{SVector{3, Float64}}(undef, ncells)
+    max_speed = compute_triangular_fluxes!(backend, rhs, grid, equation,
+                                           cell_values, gradients;
+                                           wavespeeds=wavespeeds)
+
+    # Add the accumulated RHS into the output volume via the looping abstraction.
+    @fvmloop for_each_cell(backend, grid) do i
+        output[i] += rhs[i]
+        nothing
+    end
+
+    return max_speed
+end
+
 
 include("swe/centralupwind.jl")
 include("burgers/godunov.jl")
 include("burgers/rusanov.jl")
+include("triangular_flux.jl")

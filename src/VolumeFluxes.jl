@@ -43,10 +43,12 @@ include("artifacts.jl")
 include("abstract_types.jl")
 include("meta/staticvectors.jl")
 include("grid.jl")
+include("triangular_grid.jl")
 include("backends/kernel_abstractions_cuda.jl")
 
 include("meta/loops.jl")
 include("backends/kernel_abstractions.jl")
+include("backends/kernel_abstractions_tri.jl")
 include("backends/buffer.jl")
 include("bottom_topography.jl")
 include("equations/equation.jl")
@@ -61,5 +63,5 @@ include("sourceterms/source_terms.jl")
 include("friction.jl")
 include("bc.jl")
 include("callbacks.jl")
-export XDIR, YDIR, ZDIR, Burgers, CartesianGrid, make_cpu_backend, make_cuda_backend, Volume, get_available_backends, IntervalWriter, Simulator, RungeKutta2, ForwardEulerStepper, ShallowWaterEquations, ShallowWaterEquations1D, ShallowWaterEquations1DPure, ShallowWaterEquationsPure, CentralUpwind, Rusanov, Godunov, LinearReconstruction, NoReconstruction, ConservedSystem, simulate_to_time
+export XDIR, YDIR, ZDIR, Burgers, CartesianGrid, TriangularGrid, OutflowBC, TriangularWallBC, make_cpu_backend, make_cuda_backend, Volume, get_available_backends, IntervalWriter, Simulator, RungeKutta2, ForwardEulerStepper, ShallowWaterEquations, ShallowWaterEquations1D, ShallowWaterEquations1DPure, ShallowWaterEquationsPure, CentralUpwind, Rusanov, Godunov, LinearReconstruction, NoReconstruction, ConservedSystem, simulate_to_time
 end
