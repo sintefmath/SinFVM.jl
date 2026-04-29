@@ -20,10 +20,10 @@ const W0_INIT_CONST = 0.5
 # Bathymetry setup
 # ---------------------------------------------------------------------------
 
-const B_AMP = 0.20
-const B_CENTER = 55.0
-const B_WIDTH = 12.0
-const B_BACKGROUND = 0.0
+const B_AMP = 1.0
+const B_CENTER = 50
+const B_WIDTH = 10
+const B_BACKGROUND = -1.0
 
 # ---------------------------------------------------------------------------
 # Optimization tuning
@@ -34,7 +34,7 @@ const W_REG_H1 = 0.0001
 const OBJ_SCALE = 1
 
 const LBFGS_M = 10
-const LBFGS_MAX_ITERS = 800
+const LBFGS_MAX_ITERS = 200
 const LBFGS_G_SWITCH = 1e-4
 
 const GN_MAX_ITERS = 50
@@ -112,6 +112,15 @@ const W0_INIT_PROFILE = clamp.(
     UPPER_W0_PROFILE,
 )
 
+# Pre-compute bathymetry at cell centers for consistent use throughout
+const B_CELL_CENTERS = smooth_bathymetry_profile(
+    X_GRID;
+    amp=B_AMP,
+    center=B_CENTER,
+    width=B_WIDTH,
+    background=B_BACKGROUND,
+)
+
 # ---------------------------------------------------------------------------
 # Direct bounded variable: w0 optimized directly using Fminbox
 # ---------------------------------------------------------------------------
@@ -122,13 +131,44 @@ project_w0(w0) = clamp.(w0, LOWER_W0_PROFILE, UPPER_W0_PROFILE)
 # Bathymetry object helper
 # ---------------------------------------------------------------------------
 
-function make_bathymetry(::Type{T}) where {T}
-    return SinFVM.FunctionBottomTopography(x -> T(B_BACKGROUND) + T(B_AMP) * exp(-((T(x) - T(B_CENTER)) / T(B_WIDTH))^2))
+function make_bathymetry(backend, grid, ::Type{T}) where {T}
+    # Create bathymetry array at face nodes by interpolating from cell centers
+    # First convert B_CELL_CENTERS to type T
+    B_cells = T.(B_CELL_CENTERS)
+    
+    # Interpolate to face nodes (for 1D: face_i = (cell_{i-1} + cell_i) / 2)
+    x_faces = SinFVM.cell_faces(grid; interior=false)
+    B_face = similar(x_faces, T)
+    
+    # Extract interior cell values for interpolation
+    gc = grid.ghostcells[1]
+    n_interior = NX
+    
+    # Create a padded array with ghost cells for interpolation
+    B_padded = similar(B_face)
+    # Ghost cell values (extrapolated)
+    B_padded[1:gc] .= B_cells[1]  # Left ghost cells = first interior cell
+    B_padded[gc+1:gc+n_interior] = B_cells[:]  # Interior cells
+    B_padded[gc+n_interior+1:end] .= B_cells[end]  # Right ghost cells = last interior cell
+    
+    # Interpolate to faces
+    for i in eachindex(B_face)
+        if i < length(B_face)
+            B_face[i] = T(0.5) * (B_padded[i] + B_padded[i+1])
+        else
+            B_face[i] = B_padded[i]  # Last face
+        end
+    end
+    
+    return SinFVM.BottomTopography1D(B_face, backend, grid)
 end
 
-bathymetry_values(::Type{T}) where {T} = T.(B_PROFILE)
+function compute_bathymetry_values(grid, ::Type{T}) where {T}
+    # Directly return the pre-computed bathymetry at cell centers
+    return T.(B_CELL_CENTERS)
+end
 
-bathymetry_values(simulator, ::Type{T}) where {T} = bathymetry_values(T)
+bathymetry_cell_values(simulator, ::Type{T}) where {T} = compute_bathymetry_values(simulator.grid, T)
 
 # ---------------------------------------------------------------------------
 # Simulator
@@ -138,7 +178,7 @@ function setup_twolayer_simulator(; backend=SinFVM.make_cpu_backend(), ε_profil
     TT = promote_type(eltype(ε_profile), eltype(w0_profile))
 
     grid = SinFVM.CartesianGrid(NX; gc=2, boundary=SinFVM.WallBC(), extent=[XMIN XMAX])
-    B = make_bathymetry(TT)
+    B = make_bathymetry(backend, grid, TT)
 
     eq = SinFVM.TwoLayerShallowWaterEquations1D(
         B;
@@ -165,14 +205,13 @@ function setup_twolayer_simulator(; backend=SinFVM.make_cpu_backend(), ε_profil
 
     εv = TT.(ε_profile)
     wv = TT.(w0_profile)
-    Bv = bathymetry_values(TT)
+    Bv = compute_bathymetry_values(grid, TT)
     ε_cut = TT(EPS_CUT)
 
     initial = map(1:NX) do i
         w = max(wv[i], Bv[i] + ε_cut)
         h1 = max(εv[i] - w, ε_cut)
-        h2 = max(w - Bv[i], ε_cut)
-        @SVector([h1, zero(TT), h2, zero(TT)])
+        @SVector([h1, zero(TT), w, zero(TT)])
     end
 
     SinFVM.set_current_state!(sim, initial)
@@ -186,10 +225,10 @@ function observable_fields(simulator)
     st = SinFVM.current_interior_state(simulator)
     T = eltype(st.h1)
     κ = T(DESING_KAPPA)
-    B = bathymetry_values(simulator, T)
+    B = bathymetry_cell_values(simulator, T)
 
-    h1, q1, h2, q2 = st.h1, st.q1, st.w, st.q2
-    w = h2 .+ B
+    h1, q1, w, q2 = st.h1, st.q1, st.w, st.q2
+    h2 = w .- B
     ε = h1 .+ w
 
     u1 = smooth_velocity.(h1, q1, κ)
