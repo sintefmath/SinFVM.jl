@@ -20,13 +20,15 @@ const W0_INIT_CONST = 0.5
 # Optimization tuning
 # ---------------------------------------------------------------------------
 
-const W_EPS, W_U1, W_U2 = 1, 1, 1
-const W_REG_H1 = 0.0001
-const OBJ_SCALE = 1
+const W_EPS = 1.0
+const W_U1  = 1000.0
+const W_U2  = 1000.0
+const W_REG_H1 = 1e-3
+const OBJ_SCALE = 1.0
 
 const LBFGS_M = 10
 const LBFGS_MAX_ITERS = 800
-const LBFGS_G_SWITCH = 1e-4
+const LBFGS_G_SWITCH = 1e-1
 
 const GN_MAX_ITERS = 50
 const GN_G_FINAL = 1e-7
@@ -237,10 +239,25 @@ println("  H1 reg weight = $W_REG_H1")
 # ---------------------------------------------------------------------------
 
 const N_TRIPLES = length(EXACT_OBS) ÷ 3
-const MISFIT_SCALE_EPS = sqrt(W_EPS / N_TRIPLES)
-const MISFIT_SCALE_U1  = sqrt(W_U1  / N_TRIPLES)
-const MISFIT_SCALE_U2  = sqrt(W_U2  / N_TRIPLES)
+
+const EPS_SCALE = max(maximum(abs.(EXACT_OBS[1:3:end])), 1e-2)
+const U1_SCALE  = max(maximum(abs.(EXACT_OBS[2:3:end])), 1e-2)
+const U2_SCALE  = max(maximum(abs.(EXACT_OBS[3:3:end])), 1e-2)
+
+const MISFIT_SCALE_EPS = sqrt(W_EPS / N_TRIPLES) / EPS_SCALE
+const MISFIT_SCALE_U1  = sqrt(W_U1  / N_TRIPLES) / U1_SCALE
+const MISFIT_SCALE_U2  = sqrt(W_U2  / N_TRIPLES) / U2_SCALE
+
 const REG_SCALE = sqrt(W_REG_H1 / DX)
+
+println("Residual scaling:")
+println("  EPS_SCALE = $EPS_SCALE")
+println("  U1_SCALE  = $U1_SCALE")
+println("  U2_SCALE  = $U2_SCALE")
+println("  W_EPS     = $W_EPS")
+println("  W_U1      = $W_U1")
+println("  W_U2      = $W_U2")
+println("  W_REG_H1  = $W_REG_H1")
 
 function residual_vector(w0_vec)
     w0_profile = project_w0(w0_vec)
@@ -259,13 +276,13 @@ function residual_vector(w0_vec)
     r = Vector{T}(undef, nmis + nreg)
 
     @inbounds for k in 1:3:nmis
-        r[k]   = MISFIT_SCALE_EPS * (pred[k]   - EXACT_OBS[k])
-        r[k+1] = MISFIT_SCALE_U1  * (pred[k+1] - EXACT_OBS[k+1])
-        r[k+2] = MISFIT_SCALE_U2  * (pred[k+2] - EXACT_OBS[k+2])
+        r[k]   = T(MISFIT_SCALE_EPS) * (pred[k]   - EXACT_OBS[k])
+        r[k+1] = T(MISFIT_SCALE_U1)  * (pred[k+1] - EXACT_OBS[k+1])
+        r[k+2] = T(MISFIT_SCALE_U2)  * (pred[k+2] - EXACT_OBS[k+2])
     end
 
     @inbounds for i in 1:nreg
-        r[nmis + i] = REG_SCALE * (w0_profile[i+1] - w0_profile[i])
+        r[nmis + i] = T(REG_SCALE) * (w0_profile[i+1] - w0_profile[i])
     end
 
     return r

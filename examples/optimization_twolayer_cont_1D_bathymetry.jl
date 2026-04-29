@@ -29,13 +29,13 @@ const B_BACKGROUND = -1.0
 # Optimization tuning
 # ---------------------------------------------------------------------------
 
-const W_EPS, W_U1, W_U2 = 1, 1, 1
+const W_EPS, W_U1, W_U2 = 1, 100, 100
 const W_REG_H1 = 0.0001
 const OBJ_SCALE = 1
 
 const LBFGS_M = 10
 const LBFGS_MAX_ITERS = 200
-const LBFGS_G_SWITCH = 1e-4
+const LBFGS_G_SWITCH = 1e-2
 
 const GN_MAX_ITERS = 50
 const GN_G_FINAL = 1e-7
