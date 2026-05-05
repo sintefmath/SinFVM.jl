@@ -21,9 +21,9 @@ const W0_INIT_CONST = 0.5
 # ---------------------------------------------------------------------------
 
 const W_EPS = 1.0
-const W_U1  = 1000.0
-const W_U2  = 1000.0
-const W_REG_H1 = 1e-3
+const W_U1  = 100.0
+const W_U2  = 100.0
+const W_REG_H1 = 1e-4
 const OBJ_SCALE = 1.0
 
 const LBFGS_M = 10
