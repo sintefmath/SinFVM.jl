@@ -33,11 +33,11 @@ end
 function evaluate_source_term!(st::SourceTermCoriolis, output, current_state,
                                cs::ConservedSystem{<:Any,<:Any,<:Any,<:TwoLayerShallowWaterEquations2D}, _)
     f = st.f
-    @fvmloop for_each_inner_cell(cs.backend, cs.grid) do imiddle
-        output.q1[imiddle] +=  f * current_state.p1[imiddle]
-        output.p1[imiddle] += -f * current_state.q1[imiddle]
-        output.q2[imiddle] +=  f * current_state.p2[imiddle]
-        output.p2[imiddle] += -f * current_state.q2[imiddle]
+    @fvmloop for_each_inner_cell(cs.backend, cs.grid) do index
+        output.q1[index] +=  f * current_state.p1[index]
+        output.p1[index] += -f * current_state.q1[index]
+        output.q2[index] +=  f * current_state.p2[index]
+        output.p2[index] += -f * current_state.q2[index]
         nothing
     end
 end
