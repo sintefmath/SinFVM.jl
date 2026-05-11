@@ -29,7 +29,6 @@ function evaluate_source_term!(st::SourceTermCoriolis, output, current_state, cs
     end
 end
 
-# Two-layer 2D: non-directional coupling maintains physical accuracy
 function evaluate_source_term!(
     st::SourceTermCoriolis,
     output,
@@ -37,16 +36,49 @@ function evaluate_source_term!(
     cs::ConservedSystem{<:Any,<:Any,<:Any,<:TwoLayerShallowWaterEquations2D},
     _,
 )
+    return nothing
+end
+
+function evaluate_directional_source_term!(
+    st::SourceTermCoriolis,
+    output,
+    current_state,
+    cs::ConservedSystem{<:Any,<:Any,<:Any,<:TwoLayerShallowWaterEquations2D},
+    dir::Direction,
+)
     f = st.f
-    @fvmloop for_each_inner_cell(cs.backend, cs.grid) do imiddle
-        q1 = current_state.q1[imiddle]
-        q2 = current_state.q2[imiddle]
-        p1 = current_state.p1[imiddle]
-        p2 = current_state.p2[imiddle]
-        output.q1[imiddle] +=  f * p1
-        output.q2[imiddle] +=  f * p2
-        output.p1[imiddle] += -f * q1
-        output.p2[imiddle] += -f * q2
-        nothing
+    if dir == XDIR
+        out_q1 = output.q1
+        out_q2 = output.q2
+        out_p1 = output.p1
+        out_p2 = output.p2
+        q1 = current_state.q1
+        q2 = current_state.q2
+        p1 = current_state.p1
+        p2 = current_state.p2
+        @fvmloop for_each_inner_cell(cs.backend, cs.grid, dir) do ileft, imiddle, iright
+            out_q1[imiddle] +=  f * p1[imiddle]
+            out_q2[imiddle] +=  f * p2[imiddle]
+            out_p1[imiddle] += -f * q1[imiddle]
+            out_p2[imiddle] += -f * q2[imiddle]
+            nothing
+        end
+    elseif dir == YDIR
+        out_q1 = output.q1
+        out_q2 = output.q2
+        out_p1 = output.p1
+        out_p2 = output.p2
+        q1 = current_state.q1
+        q2 = current_state.q2
+        p1 = current_state.p1
+        p2 = current_state.p2
+        @fvmloop for_each_inner_cell(cs.backend, cs.grid, dir) do ileft, imiddle, iright
+            out_q1[imiddle] +=  f * p1[imiddle]
+            out_q2[imiddle] +=  f * p2[imiddle]
+            out_p1[imiddle] += -f * q1[imiddle]
+            out_p2[imiddle] += -f * q2[imiddle]
+            nothing
+        end
     end
+    return nothing
 end
