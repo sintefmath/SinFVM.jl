@@ -30,14 +30,34 @@ function evaluate_source_term!(st::SourceTermCoriolis, output, current_state, cs
 end
 
 # Two-layer 2D: applied independently to each layer
-function evaluate_source_term!(st::SourceTermCoriolis, output, current_state,
-                               cs::ConservedSystem{<:Any,<:Any,<:Any,<:TwoLayerShallowWaterEquations2D}, _)
+function evaluate_directional_source_term!(
+    st::SourceTermCoriolis,
+    output,
+    current_state,
+    cs::ConservedSystem{<:Any,<:Any,<:Any,<:TwoLayerShallowWaterEquations2D},
+    dir::Direction,
+)
     f = st.f
-    @fvmloop for_each_inner_cell(cs.backend, cs.grid) do index
-        output.q1[index] +=  f * current_state.p1[index]
-        output.p1[index] += -f * current_state.q1[index]
-        output.q2[index] +=  f * current_state.p2[index]
-        output.p2[index] += -f * current_state.q2[index]
-        nothing
+    if dir == XDIR
+        out_q1 = output.q1
+        out_q2 = output.q2
+        p1 = current_state.p1
+        p2 = current_state.p2
+        @fvmloop for_each_inner_cell(cs.backend, cs.grid, dir) do ileft, imiddle, iright
+            out_q1[imiddle] +=  f * p1[imiddle]
+            out_q2[imiddle] +=  f * p2[imiddle]
+            nothing
+        end
+    elseif dir == YDIR
+        out_p1 = output.p1
+        out_p2 = output.p2
+        q1 = current_state.q1
+        q2 = current_state.q2
+        @fvmloop for_each_inner_cell(cs.backend, cs.grid, dir) do ileft, imiddle, iright
+            out_p1[imiddle] += -f * q1[imiddle]
+            out_p2[imiddle] += -f * q2[imiddle]
+            nothing
+        end
     end
+    return nothing
 end
