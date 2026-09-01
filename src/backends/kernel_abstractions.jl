@@ -21,6 +21,12 @@
 using KernelAbstractions
 import CUDA
 
+try
+    import Metal
+catch err
+    @debug "Metal backend is unavailable in this Julia environment" exception=(err, catch_backtrace())
+end
+
 abstract type Backend end
 
 toint(x) = x
@@ -36,11 +42,33 @@ end
 make_cuda_backend() = KernelAbstractionBackend(get_backend(CUDA.cu(ones(3))))
 make_cpu_backend() = KernelAbstractionBackend(get_backend(ones(3)))
 make_cpu_backend(RealType) = KernelAbstractionBackend(get_backend(ones(3)); realtype=RealType)
-const CUDABackend = KernelAbstractionBackend{CUDA.CUDAKernels.CUDABackend}
+const CUDABackend = KernelAbstractionBackend{CUDA.CUDABackend}
 const CPUBackend = KernelAbstractionBackend{KernelAbstractions.CPU}
+
+if isdefined(@__MODULE__, :Metal)
+    const MetalBackend = KernelAbstractionBackend{Metal.MetalKernels.MetalBackend}
+    function make_metal_backend(; realtype=Float32)
+        Metal.functional() || error("Metal backend is unavailable on this machine")
+        KernelAbstractionBackend(get_backend(Metal.mtl(zeros(realtype, 3))); realtype=realtype)
+    end
+    function make_metal_backend(realtype::Type)
+        Metal.functional() || error("Metal backend is unavailable on this machine")
+        KernelAbstractionBackend(get_backend(Metal.mtl(zeros(realtype, 3))); realtype=realtype)
+    end
+else
+    function make_metal_backend(; realtype=Float32)
+        error("Metal.jl is not available on this platform")
+    end
+    function make_metal_backend(realtype::Type)
+        error("Metal.jl is not available on this platform")
+    end
+end
 
 name(::CUDABackend) = "CUDA"
 name(::CPUBackend) = "CPU"
+if isdefined(@__MODULE__, :Metal)
+    name(::MetalBackend) = "Metal"
+end
 
 function get_available_backends()
     backends = Any[make_cpu_backend()]
@@ -49,7 +77,15 @@ function get_available_backends()
         cuda_backend = make_cuda_backend()
         push!(backends, cuda_backend)
     catch err
-        @show err
+        @debug "CUDA backend unavailable" exception=(err, catch_backtrace())
+    end
+
+    try
+        if isdefined(@__MODULE__, :Metal)
+            push!(backends, make_metal_backend())
+        end
+    catch err
+        @debug "Metal backend unavailable" exception=(err, catch_backtrace())
     end
     return backends
 end
@@ -57,6 +93,15 @@ end
 function has_cuda_backend()
     try
         make_cuda_backend()
+        return true
+    catch err
+        return false
+    end
+end
+
+function has_metal_backend()
+    try
+        make_metal_backend()
         return true
     catch err
         return false
