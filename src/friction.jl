@@ -78,7 +78,8 @@ function implicit_friction(friction::ImplicitFriction, equation::AllSWE2D, state
 end
 
 function implicit_substep!(output, previous_state, system, backend, friction::ImplicitFriction, equation::AllSWE, dt)
+    dt_kernel = convert_realtype(paramtype(backend), dt)
     @fvmloop for_each_cell(backend, system.grid) do index
-        output[index] = implicit_friction(friction, equation, previous_state[index], output[index], B_cell(equation, index), dt)
+        output[index] = implicit_friction(friction, equation, previous_state[index], output[index], B_cell(equation, index), dt_kernel)
     end
 end

@@ -36,8 +36,13 @@ function do_substep!(output, ::RungeKutta2, system::System, states, dt, timestep
     end
 
     current_state = states[substep_number]
+    # `dt` arrives in host precision; narrow it before it enters a kernel, otherwise a
+    # Float32 state gets promoted back to Float64. `convert_realtype` rather than a plain
+    # `paramtype(...)(dt)` because under AD `dt` is a `ForwardDiff.Dual` -- the timestep
+    # depends on the wave speeds, which are being differentiated -- and must pass through.
+    dt_kernel = convert_realtype(paramtype(system.backend), dt)
     @fvmloop for_each_cell(system.backend, system.grid) do index
-        output[index] = current_state[index] + dt * output[index]
+        output[index] = current_state[index] + dt_kernel * output[index]
     end
    
     

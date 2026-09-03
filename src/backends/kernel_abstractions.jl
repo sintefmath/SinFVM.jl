@@ -33,6 +33,25 @@ struct KernelAbstractionBackend{KABackendType, RealType} <: Backend
     KernelAbstractionBackend(backend; realtype=Float64) =  new{typeof(backend), realtype}(backend, realtype)
 end
 
+"""
+    realtype(backend)
+
+Element type of the state arrays this backend allocates. May be a `ForwardDiff.Dual`
+when the backend is used for sensitivity computations (see `test/test_swe_ad.jl`).
+"""
+realtype(backend::KernelAbstractionBackend{B,RealType}) where {B,RealType} = RealType
+
+"""
+    paramtype(backend)
+
+Plain float type to use for geometry and physical parameters on this backend.
+
+This is deliberately *not* the same as [`realtype`](@ref): differentiating a simulation
+with respect to a physical parameter makes `realtype` a `ForwardDiff.Dual`, but the grid
+spacing and the equation constants should stay plain floats.
+"""
+paramtype(backend::Backend) = base_float(realtype(backend))
+
 make_cuda_backend() = KernelAbstractionBackend(get_backend(CUDA.cu(ones(3))))
 make_cpu_backend() = KernelAbstractionBackend(get_backend(ones(3)))
 make_cpu_backend(RealType) = KernelAbstractionBackend(get_backend(ones(3)); realtype=RealType)

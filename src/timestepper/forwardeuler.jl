@@ -39,8 +39,14 @@ function do_substep!(output, ::ForwardEulerStepper, system::System, states, dt, 
         dt = timestep_computer(wavespeed)
     end
 
+    # `dt` arrives in host precision (Float64); narrow it before it enters a kernel,
+    # otherwise a Float32 state gets promoted to Float64 and Metal refuses to compile.
+    # `convert_realtype` rather than a plain `paramtype(...)(dt)` because under AD `dt` is
+    # a `ForwardDiff.Dual` (the timestep depends on the wave speeds, which are being
+    # differentiated) and must be passed through untouched.
+    dt_kernel = convert_realtype(paramtype(system.backend), dt)
     @fvmloop for_each_cell(system.backend, system.grid) do index
-        output[index] = current_state[index] + dt * output[index]
+        output[index] = current_state[index] + dt_kernel * output[index]
     end
     return dt
     ##@info "End of substep" output current_state

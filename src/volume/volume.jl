@@ -34,6 +34,9 @@ struct Volume{
     _grid::GridType
     _backend::BackendType
     function Volume(backend, equation::Equation, grid::Grid)
+        # A `Volume` keeps its grid and hands it to every kernel it is passed to, so the
+        # grid has to match the backend's precision.
+        grid = convert_realtype(paramtype(backend), grid)
         buffer = create_buffer(backend, grid, equation)
         new{
             typeof(equation),
