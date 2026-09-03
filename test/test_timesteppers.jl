@@ -19,6 +19,7 @@
 # SOFTWARE.
 
 using VolumeFluxes
+isdefined(Main, :test_backends) || include("testing_utils.jl")
 using Test
 import CUDA
 using Polynomials
@@ -88,12 +89,25 @@ function test_timestepper(steppertype, backend, order, runfunction)
     @test poly[1] ≈ order atol=1e-2
 end
 
-for backend in get_available_backends()
+# NOTE: Float64 backends only, deliberately.
+#
+# This measures an *observed order of convergence* by fitting a line through the errors
+# at dt down to 2^-15, i.e. up to 32768 sequential steps on a one-cell grid. Two reasons
+# it does not belong on a Float32 or GPU backend:
+#
+#  * In Float32 the round-off accumulated over 32768 steps (~2e-5) is the same size as
+#    the discretization error being measured (dt ~ 3e-5), so the fitted slope is
+#    meaningless -- loosening the tolerance would not make the test correct, just quiet.
+#  * On a GPU it times kernel launch overhead on a single cell, tens of thousands of
+#    times over, which takes minutes and tests nothing about the device.
+timestepper_backends() = filter(is_float64_backend, test_backends())
+
+@testset "$(backend_label(backend))" for backend in timestepper_backends()
     test_timestepper(VolumeFluxes.ForwardEulerStepper, backend, 1.0, run_without_simulator)
     test_timestepper(VolumeFluxes.RungeKutta2, backend, 2.0, run_without_simulator)
 end
 
-for backend in get_available_backends()
+@testset "$(backend_label(backend))" for backend in timestepper_backends()
     test_timestepper(VolumeFluxes.ForwardEulerStepper, backend, 1.0, run_with_simulator)
     test_timestepper(VolumeFluxes.RungeKutta2, backend, 2.0, run_with_simulator)
 

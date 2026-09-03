@@ -23,7 +23,7 @@ using StaticArrays
 
 
 using VolumeFluxes
-isdefined(Main, :maybe_display) || include("testing_utils.jl")
+isdefined(Main, :test_backends) || include("testing_utils.jl")
 function run_simulation_friction1d(T, backend, equation, grid; elevate=0.0, source_terms = [])
 
     u0 = x -> @SVector[exp.(-(x - 0.5)^2 / 0.001) .+ 1.5 .+ elevate, 0.0 .* x]
@@ -60,20 +60,19 @@ function plot_sols_friction1d(ref_sol, sol, grid, test_name)
     maybe_display(f)
 end
 
-# NOTE: this used to build the name by regex over `string(typeof(...))`, matching on a
-# `.` before the type name. `ShallowWaterEquations1DPure` and friends are exported, so
-# they print without a module prefix, `match` returned `nothing`, and indexing it threw.
+# NOTE: was built by regex over `string(typeof(...))`, which assumed a module prefix
+# that is not there for exported types -- `match` returned `nothing` and the test errored.
 get_test_name_friction1d(backend, eq::VolumeFluxes.Equation) =
-    string(nameof(typeof(eq)), " ", VolumeFluxes.name(backend))
+    string(nameof(typeof(eq)), " ", backend_label(backend))
 get_test_name_friction1d(backend, B::VolumeFluxes.AbstractBottomTopography) =
-    string(nameof(typeof(B)), " ", VolumeFluxes.name(backend))
+    string(nameof(typeof(B)), " ", backend_label(backend))
 
-for backend in VolumeFluxes.get_available_backends()
+@testset "$(backend_label(backend))" for backend in test_backends()
     nx = 1024  
     grid = VolumeFluxes.CartesianGrid(nx; gc=2)
     T = 0.05
 
-    ref_backend = make_cpu_backend()
+    ref_backend = reference_backend(backend)
     ref_eq = VolumeFluxes.ShallowWaterEquations1DPure()
     ref_sol = run_simulation_friction1d(T, ref_backend, ref_eq, grid)
 
@@ -85,8 +84,12 @@ for backend in VolumeFluxes.get_available_backends()
             #@show test_name
             abs_diff_h  = sum(abs.(collect(ref_sol.h)  - collect(sol.h)))
             abs_diff_hu = sum(abs.(collect(ref_sol.hu) - collect(sol.hu))) 
-             @test abs_diff_h  ≈ 0 atol = 10^-7
-             @test abs_diff_hu ≈ 0 atol = 10^-7
+             # NOTE: this compares two different equation formulations (pure vs. practical SWE), so the
+    # quantity is a discretization difference summed over 1024 cells, not a round-off. In
+    # Float64 it happens to land below 1e-7; in Float32 the per-cell round-off alone sums to
+    # a few times 1e-4, so the Float32 floor is set from the observed magnitude.
+    @test abs_diff_h  ≈ 0 atol = test_atol(backend, 10^-7; float32=5e-3)
+             @test abs_diff_hu ≈ 0 atol = test_atol(backend, 10^-7; float32=5e-3)
         end
     end
 

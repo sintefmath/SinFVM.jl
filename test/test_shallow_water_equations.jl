@@ -19,6 +19,7 @@
 # SOFTWARE.
 
 using VolumeFluxes
+isdefined(Main, :test_backends) || include("testing_utils.jl")
 using StaticArrays
 using Test
 import CUDA
@@ -39,12 +40,12 @@ end
 
 
 #backend = make_cuda_backend()
-for backend in VolumeFluxes.get_available_backends() 
+@testset "$(backend_label(backend))" for backend in test_backends() 
 
     u0 = x -> @SVector[exp.(-(x - 0.5)^2 / 0.001) .*0, 0.0 .* x]
     nx = 8
     grid = VolumeFluxes.CartesianGrid(nx; gc=2)
-    equation = VolumeFluxes.ShallowWaterEquations1D()
+    equation = backend_params(backend, VolumeFluxes.ShallowWaterEquations1D())
     output_eval_equation = VolumeFluxes.Volume(backend, equation, grid)
 
 

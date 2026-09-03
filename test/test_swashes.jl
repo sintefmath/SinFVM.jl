@@ -21,7 +21,7 @@
 
 using VolumeFluxes
 
-isdefined(Main, :maybe_display) || include("testing_utils.jl")
+isdefined(Main, :test_backends) || include("testing_utils.jl")
 using StaticArrays
 using CairoMakie
 using Test
@@ -348,7 +348,7 @@ end
 # compare_swashes_in2d(swashes412, nx, 4.0; do_plot=true, do_test=true, timestepper=VolumeFluxes.RungeKutta2())
 
 
-for backend in VolumeFluxes.get_available_backends()
+@testset "$(backend_label(backend))" for backend in test_backends()
     swashes411 = Swashes411()
     swashes412 = Swashes412()
     swashes421 = Swashes421(offset=0.3)
