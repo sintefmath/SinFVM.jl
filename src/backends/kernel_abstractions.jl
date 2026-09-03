@@ -20,6 +20,7 @@
 
 using KernelAbstractions
 import CUDA
+import Metal
 
 abstract type Backend end
 
@@ -76,10 +77,19 @@ make_cpu_backend(RealType) = KernelAbstractionBackend(get_backend(ones(RealType,
 
 make_cuda_backend() = KernelAbstractionBackend(get_backend(CUDA.cu(ones(3))); realtype=Float64)
 make_cuda_backend(RealType) = KernelAbstractionBackend(get_backend(CUDA.cu(ones(RealType, 3))); realtype=RealType)
+
+# The probe array is always Float32: its only job is to hand us the KernelAbstractions
+# backend object, and Float32 is the only element type Metal can allocate. Probing with
+# `RealType` would make `make_metal_backend(Float64)` fail inside Metal's allocator instead
+# of with the clear ArgumentError from the `KernelAbstractionBackend` constructor.
+make_metal_backend(RealType=Float32) =
+    KernelAbstractionBackend(get_backend(Metal.MtlArray(ones(Float32, 3))); realtype=RealType)
 const CUDABackend = KernelAbstractionBackend{CUDA.CUDAKernels.CUDABackend}
+const MetalBackend = KernelAbstractionBackend{Metal.MetalKernels.MetalBackend}
 const CPUBackend = KernelAbstractionBackend{KernelAbstractions.CPU}
 
 name(::CUDABackend) = "CUDA"
+name(::MetalBackend) = "Metal"
 name(::CPUBackend) = "CPU"
 
 """
@@ -87,14 +97,13 @@ name(::CPUBackend) = "CPU"
 
 Every backend on this machine that can run with the given element type, CPU first.
 
-Backends that are not present are skipped quietly -- the reason is available under
-`JULIA_DEBUG`. The probe used to `@show` the error, which printed a CUDA error object at
-each of the ~26 call sites in the test suite on a machine without CUDA.
+Metal only appears for `Float32`, since it cannot run `Float64` at all. Backends that are
+not present are skipped quietly -- the reason is available under `JULIA_DEBUG`.
 """
 function get_available_backends(realtype=Float64)
     backends = Any[make_cpu_backend(realtype)]
 
-    for make_backend in (make_cuda_backend,)
+    for make_backend in (make_cuda_backend, make_metal_backend)
         try
             push!(backends, make_backend(realtype))
         catch err
@@ -107,6 +116,15 @@ end
 function has_cuda_backend()
     try
         make_cuda_backend()
+        return true
+    catch err
+        return false
+    end
+end
+
+function has_metal_backend()
+    try
+        make_metal_backend()
         return true
     catch err
         return false

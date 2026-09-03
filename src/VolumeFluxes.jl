@@ -65,5 +65,5 @@ include("callbacks.jl")
 # Included last: `convert_realtype` has a method per parameter struct, so every type it
 # mentions must already be defined.
 include("realtype.jl")
-export XDIR, YDIR, ZDIR, Burgers, CartesianGrid, make_cpu_backend, make_cuda_backend, Volume, get_available_backends, IntervalWriter, Simulator, RungeKutta2, ForwardEulerStepper, ShallowWaterEquations, ShallowWaterEquations1D, ShallowWaterEquations1DPure, ShallowWaterEquationsPure, CentralUpwind, Rusanov, Godunov, LinearReconstruction, NoReconstruction, ConservedSystem, simulate_to_time
+export XDIR, YDIR, ZDIR, Burgers, CartesianGrid, make_cpu_backend, make_cuda_backend, make_metal_backend, Volume, get_available_backends, IntervalWriter, Simulator, RungeKutta2, ForwardEulerStepper, ShallowWaterEquations, ShallowWaterEquations1D, ShallowWaterEquations1DPure, ShallowWaterEquationsPure, CentralUpwind, Rusanov, Godunov, LinearReconstruction, NoReconstruction, ConservedSystem, simulate_to_time
 end
