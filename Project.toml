@@ -1,4 +1,4 @@
-name = "SinFVM"
+name = "VolumeFluxes"
 uuid = "5fce8053-0ea8-4994-9de9-3497d067a1ac"
 
 [deps]
