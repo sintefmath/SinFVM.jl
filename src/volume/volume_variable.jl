@@ -84,7 +84,11 @@ function Base.setindex!(
     value::AbstractVector{S},
     indexrange::UnitRange{Int64},
 ) where {S}
-    volumevariable._volume._data[indexrange, volumevariable._index] = value
+    # Move the incoming host values onto the backend first. Assigning a host array
+    # into a slice of a device array makes GPUArrays allocate a device scratch array
+    # of the *host* element type, which fails outright on a Float32-only device.
+    volumevariable._volume._data[indexrange, volumevariable._index] =
+        convert_to_backend(volumevariable._volume._backend, value)
 end
 function Base.setindex!(
     volumevariable::VolumeVariable,

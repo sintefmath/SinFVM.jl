@@ -32,14 +32,31 @@ compute_rain(rain::ConstantRain, t...) = rain.rain_rate/3600
 struct TimeDependentRain{R, T} <: SourceTermRain
     rain_rates::R
     time::T
-    function TimeDependentRain(rain_rates, time=[0.0])
+    # NOTE: `rain_rates` and `time` are indexed inside a kernel (see `compute_rain`
+    # below), so they have to live on the device. Unlike `HortonInfiltration` and
+    # `BottomTopography2D`, this constructor used to keep them as host arrays, which
+    # silently produces invalid device pointers on any GPU backend. It went unnoticed
+    # because the rain tests only ever construct a CPU backend.
+    function TimeDependentRain(rain_rates, time=[0.0], backend=make_cpu_backend())
         if size(rain_rates) != size(time)
             throw(DomainError("Dimensions of input parameters rain_rates and time does not match"))
         end
+        rain_rates = convert_to_backend(backend, rain_rates)
+        time = convert_to_backend(backend, time)
         return new{typeof(rain_rates), typeof(time)}(rain_rates, time)
     end
+
+    # Internal: the values are already on the right device. Keyword-*only* so it cannot
+    # collide with the two-positional-argument form above -- keyword arguments do not take
+    # part in dispatch, so `(rain_rates, time; kw)` would be the same method.
+    TimeDependentRain(; rain_rates, time) =
+        new{typeof(rain_rates), typeof(time)}(rain_rates, time)
 end
-Adapt.@adapt_structure TimeDependentRain
+
+function Adapt.adapt_structure(to, rain::TimeDependentRain)
+    TimeDependentRain(; rain_rates=Adapt.adapt_structure(to, rain.rain_rates),
+        time=Adapt.adapt_structure(to, rain.time))
+end
 
 
 function compute_rain(rain::TimeDependentRain, t, i...)
