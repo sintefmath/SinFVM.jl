@@ -27,13 +27,20 @@ struct ImplicitFriction{Real,FrictionType} <: AbstractFriction # TODO: Better na
 end
 
 
+# NOTE: `Base.cbrt(::Float32)` is implemented via a Float64 intermediate
+# (`Base.Math._improve_cbrt` widens to Float64 internally), so it cannot compile for
+# Metal no matter how generic the calling code is. This formulation stays in the input
+# precision. It differs from `Base.cbrt` in the last bits, hence the tolerances rather
+# than exact comparisons in the friction tests.
+cuberoot(x) = copysign(abs(x)^(oftype(x, 1//3)), x)
+
 function friction_bsa2012(c, h, speed)
-    denom = cbrt(h) * h
+    denom = cuberoot(h) * h
     return -c * speed / denom
 end
 
 function friction_fcg2016(c, h, speed)
-    denom = cbrt(h) * h * h
+    denom = cuberoot(h) * h * h
     return -c * speed / denom
 end
 
