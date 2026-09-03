@@ -58,36 +58,49 @@ Create a new simulator instance with specified components.
 # Returns
 Returns a new `Simulator` instance initialized with the given parameters.
 """
-struct Simulator{BackendType,SystemType,TimeStepperType,GridType,StateType,FloatType}
+# NOTE: `TimeType` is deliberately independent of the backend's element type. Simulated
+# time is an accumulator over potentially millions of additions, so it needs absolute
+# precision and stays Float64 by default even when the state is Float32; `dt` only needs
+# relative precision and is narrowed to the backend's type at the kernel boundary. With a
+# Float32 accumulator `t[1] += dt` becomes a no-op once `t` grows large enough
+# (eps(1.0f4) is about 1e-3) and `simulate_to_time` would never terminate.
+struct Simulator{BackendType,SystemType,TimeStepperType,GridType,StateType,TimeType}
     backend::BackendType
     system::SystemType
     timestepper::TimeStepperType
     grid::GridType
 
     substep_outputs::Vector{StateType}
-    current_timestep::MVector{1,FloatType}
-    cfl::FloatType
-    t::MVector{1,FloatType}
+    current_timestep::MVector{1,TimeType}
+    cfl::TimeType
+    t::MVector{1,TimeType}
 end
 
 function Simulator(backend, system, timestepper, grid; cfl=0.25, t0=0.0)
     # TODO: Get cfl from reconstruction
+    grid = convert_realtype(paramtype(backend), grid)
+    # Promoting against the backend's element type keeps Float64 time for a Float32 (or
+    # Float64) backend, while still widening to `ForwardDiff.Dual` when the state is being
+    # differentiated -- `dt` depends on the wave speeds, so under AD it really is a Dual.
+    #   CPU/Float64  -> Float64      Metal/Float32 -> Float64
+    #   CPU/Float32  -> Float64      AD (Dual)     -> Dual
+    TimeType = promote_type(typeof(cfl), typeof(t0), realtype(backend))
     return Simulator{
         typeof(backend),
         typeof(system),
         typeof(timestepper),
         typeof(grid),
         typeof(create_volume(backend, grid, system)),
-        backend.realtype,
+        TimeType,
     }(
         backend,
         system,
         timestepper,
         grid,
         [create_volume(backend, grid, system) for _ = 1:number_of_substeps(timestepper)+1],
-        MVector{1,Float64}([0]),
+        MVector{1,TimeType}([0]),
         cfl,
-        MVector{1,Float64}([t0]),
+        MVector{1,TimeType}([t0]),
     )
 end
 

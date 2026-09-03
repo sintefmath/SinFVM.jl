@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 create_volume(backend, grid, equation) = Volume(backend, equation, grid)
-create_scalar(backend, grid, equation) = convert_to_backend(backend, zeros(backend.realtype, size(grid)))
+create_scalar(backend, grid, equation) = convert_to_backend(backend, zeros(realtype(backend), size(grid)))
 
 struct ConservedSystem{BackendType,ReconstructionType,NumericalFluxType,EquationType,GridType,BufferType,ScalarBufferType,ImplicitSourceTermType} <: System
     backend::BackendType
@@ -35,6 +35,17 @@ struct ConservedSystem{BackendType,ReconstructionType,NumericalFluxType,Equation
     source_terms::Vector{SourceTerm}
     implicit_source_term::ImplicitSourceTermType
     function ConservedSystem(backend, reconstruction, numericalflux, equation, grid, source_terms=SourceTerm[], implicit_source_term=nothing)
+        # Single choke point for the parameter float type. Everything stored here is
+        # `Adapt`ed into kernels, so on a Metal backend it all has to be Float32. Doing it
+        # once here means no caller has to know about the backend's precision.
+        R = paramtype(backend)
+        grid = convert_realtype(R, grid)
+        reconstruction = convert_realtype(R, reconstruction)
+        numericalflux = convert_realtype(R, numericalflux)
+        equation = convert_realtype(R, equation)
+        source_terms = SourceTerm[convert_realtype(R, source_term) for source_term in source_terms]
+        implicit_source_term = convert_realtype(R, implicit_source_term)
+
         is_compatible(equation, grid)
         is_compatible(equation, source_terms)
         left_buffer = create_volume(backend, grid, equation)
@@ -60,7 +71,10 @@ end
 create_volume(backend, grid, cs::ConservedSystem) = create_volume(backend, grid, cs.equation)
 
 function add_time_derivative!(output, cs::ConservedSystem, current_state, t)
-    maximum_wavespeed = zeros(cs.backend.realtype, dimension(cs.grid))
+    maximum_wavespeed = zeros(realtype(cs.backend), dimension(cs.grid))
+    # `t` is handed to source term kernels, so narrow it to the backend's parameter type.
+    # The host keeps its own Float64 accumulator (see `Simulator`).
+    t = convert_realtype(paramtype(cs.backend), t)
     for direction in directions(cs.grid)
         reconstruct!(cs.backend, cs.reconstruction, cs.left_buffer, cs.right_buffer, current_state, cs.grid, cs.equation, direction)
         maximum_wavespeed[direction] = compute_flux!(cs.backend, cs.numericalflux, output, cs.left_buffer, cs.right_buffer, cs.wavespeeds, cs.grid, cs.equation, direction)

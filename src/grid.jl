@@ -31,18 +31,30 @@ end
 dimension(::Type{<:Grid{d}}) where {d} = d
 dimension(::T) where {T<:Grid} = dimension(T)
 
-struct CartesianGrid{dimension,BoundaryType,dimension2} <: Grid{dimension}
+# NOTE: `RealType` is the *last* type parameter on purpose. Every dispatch site in the
+# package constrains only the first one (`CartesianGrid{1}` / `CartesianGrid{2}`), and a
+# left-partial application like that still matches whatever follows -- so appending a
+# parameter here needs no changes at any of those 49 signatures.
+struct CartesianGrid{dimension,BoundaryType,dimension2,RealType} <: Grid{dimension}
     ghostcells::SVector{dimension,Int64}
     totalcells::SVector{dimension,Int64}
 
     boundary::BoundaryType
-    extent::SVector{dimension2,Float64} # NOTE: SMatrix seems to mess up CUDA.jl
-    Δ::SVector{dimension,Float64}
+    extent::SVector{dimension2,RealType} # NOTE: SMatrix seems to mess up CUDA.jl
+    Δ::SVector{dimension,RealType}
 end
+
+"""
+    realtype(grid::CartesianGrid)
+
+The floating point type the grid's geometry (`extent`, `Δ`) is stored in. This is the
+type that ends up inside kernels, so on a Metal backend it must be `Float32`.
+"""
+realtype(::CartesianGrid{d,B,d2,RealType}) where {d,B,d2,RealType} = RealType
 
 start_extent(grid::CartesianGrid, direction) = grid.extent[(Base.to_index(direction)-1)*2 + 1]
 end_extent(grid::CartesianGrid, direction) = grid.extent[(Base.to_index(direction)-1)*2 + 2]
-extent(grid, direction) = SVector{2,eltype(grid.extent)}(start_extent(grid, direction), end_extent(grid, direction))
+extent(grid, direction) = SVector{2,realtype(grid)}(start_extent(grid, direction), end_extent(grid, direction))
 
 directions(::Grid{1}) = (XDIR,)
 directions(::Grid{2}) = (XDIR, YDIR)
@@ -69,23 +81,23 @@ function Base.size(grid::CartesianGrid{2})
 end
 
 
-function CartesianGrid(nx; gc=1, boundary=PeriodicBC(), extent=[0.0 1.0])
+function CartesianGrid(nx; gc=1, boundary=PeriodicBC(), extent=[0.0 1.0], realtype=Float64)
     domain_width = extent[1, 2] - extent[1, 1]
     Δx = domain_width / nx
     return CartesianGrid(SVector{1,Int64}([gc]),
         SVector{1,Int64}([nx + 2 * gc]),
-        boundary, SVector{2,Float64}(extent[1], extent[2]),
-        SVector{1,Float64}([Δx])
+        boundary, SVector{2,realtype}(extent[1], extent[2]),
+        SVector{1,realtype}([Δx])
     )
 end
 
-function CartesianGrid(nx, ny; gc=1, boundary=PeriodicBC(), extent=[0.0 1.0; 0.0 1.0])
+function CartesianGrid(nx, ny; gc=1, boundary=PeriodicBC(), extent=[0.0 1.0; 0.0 1.0], realtype=Float64)
     domain_width = extent[1, 2] - extent[1, 1]
     domain_height = extent[2, 2] - extent[2, 1]
-    Δ = SVector{2,Float64}([domain_width / nx, domain_height / ny])
+    Δ = SVector{2,realtype}([domain_width / nx, domain_height / ny])
     return CartesianGrid(SVector{2,Int64}([gc, gc]),
         SVector{2,Int64}([nx + 2 * gc, ny + 2 * gc]),
-        boundary, SVector{4,Float64}(extent[1, 1], extent[1, 2], extent[2, 1], extent[2, 2]),
+        boundary, SVector{4,realtype}(extent[1, 1], extent[1, 2], extent[2, 1], extent[2, 2]),
         Δ)
 end
 
@@ -115,8 +127,8 @@ function cell_faces(grid::CartesianGrid{2}, dir::Direction; interior=true)
 end
 
 function cell_center(grid::CartesianGrid{2}, I::CartesianIndex)
-    x = start_extent(grid, XDIR) + compute_dx(grid)*(I[1] - 0.5 - grid.ghostcells[XDIR]) 
-    y = start_extent(grid, YDIR) + compute_dy(grid)*(I[2] - 0.5 - grid.ghostcells[YDIR]) 
+    x = start_extent(grid, XDIR) + compute_dx(grid) * (2 * (I[1] - grid.ghostcells[XDIR]) - 1) / 2
+    y = start_extent(grid, YDIR) + compute_dy(grid) * (2 * (I[2] - grid.ghostcells[YDIR]) - 1) / 2
     return (x, y)
 end
 
@@ -124,7 +136,7 @@ function cell_faces(grid::CartesianGrid{2}; interior=true)
     x_faces = cell_faces(grid, XDIR; interior=interior)
     y_faces = cell_faces(grid, YDIR; interior=interior)
     
-    all_faces = zeros(SVector{2, Float64}, length(x_faces), length(y_faces))
+    all_faces = zeros(SVector{2,realtype(grid)}, length(x_faces), length(y_faces))
     for (j, y) in enumerate(y_faces)
         for (i, x) in enumerate(x_faces)
             all_faces[i, j] = @SVector [x, y]
@@ -138,13 +150,13 @@ end
 
 function cell_centers(grid::CartesianGrid{1}; interior=true)
     xinterface = cell_faces(grid; interior)
-    xcell = xinterface[1:end-1] .+ (xinterface[2] - xinterface[1]) / 2.0
+    xcell = xinterface[1:end-1] .+ (xinterface[2] - xinterface[1]) / 2
     return xcell
 end
 
 function cell_centers(grid::CartesianGrid{2}, dir::Direction; interior=true)
     faces = cell_faces(grid, dir; interior)
-    xcell = faces[1:end-1] .+ (faces[2] - faces[1]) / 2.0
+    xcell = faces[1:end-1] .+ (faces[2] - faces[1]) / 2
     return xcell
 end
 
