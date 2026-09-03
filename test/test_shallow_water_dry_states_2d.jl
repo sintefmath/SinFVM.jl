@@ -28,6 +28,7 @@ module Correct
 include("fasit.jl")
 end
 using VolumeFluxes
+isdefined(Main, :maybe_display) || include("testing_utils.jl")
 function run_swe_2d_pure_simulation(backend)
 
     backend_name = VolumeFluxes.name(backend)
@@ -76,7 +77,7 @@ $(names[i])") for i in 1:3 ] for j in 1:2]
     Colorbar(f[2, 2], hm)
     hm = heatmap!(axes[1][3], collect(initial_state.hv))
     Colorbar(f[3, 2], hm)
-    display(f)
+    maybe_display(f)
     @time VolumeFluxes.simulate_to_time(simulator, T)
     @test VolumeFluxes.current_time(simulator) == T
     
@@ -98,7 +99,7 @@ $(names[i])") for i in 1:3 ] for j in 1:2]
     if !any(isnan.(hv))
         Colorbar(f[3, 4], hm)
     end
-    display(f)
+    maybe_display(f)
 
     # Test symmetry (field[x, y])
     tolerance = 10^-12

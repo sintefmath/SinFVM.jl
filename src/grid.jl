@@ -42,7 +42,7 @@ end
 
 start_extent(grid::CartesianGrid, direction) = grid.extent[(Base.to_index(direction)-1)*2 + 1]
 end_extent(grid::CartesianGrid, direction) = grid.extent[(Base.to_index(direction)-1)*2 + 2]
-extent(grid, direction) = SVector{2, Int64}(start_extent(grid, direction), end_extent(grid, direction))
+extent(grid, direction) = SVector{2,eltype(grid.extent)}(start_extent(grid, direction), end_extent(grid, direction))
 
 directions(::Grid{1}) = (XDIR,)
 directions(::Grid{2}) = (XDIR, YDIR)

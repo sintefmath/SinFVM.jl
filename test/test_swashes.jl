@@ -21,6 +21,7 @@
 
 using VolumeFluxes
 
+isdefined(Main, :maybe_display) || include("testing_utils.jl")
 using StaticArrays
 using CairoMakie
 using Test
@@ -79,7 +80,7 @@ function compare_swashes(sw::Swashes41x, nx, t)
 
     axislegend(ax_h)
     axislegend(ax_u)
-    display(f)
+    maybe_display(f)
     # plot_simulator_state(simulator)
 end
 
@@ -133,7 +134,7 @@ function plot_simulator_state(simulator, verbose=false)
     for ax in [ax_h, ax_w, ax_hu]
         axislegend(ax)
     end
-    display(f)
+    maybe_display(f)
 
 end
 
@@ -212,7 +213,7 @@ $(typeof(rec))
     axislegend(ax_hr)
     axislegend(ax_hl)
     axislegend(ax_hu)
-    display(f)
+    maybe_display(f)
 end
     
 function compare_swashes_in2d(sw::Swashes41x, nx, t; 
@@ -311,7 +312,7 @@ $(typeof(rec))
        
         axislegend(ax_h)
         axislegend(ax_u)
-        display(f)
+        maybe_display(f)
     end
     
     if do_test
