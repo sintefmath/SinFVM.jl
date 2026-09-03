@@ -81,7 +81,11 @@ function Base.setindex!(
         index -> interior2full(volume, index)
     end
     converted_range = conversion.(indexrange)
-    vol._volume._volume._data[converted_range, vol._index] = value
+    # Move the incoming host values onto the backend first. Assigning a host array
+    # into a slice of a device array makes GPUArrays allocate a device scratch array
+    # of the *host* element type, which fails outright on a Float32-only device.
+    vol._volume._volume._data[converted_range, vol._index] =
+        convert_to_backend(vol._volume._volume._backend, value)
 end
 
 function Base.getindex(vol::InteriorVolumeVariable, indexrange::UnitRange{Int64})
@@ -108,7 +112,11 @@ function Base.setindex!(
         index -> index + grid.ghostcells[2]
     end
     converted_range2 = conversion2.(indexrange2)
-    vol._volume._volume._data[converted_range1, converted_range2, vol._index] = value
+    # Move the incoming host values onto the backend first. Assigning a host array
+    # into a slice of a device array makes GPUArrays allocate a device scratch array
+    # of the *host* element type, which fails outright on a Float32-only device.
+    vol._volume._volume._data[converted_range1, converted_range2, vol._index] =
+        convert_to_backend(vol._volume._volume._backend, value)
 end
 
 function Base.getindex(
