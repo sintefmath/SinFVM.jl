@@ -19,10 +19,11 @@
 # SOFTWARE.
 
 using VolumeFluxes
+isdefined(Main, :test_backends) || include("testing_utils.jl")
 using CUDA
 using Test
 
-for backend in get_available_backends()
+@testset "$(backend_label(backend))" for backend in test_backends()
     for gc in [1, 2]
         nx = 64
         ny = 32

@@ -19,11 +19,12 @@
 # SOFTWARE.
 
 using VolumeFluxes
+isdefined(Main, :test_backends) || include("testing_utils.jl")
 using CUDA
 using Test
 using PrettyTables
 
-for backend in get_available_backends()
+@testset "$(backend_label(backend))" for backend in test_backends()
     nx = 11
     ny = 8
 

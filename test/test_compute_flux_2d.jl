@@ -20,6 +20,7 @@
 
 using Test
 using VolumeFluxes
+isdefined(Main, :test_backends) || include("testing_utils.jl")
 using StaticArrays
 import CUDA
 using LinearAlgebra
@@ -29,9 +30,13 @@ function test_compute_flux_2d(backend)
     u0 = x -> @SVector[exp.(-(norm(x .- 0.5)^2 / 0.01)) .+ 1.5, 0.0, 0.0]
     nx = 32
     ny = 16
-    grid = VolumeFluxes.CartesianGrid(nx, ny; gc=1)
+    # This test calls `compute_flux!` / `update_bc!` directly rather than going through
+    # `ConservedSystem`, so it has to supply the grid and equation at the backend's
+    # precision itself: `compute_flux!` derives `Δx` from the grid host-side and captures
+    # it into the kernel, and Metal rejects a Float64 kernel argument.
+    grid = test_grid(backend, nx, ny; gc=1)
 
-    equation = VolumeFluxes.ShallowWaterEquationsPure()
+    equation = backend_params(backend, VolumeFluxes.ShallowWaterEquationsPure())
 
     reconstruction = VolumeFluxes.NoReconstruction()
     numericalflux = VolumeFluxes.CentralUpwind(equation)
@@ -76,6 +81,6 @@ function test_compute_flux_2d(backend)
     @test !any(isnan.(collect(output_state.hu)))
 end
 
-for backend in get_available_backends()
+@testset "$(backend_label(backend))" for backend in test_backends()
     test_compute_flux_2d(backend)
 end

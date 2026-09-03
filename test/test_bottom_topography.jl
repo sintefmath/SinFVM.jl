@@ -19,10 +19,11 @@
 # SOFTWARE.
 
 using VolumeFluxes
+isdefined(Main, :test_backends) || include("testing_utils.jl")
 import CUDA
 using Test
 
-for backend in get_available_backends()
+@testset "$(backend_label(backend))" for backend in test_backends()
     B_const_default = VolumeFluxes.ConstantBottomTopography()
     @test B_const_default.B == 0
     @test VolumeFluxes.B_cell(B_const_default, 45) == 0
@@ -48,19 +49,21 @@ for backend in get_available_backends()
     B1 = VolumeFluxes.BottomTopography1D(B1_data, backend, grid)
     @test size(B1.B) == (nx + 5, )
 
-    CUDA.@allowscalar @test VolumeFluxes.B_cell(B1, 4+2) ≈ 3.5 atol=10^-10
-    CUDA.@allowscalar @test VolumeFluxes.B_cell(B1, 7+2) ≈ 6.5 atol=10^-10
-    CUDA.@allowscalar @test VolumeFluxes.B_face_right(B1, 4+2) ≈ 4 atol=10^-10
-    CUDA.@allowscalar @test VolumeFluxes.B_face_right(B1, 7+2) ≈ 7 atol=10^-10
-    CUDA.@allowscalar @test VolumeFluxes.B_face_left(B1, 4+2) ≈ 3 atol=10^-10
-    CUDA.@allowscalar @test VolumeFluxes.B_face_left(B1, 7+2) ≈ 6 atol=10^-10
+    CUDA.@allowscalar @test VolumeFluxes.B_cell(B1, 4+2) ≈ 3.5 atol=test_atol(backend, 10^-10)
+    CUDA.@allowscalar @test VolumeFluxes.B_cell(B1, 7+2) ≈ 6.5 atol=test_atol(backend, 10^-10)
+    CUDA.@allowscalar @test VolumeFluxes.B_face_right(B1, 4+2) ≈ 4 atol=test_atol(backend, 10^-10)
+    CUDA.@allowscalar @test VolumeFluxes.B_face_right(B1, 7+2) ≈ 7 atol=test_atol(backend, 10^-10)
+    CUDA.@allowscalar @test VolumeFluxes.B_face_left(B1, 4+2) ≈ 3 atol=test_atol(backend, 10^-10)
+    CUDA.@allowscalar @test VolumeFluxes.B_face_left(B1, 7+2) ≈ 6 atol=test_atol(backend, 10^-10)
 
     B1_bad_data = [x for x in VolumeFluxes.cell_faces(grid)]
     @test_throws DomainError VolumeFluxes.BottomTopography1D(B1_bad_data, backend, grid)
 
-    atol = 10^-14
-    @test VolumeFluxes.collect_topography_intersections(B1, grid; interior=false) == B1_data
-    @test VolumeFluxes.collect_topography_intersections(B1, grid) == B1_data[3:end-2]
+    atol = test_atol(backend, 10^-14)
+    # `==` against a Float64 reference cannot hold for a Float32 backend, and this is
+    # testing the gather, not the arithmetic -- compare with a tolerance instead.
+    @test VolumeFluxes.collect_topography_intersections(B1, grid; interior=false) ≈ B1_data atol=atol
+    @test VolumeFluxes.collect_topography_intersections(B1, grid) ≈ B1_data[3:end-2] atol=atol
     @test VolumeFluxes.collect_topography_cells(B1, grid; interior=false) ≈ [x for x in VolumeFluxes.cell_centers(grid, interior=false)] atol=atol
     @test VolumeFluxes.collect_topography_cells(B1, grid) ≈ [x for x in VolumeFluxes.cell_centers(grid)] atol=atol
 

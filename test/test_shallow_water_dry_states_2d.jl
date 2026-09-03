@@ -28,7 +28,7 @@ module Correct
 include("fasit.jl")
 end
 using VolumeFluxes
-isdefined(Main, :maybe_display) || include("testing_utils.jl")
+isdefined(Main, :test_backends) || include("testing_utils.jl")
 function run_swe_2d_pure_simulation(backend)
 
     backend_name = VolumeFluxes.name(backend)
@@ -119,6 +119,6 @@ end
 
 # run_swe_2d_pure_simulation(VolumeFluxes.make_cuda_backend())
 
-for backend in get_available_backends()
+@testset "$(backend_label(backend))" for backend in test_backends()
     run_swe_2d_pure_simulation(backend)
 end

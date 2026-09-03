@@ -19,28 +19,32 @@
 # SOFTWARE.
 
 using VolumeFluxes
+isdefined(Main, :test_backends) || include("testing_utils.jl")
 using CUDA
 using Test
 using StaticArrays
 
 
-for backend in [make_cpu_backend()] #TODO: Make test for CUDA
+@testset "$(backend_label(backend))" for backend in test_backends()
     nx = 10
     grid = VolumeFluxes.CartesianGrid(nx)
-    backend = make_cpu_backend()
     equation = VolumeFluxes.Burgers()
 
-    x = collect(1:(nx+2))
-
-    VolumeFluxes.update_bc!(backend, grid, equation, x)
+    # `update_bc!` launches a kernel, so its data has to live on the backend and the
+    # assertions have to work on a collected host copy. This file used host arrays
+    # throughout, which went unnoticed while it only ever ran on the CPU.
+    x_d = to_backend(backend, collect(1:(nx+2)))
+    VolumeFluxes.update_bc!(backend, grid, equation, x_d)
+    x = collect(x_d)
     @test x[1] == 11
     @test x[end] == 2
     @test x[2:end-1] == collect(2:11)
 
-    xvec = [SVector{2,Float64}(i, 2 * i) for i in 1:(nx+2)]
-    xvecorig = [SVector{2,Float64}(i, 2 * i) for i in 1:(nx+2)]
+    xvec_d = to_backend(backend, [SVector{2,Float64}(i, 2 * i) for i in 1:(nx+2)])
+    xvecorig = collect(xvec_d)
 
-    VolumeFluxes.update_bc!(backend, grid, equation, xvec)
+    VolumeFluxes.update_bc!(backend, grid, equation, xvec_d)
+    xvec = collect(xvec_d)
 
     @test xvec[1] == xvec[end-1]
     @test xvec[end] == xvec[2]
@@ -49,13 +53,13 @@ for backend in [make_cpu_backend()] #TODO: Make test for CUDA
     ## Test wall boundary condition for shallow water equations
 
     wall_grid = VolumeFluxes.CartesianGrid(nx, gc=2, boundary=VolumeFluxes.WallBC())
-    swe = VolumeFluxes.ShallowWaterEquations1D()
+    swe = backend_params(backend, VolumeFluxes.ShallowWaterEquations1D())
 
-    x = collect(1:(nx+4))
-    u = [SVector{2,Float64}(x, x * 10) for x in 1:(nx+4)]
-    uorig = [SVector{2,Float64}(x, x * 10) for x in 1:(nx+4)]
+    u_d = to_backend(backend, [SVector{2,Float64}(x, x * 10) for x in 1:(nx+4)])
+    uorig = collect(u_d)
 
-    VolumeFluxes.update_bc!(backend, wall_grid, swe, u)
+    VolumeFluxes.update_bc!(backend, wall_grid, swe, u_d)
+    u = collect(u_d)
 
     @test u[3:end-2] == uorig[3:end-2]
     @test u[2][1] == u[3][1]
@@ -72,22 +76,21 @@ for backend in [make_cpu_backend()] #TODO: Make test for CUDA
 
     ny = 5
     wall_grid_2d = VolumeFluxes.CartesianGrid(nx, ny, gc=2, boundary=VolumeFluxes.WallBC())
-    swe_2d = VolumeFluxes.ShallowWaterEquationsPure()
+    swe_2d = backend_params(backend, VolumeFluxes.ShallowWaterEquationsPure())
     u0 = x -> @SVector[x[1], (x[1] + x[2]) * 10, x[1] * (x[2] - 5)]
 
     x = VolumeFluxes.cell_centers(wall_grid_2d; interior=false)
-    u = u0.(x)
-    uorig = u0.(x)
+    u_d = to_backend(backend, u0.(x))
+    uorig = collect(u_d)
 
-    VolumeFluxes.update_bc!(backend, wall_grid_2d, swe_2d, u)
+    VolumeFluxes.update_bc!(backend, wall_grid_2d, swe_2d, u_d)
+    u = collect(u_d)
 
     @test u[3:end-2, 3:end-2] == uorig[3:end-2, 3:end-2]
     # h
-    @show size(u[2, :])
     function f(u, i)
         [x[i] for x in u]
     end
-    @show f(u[2, 3:end-2], 1)
     @test f(u[2, 3:end-2], 1) == f(u[3, 3:end-2], 1)
     @test f(u[1, 3:end-2], 1) == f(u[4, 3:end-2], 1)
     @test f(u[nx+4, 3:end-2], 1) == f(u[nx+1, 3:end-2], 1)

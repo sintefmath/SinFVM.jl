@@ -19,23 +19,29 @@
 # SOFTWARE.
 
 using VolumeFluxes
+isdefined(Main, :test_backends) || include("testing_utils.jl")
 using CUDA
 using Test
 
-for backend in get_available_backends()
+@testset "$(backend_label(backend))" for backend in test_backends()
     nx = 10
     grid = VolumeFluxes.CartesianGrid(nx)
-    backend = make_cpu_backend()
 
-    leftarrays = 1000 * ones(nx + 2)
-    middlearrays = 1000 * ones(nx + 2)
-    rightarrays = 1000 * ones(nx + 2)
+    # Device arrays: a kernel cannot write into a host `Vector`. This file built plain
+    # host arrays, which went unnoticed while it only ever ran on the CPU.
+    leftarrays_d = to_backend(backend, 1000 * ones(nx + 2))
+    middlearrays_d = to_backend(backend, 1000 * ones(nx + 2))
+    rightarrays_d = to_backend(backend, 1000 * ones(nx + 2))
 
     VolumeFluxes.@fvmloop VolumeFluxes.for_each_inner_cell(backend, grid, XDIR) do ileft, imiddle, iright
-        leftarrays[imiddle] = ileft
-        middlearrays[imiddle] = imiddle
-        rightarrays[imiddle] = iright
+        leftarrays_d[imiddle] = ileft
+        middlearrays_d[imiddle] = imiddle
+        rightarrays_d[imiddle] = iright
     end
+
+    leftarrays = collect(leftarrays_d)
+    middlearrays = collect(middlearrays_d)
+    rightarrays = collect(rightarrays_d)
 
     @test leftarrays[1] == 1000
     @test middlearrays[1] == 1000
@@ -54,15 +60,19 @@ for backend in get_available_backends()
     ## Check for ghost cells
 
 
-    leftarrays = 1000 * ones(nx + 2)
-    middlearrays = 1000 * ones(nx + 2)
-    rightarrays = 1000 * ones(nx + 2)
+    leftarrays_g = to_backend(backend, 1000 * ones(nx + 2))
+    middlearrays_g = to_backend(backend, 1000 * ones(nx + 2))
+    rightarrays_g = to_backend(backend, 1000 * ones(nx + 2))
 
     VolumeFluxes.@fvmloop VolumeFluxes.for_each_inner_cell(backend, grid, XDIR; ghostcells=3) do ileft, imiddle, iright
-        leftarrays[imiddle] = ileft
-        middlearrays[imiddle] = imiddle
-        rightarrays[imiddle] = iright
+        leftarrays_g[imiddle] = ileft
+        middlearrays_g[imiddle] = imiddle
+        rightarrays_g[imiddle] = iright
     end
+
+    leftarrays = collect(leftarrays_g)
+    middlearrays = collect(middlearrays_g)
+    rightarrays = collect(rightarrays_g)
 
     for i in 1:3
         @test leftarrays[i] == 1000

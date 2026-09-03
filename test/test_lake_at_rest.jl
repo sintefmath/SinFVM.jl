@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 using VolumeFluxes
-isdefined(Main, :maybe_display) || include("testing_utils.jl")
+isdefined(Main, :test_backends) || include("testing_utils.jl")
 using Test
 using StaticArrays
 using CairoMakie
@@ -85,15 +85,15 @@ $(typeof(rec)) and $(typeof(flux))"
         # axislegend(ax_u)
         maybe_display(f)
     end
-    @test maximum(abs.(hu)) ≈ 0.0 atol=10^-14
-    @test maximum(abs.(w[1] - w0)) ≈ 0.0 atol=10^-14
+    @test maximum(abs.(hu)) ≈ 0.0 atol=test_atol(backend, 10^-14)
+    @test maximum(abs.(w[1] - w0)) ≈ 0.0 atol=test_atol(backend, 10^-14)
 end
 
 
 
 
 
-for backend in VolumeFluxes.get_available_backends()
+@testset "$(backend_label(backend))" for backend in test_backends()
     nx = 64
     grid = VolumeFluxes.CartesianGrid(nx; gc=2, boundary=VolumeFluxes.WallBC(), extent=[0.0  10.0], )
     x0 = 5.0
@@ -103,7 +103,7 @@ for backend in VolumeFluxes.get_available_backends()
     grid_bumpy = VolumeFluxes.CartesianGrid(nx_bumpy; gc=2, boundary=VolumeFluxes.PeriodicBC(), extent=[-2*pi  2*pi], )
     B_bumpy = [(cos(x)-0.5 - 1.5*(abs(x) < 1.0)) for x in VolumeFluxes.cell_faces(grid_bumpy, interior=false)]
     
-    @testset "lake_at_rest_$(VolumeFluxes.name(backend))" begin
+    @testset "lake_at_rest_$(backend_label(backend))" begin
 
         # test_lake_at_rest(grid, B, 0.7, plot=false)
         test_lake_at_rest(backend, grid, B, 0.7, 0.01, plot=false)

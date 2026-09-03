@@ -20,9 +20,10 @@
 
 using Test
 using VolumeFluxes
+isdefined(Main, :test_backends) || include("testing_utils.jl")
 using StaticArrays
 
-for backend in get_available_backends()
+@testset "$(backend_label(backend))" for backend in test_backends()
     values = collect(1:10)
     values_backend = VolumeFluxes.convert_to_backend(backend, values)
     output = VolumeFluxes.convert_to_backend(backend, zeros(10))
