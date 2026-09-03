@@ -19,9 +19,11 @@
 # SOFTWARE.
 
 
-struct LinearReconstruction <: Reconstruction
-    theta::Float64
-    LinearReconstruction(theta=1.2) = new(theta)
+struct LinearReconstruction{T} <: Reconstruction
+    theta::T
+    # `float` so that `LinearReconstruction(2)` gives a float-parametrized struct rather
+    # than an Int one -- several tests pass an integer theta.
+    LinearReconstruction(theta=1.2) = new{typeof(float(theta))}(float(theta))
 end
 
 
@@ -37,7 +39,7 @@ end
 function minmod_slope(left, center, right, theta)
     forward_diff = right .- center
     backward_diff = center .- left
-    central_diff = (forward_diff .+ backward_diff) ./ 2.0
+    central_diff = (forward_diff .+ backward_diff) ./ 2
     return minmod.(theta .* forward_diff, central_diff, theta .* backward_diff)
 
 end
@@ -47,8 +49,8 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
     # NOTE: dx cancel, as the slope depends on 1/dx and face values depend on dx*slope
     @fvmloop for_each_inner_cell(backend, grid, direction; ghostcells=1) do ileft, imiddle, iright
         slope = minmod_slope.(input_conserved[ileft], input_conserved[imiddle], input_conserved[iright], linRec.theta)
-        output_left[imiddle] = input_conserved[imiddle] .- 0.5 .* slope
-        output_right[imiddle] = input_conserved[imiddle] .+ 0.5 .* slope
+        output_left[imiddle] = input_conserved[imiddle] .- slope ./ 2
+        output_right[imiddle] = input_conserved[imiddle] .+ slope ./ 2
     end
 end
 function reconstruct!(backend, linRec::LinearReconstruction, output_left, output_right, input_conserved, grid::Grid, ::Equation, direction::Direction)
@@ -78,21 +80,21 @@ function reconstruct!(backend, linRec::LinearReconstruction, output_left, output
         w = w_input[imiddle]
 
         # 2) Adjust slope of water
-        if (w - 0.5 * slope[1] < B_left)
+        if (w - slope[1] / 2 < B_left)
             # Negative h on left face
             #TODO: uncomment and fix
-            slope = fix_slope(slope, 2.0 * (w - B_left), eq)
+            slope = fix_slope(slope, 2 * (w - B_left), eq)
             #slope[1] = 2.0*(w_input[imiddle] - eq.B[imiddle])
-        elseif (w + 0.5 * slope[1] < B_right)
+        elseif (w + slope[1] / 2 < B_right)
             # Negative h on right face
             #TODO:uncomment and fix
-            slope = fix_slope(slope, 2.0 * (B_right - w), eq)
+            slope = fix_slope(slope, 2 * (B_right - w), eq)
             #slope[1] = 2.0*(eq.B[imiddle] - w_input[imiddle])
         end
 
         # 3) Reconstruct face values (w, hu)
-        output_left[imiddle] = input_conserved[imiddle] .- 0.5 .* slope
-        output_right[imiddle] = input_conserved[imiddle] .+ 0.5 .* slope
+        output_left[imiddle] = input_conserved[imiddle] .- slope ./ 2
+        output_right[imiddle] = input_conserved[imiddle] .+ slope ./ 2
 
         # 4) Return face values (h, hu)
         h_left[imiddle] -= B_left

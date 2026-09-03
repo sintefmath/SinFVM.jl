@@ -53,7 +53,7 @@ function desingularize(eq::AllPracticalSWE, h)
     # h_star = (h^2 + max(h^2, eq.desingularizing_kappa^2))/(2*h)
 
     # Eq (26):
-    h_star = copysign(1, h)*max(abs(h), min(h^2/(2*eq.desingularizing_kappa) + eq.desingularizing_kappa/2.0, eq.desingularizing_kappa))
+    h_star = copysign(1, h)*max(abs(h), min(h^2/(2*eq.desingularizing_kappa) + eq.desingularizing_kappa/2, eq.desingularizing_kappa))
     # h_star = sign(h)*max(abs(h), min(h^2/(2*eq.desingularizing_kappa) + eq.desingularizing_kappa/2.0, eq.desingularizing_kappa))
     # if h < 0.0
     #     h_star = 0.5*eq.desingularizing_kappa
@@ -83,5 +83,6 @@ function is_compatible(eq::AllPracticalSWE, source_terms::Vector)
     throw(ArgumentError("Found non-zero bottom topography in equation, but no corresponding source term. Did you forget to add a source term to your system?"))
 end
 
-B_cell(::AllPureSWE, index) = 0.0
+# Integer zero, so it does not force the caller into Float64 (Metal has no Float64).
+B_cell(::AllPureSWE, index) = 0
 B_cell(eq::AllPracticalSWE, index) = B_cell(eq.B, index)

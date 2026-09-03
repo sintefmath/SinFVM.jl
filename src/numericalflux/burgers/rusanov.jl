@@ -31,7 +31,7 @@ function (rus::Rusanov)(faceminus, faceplus, direction)
 
     eigenvalue_max = max(eigenvalue_minus, eigenvalue_plus)
 
-    F = 0.5 .* (fluxminus .+ fluxplus) .- 0.5 * eigenvalue_max .* (faceplus .- faceminus)
+    F = (fluxminus .+ fluxplus) ./ 2 .- eigenvalue_max .* (faceplus .- faceminus) ./ 2
 
     return F, eigenvalue_max
 end

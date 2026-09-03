@@ -37,8 +37,8 @@ function (centralupwind::CentralUpwind)(::Equation, faceminus, faceplus, directi
     eigenvalues_minus = compute_eigenvalues(centralupwind.eq, direction, faceminus...)
     eigenvalues_plus = compute_eigenvalues(centralupwind.eq, direction, faceplus...)
 
-    aplus = max.(eigenvalues_plus[1], eigenvalues_minus[1], 0.0)
-    aminus = min.(eigenvalues_plus[2], eigenvalues_minus[2], 0.0)
+    aplus = max.(eigenvalues_plus[1], eigenvalues_minus[1], zero(eigenvalues_plus[1]))
+    aminus = min.(eigenvalues_plus[2], eigenvalues_minus[2], zero(eigenvalues_plus[2]))
 
     F = (aplus .* fluxminus - aminus .* fluxplus) ./ (aplus - aminus) + ((aplus .* aminus) ./ (aplus - aminus)) .* (faceplus - faceminus)
     return F, max(abs(aplus), abs(aminus))

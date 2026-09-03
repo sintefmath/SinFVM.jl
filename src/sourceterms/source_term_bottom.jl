@@ -35,7 +35,7 @@ function evaluate_directional_source_term!(::SourceTermBottom, output, current_s
         B_right = B_face_right( B, imiddle, dir)
         B_left  = B_face_left(B, imiddle, dir)
 
-        output_momentum[imiddle] +=-g*((B_right - B_left)/dx)*((h_right[imiddle] + h_left[imiddle])/2.0)
+        output_momentum[imiddle] +=-g*((B_right - B_left)/dx)*((h_right[imiddle] + h_left[imiddle])/2)
         nothing
     end
 end
