@@ -27,6 +27,7 @@ import CUDA
 using ForwardDiff
 import KernelAbstractions
 using VolumeFluxes
+isdefined(Main, :maybe_display) || include("testing_utils.jl")
 import ForwardDiff
 
 function run_swe_2d_ad_simulation(height_and_position)
@@ -126,7 +127,7 @@ $(names[i])") for i in 1:3] for j in 1:2]
     if !any(isnan.(hv))
         Colorbar(f[3, 4], hm)
     end
-    display(f)
+    maybe_display(f)
 
     # Now we can get the derivative of the height of the water wrt to the height of the building as
 
@@ -135,7 +136,7 @@ $(names[i])") for i in 1:3] for j in 1:2]
     ax = Axis(f[1, 1])
     hm = heatmap!(ax, derivative)
     Colorbar(f[1, 2], hm)
-    display(f)
+    maybe_display(f)
 
     return sum(collect(result.h))
 end

@@ -28,6 +28,7 @@ module Correct
 include("fasit.jl")
 end
 using VolumeFluxes
+isdefined(Main, :maybe_display) || include("testing_utils.jl")
 function run_swe_2d_pure_simulation(backend)
 
     backend_name = VolumeFluxes.name(backend)
@@ -99,7 +100,7 @@ $(names[i])") for i in 1:3 ] for j in 1:2]
     if !any(isnan.(hv))
         Colorbar(f[3, 4], hm)
     end
-    display(f)
+    maybe_display(f)
 
     # Test symmetry (field[x, y])
     tolerance = 10^-13

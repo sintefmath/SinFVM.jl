@@ -19,11 +19,12 @@
 # SOFTWARE.
 
 using VolumeFluxes
+isdefined(Main, :maybe_display) || include("testing_utils.jl")
 using Test
 using StaticArrays
 using CairoMakie
 
-function test_lake_at_rest(backend, grid, B_data, w0, t=0.001; plot=true)
+function test_lake_at_rest(backend, grid, B_data, w0, t=0.001; plot=false)
 
     B = VolumeFluxes.BottomTopography1D(B_data, backend, grid)
     eq = VolumeFluxes.ShallowWaterEquations1D(B)
@@ -82,7 +83,7 @@ $(typeof(rec)) and $(typeof(flux))"
 
         # axislegend(ax_h)
         # axislegend(ax_u)
-        display(f)
+        maybe_display(f)
     end
     @test maximum(abs.(hu)) ≈ 0.0 atol=10^-14
     @test maximum(abs.(w[1] - w0)) ≈ 0.0 atol=10^-14

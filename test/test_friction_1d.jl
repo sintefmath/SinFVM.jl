@@ -23,6 +23,7 @@ using StaticArrays
 
 
 using VolumeFluxes
+isdefined(Main, :maybe_display) || include("testing_utils.jl")
 function run_simulation_friction1d(T, backend, equation, grid; elevate=0.0, source_terms = [])
 
     u0 = x -> @SVector[exp.(-(x - 0.5)^2 / 0.001) .+ 1.5 .+ elevate, 0.0 .* x]
@@ -56,19 +57,16 @@ function plot_sols_friction1d(ref_sol, sol, grid, test_name)
     lines!(ax, x, collect(sol.h), label="sol")
     axislegend(ax, position=:lt)
 
-    display(f)
+    maybe_display(f)
 end
 
-function get_test_name_friction1d(backend, eq::VolumeFluxes.Equation)
-    backend_name = split(match(r"{(.*?)}", string(typeof(backend)))[1], '.')[end]
-    eq_name = match(r"\.(.*?){", string(typeof(eq)))[1]
-    return eq_name * " " * backend_name
-end
-function get_test_name_friction1d(backend, B::VolumeFluxes.AbstractBottomTopography)
-    backend_name = split(match(r"{(.*?)}", string(typeof(backend)))[1], '.')[end]
-    B_name = match(r"\.(.*?){", string(typeof(B)))[1]
-    return B_name * " " * backend_name
-end
+# NOTE: this used to build the name by regex over `string(typeof(...))`, matching on a
+# `.` before the type name. `ShallowWaterEquations1DPure` and friends are exported, so
+# they print without a module prefix, `match` returned `nothing`, and indexing it threw.
+get_test_name_friction1d(backend, eq::VolumeFluxes.Equation) =
+    string(nameof(typeof(eq)), " ", VolumeFluxes.name(backend))
+get_test_name_friction1d(backend, B::VolumeFluxes.AbstractBottomTopography) =
+    string(nameof(typeof(B)), " ", VolumeFluxes.name(backend))
 
 for backend in VolumeFluxes.get_available_backends()
     nx = 1024  

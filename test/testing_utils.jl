@@ -18,29 +18,30 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+# Shared helpers for the test suite.
+#
+# Deliberately not named `test_*.jl`: `runtests.jl` auto-includes every `test/test_*.jl`,
+# and this file holds no tests of its own.
+
 using VolumeFluxes
-using Test
 
-include("testing_utils.jl")
+"""
+    SHOW_PLOTS
 
-# TODO: Go through tests and check they do not take longer time than necessary
-using CairoMakie
+Whether the test suite should render figures. Off by default.
 
-# Disable showing the plot in CairoMakie
-CairoMakie.activate!(type = "svg")
-@testset "VolumeFluxes tests" begin
-    # Run all scripts in test/test_*.jl
-    ls_test = readdir("test")
-    for test_file in readdir("test")
-        if startswith(test_file, "test_") && endswith(test_file, ".jl")
-            #@show test_name, test_file
-            
-            test_name = replace(test_file, ".jl"=>"")
-            @testset "$(test_name)" begin
-                include(test_file)
-            end
-      
-        end
-    end
-end
-nothing
+Several test files draw diagnostic figures, and a few do it unconditionally in the middle
+of the simulation they are testing. Rendering costs about 0.3 s per figure (roughly five
+times what building it costs) and produces output nobody looks at during a test run, so it
+is skipped unless explicitly asked for:
+
+    VOLUMEFLUXES_TEST_PLOTS=true julia --project -t auto test/runtests.jl
+"""
+const SHOW_PLOTS = get(ENV, "VOLUMEFLUXES_TEST_PLOTS", "false") == "true"
+
+"""
+    maybe_display(figure)
+
+`display(figure)` when [`SHOW_PLOTS`](@ref) is set, otherwise a no-op.
+"""
+maybe_display(figure) = SHOW_PLOTS ? display(figure) : nothing

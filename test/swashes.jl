@@ -20,6 +20,7 @@
 
 using VolumeFluxes
 
+isdefined(Main, :maybe_display) || include("testing_utils.jl")
 using StaticArrays
 using CairoMakie
 using Test
@@ -345,7 +346,7 @@ T=$(T)",
     end
     axislegend(ax_h)
     axislegend(ax_u)
-    display(f)
+    maybe_display(f)
 end
 
 function plot_ref_solution(sw::Swashes421, nx, T)
@@ -384,7 +385,7 @@ T=$(T)",
     end
     axislegend(ax_h)
     axislegend(ax_u)
-    display(f)
+    maybe_display(f)
 end
 
 # plot_ref_solution(Swashes421(), 64, 0:0.5:2)
