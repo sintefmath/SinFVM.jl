@@ -49,7 +49,7 @@ function do_substep!(output, ::RungeKutta2, system::System, states, dt, timestep
     if substep_number == 2
         first_state = states[1]
         @fvmloop for_each_cell(system.backend, system.grid) do index
-            output[index] = 0.5 * (first_state[index] + output[index])
+            output[index] = (first_state[index] + output[index]) / 2
         end
     end
 

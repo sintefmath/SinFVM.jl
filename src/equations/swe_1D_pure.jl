@@ -30,7 +30,7 @@ function (eq::ShallowWaterEquations1DPure)(::XDIRT, h, hu)
     g = eq.g
     return @SVector [
         ρ * hu,
-        ρ * hu * hu / h + 0.5 * ρ * g * h^2,
+        ρ * hu * hu / h + ρ * g * h^2 / 2,
     ]
 end
 

@@ -81,7 +81,10 @@ function validate_bottom_topography(B, grid::Grid)
     end
 end
 
-is_zero(B::AbstractBottomTopography) = all(B.B .== 0.0)
+# Split so the array case reduces on the device instead of broadcasting against a
+# Float64 literal, and so the constant case does not go through `all` at all.
+is_zero(B::ConstantBottomTopography) = iszero(B.B)
+is_zero(B::AbstractBottomTopography) = all(iszero, B.B)
 
 # Lookup for ConstantBottomTopography
 B_cell(B::ConstantBottomTopography, i...) = B.B
@@ -89,16 +92,16 @@ B_face_left(B::ConstantBottomTopography, i...) = B.B
 B_face_right(B::ConstantBottomTopography, i...) = B.B
 
 # Lookup for BottomTopography1D
-B_cell(B::BottomTopography1D, index, dir::XDIRT=XDIR) = 0.5*(B.B[index] + B.B[index + 1])
+B_cell(B::BottomTopography1D, index, dir::XDIRT=XDIR) = (B.B[index] + B.B[index + 1])/2
 B_face_left(B::BottomTopography1D, index, dir::XDIRT=XDIR) = B.B[index]
 B_face_right(B::BottomTopography1D, index, dir::XDIRT=XDIR) = B.B[index + 1]
 
 # Lookup for BottomTopography2D
-B_cell(B::BottomTopography2D, x, y) = 0.25*(B.B[x, y] + B.B[x+1, y] + B.B[x, y + 1] + B.B[x + 1, y + 1])
-B_face_left(B::BottomTopography2D, x, y, ::XDIRT) = 0.5*(B.B[x, y] + B.B[x, y + 1])
-B_face_right(B::BottomTopography2D, x, y, ::XDIRT) = 0.5*(B.B[x + 1, y] + B.B[x + 1, y + 1])
-B_face_left(B::BottomTopography2D, x, y, ::YDIRT) = 0.5*(B.B[x, y] + B.B[x + 1, y])
-B_face_right(B::BottomTopography2D, x, y, ::YDIRT) = 0.5*(B.B[x, y + 1] + B.B[x + 1, y + 1])
+B_cell(B::BottomTopography2D, x, y) = (B.B[x, y] + B.B[x+1, y] + B.B[x, y + 1] + B.B[x + 1, y + 1])/4
+B_face_left(B::BottomTopography2D, x, y, ::XDIRT) = (B.B[x, y] + B.B[x, y + 1])/2
+B_face_right(B::BottomTopography2D, x, y, ::XDIRT) = (B.B[x + 1, y] + B.B[x + 1, y + 1])/2
+B_face_left(B::BottomTopography2D, x, y, ::YDIRT) = (B.B[x, y] + B.B[x + 1, y])/2
+B_face_right(B::BottomTopography2D, x, y, ::YDIRT) = (B.B[x, y + 1] + B.B[x + 1, y + 1])/2
 
 # Lookup for 2D with Cartesian indices
 # TODO: Clearify assumption: These functions assume that I already accounts for ghost cells

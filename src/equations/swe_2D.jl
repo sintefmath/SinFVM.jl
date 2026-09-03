@@ -47,7 +47,7 @@ function (eq::ShallowWaterEquations)(::XDIRT, h, hu, hv)
     v = desingularize(eq, h, hv)
     return @SVector [
         ρ * h * u,
-        ρ * h * u * u + 0.5 * ρ * g * h^2,
+        ρ * h * u * u + ρ * g * h^2 / 2,
         ρ * h * u * v 
     ]
 end
@@ -60,7 +60,7 @@ function (eq::ShallowWaterEquations)(::YDIRT, h, hu, hv)
     return @SVector [
         ρ * h * v,
         ρ * h * u * v,
-        ρ * h * v * v + 0.5 * ρ * g * h^2,
+        ρ * h * v * v + ρ * g * h^2 / 2,
     ]
 end
 
