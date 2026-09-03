@@ -26,11 +26,30 @@ abstract type Backend end
 toint(x) = x
 toint(x::CartesianIndex{1}) = x[1]
 
+"""
+    default_realtype(ka_backend)
+
+The widest float type the given KernelAbstractions backend can actually run.
+
+A backend that does not support `Float64` reports so via
+`KernelAbstractions.supports_float64`, and for such a device `Float64` is not merely slow,
+it fails to compile.
+"""
+default_realtype(ka_backend) =
+    KernelAbstractions.supports_float64(ka_backend) ? Float64 : Float32
+
 struct KernelAbstractionBackend{KABackendType, RealType} <: Backend
     backend::KABackendType
     realtype::Type{RealType}
 
-    KernelAbstractionBackend(backend; realtype=Float64) =  new{typeof(backend), realtype}(backend, realtype)
+    function KernelAbstractionBackend(backend; realtype=default_realtype(backend))
+        if !KernelAbstractions.supports_float64(backend) && base_float(realtype) === Float64
+            throw(ArgumentError(
+                "backend $(typeof(backend)) does not support Float64 " *
+                "(requested realtype $(realtype)). Use Float32 instead."))
+        end
+        return new{typeof(backend), realtype}(backend, realtype)
+    end
 end
 
 """
@@ -52,23 +71,35 @@ spacing and the equation constants should stay plain floats.
 """
 paramtype(backend::Backend) = base_float(realtype(backend))
 
-make_cuda_backend() = KernelAbstractionBackend(get_backend(CUDA.cu(ones(3))))
 make_cpu_backend() = KernelAbstractionBackend(get_backend(ones(3)))
-make_cpu_backend(RealType) = KernelAbstractionBackend(get_backend(ones(3)); realtype=RealType)
+make_cpu_backend(RealType) = KernelAbstractionBackend(get_backend(ones(RealType, 3)); realtype=RealType)
+
+make_cuda_backend() = KernelAbstractionBackend(get_backend(CUDA.cu(ones(3))); realtype=Float64)
+make_cuda_backend(RealType) = KernelAbstractionBackend(get_backend(CUDA.cu(ones(RealType, 3))); realtype=RealType)
 const CUDABackend = KernelAbstractionBackend{CUDA.CUDAKernels.CUDABackend}
 const CPUBackend = KernelAbstractionBackend{KernelAbstractions.CPU}
 
 name(::CUDABackend) = "CUDA"
 name(::CPUBackend) = "CPU"
 
-function get_available_backends()
-    backends = Any[make_cpu_backend()]
+"""
+    get_available_backends(realtype=Float64)
 
-    try
-        cuda_backend = make_cuda_backend()
-        push!(backends, cuda_backend)
-    catch err
-        @show err
+Every backend on this machine that can run with the given element type, CPU first.
+
+Backends that are not present are skipped quietly -- the reason is available under
+`JULIA_DEBUG`. The probe used to `@show` the error, which printed a CUDA error object at
+each of the ~26 call sites in the test suite on a machine without CUDA.
+"""
+function get_available_backends(realtype=Float64)
+    backends = Any[make_cpu_backend(realtype)]
+
+    for make_backend in (make_cuda_backend,)
+        try
+            push!(backends, make_backend(realtype))
+        catch err
+            @debug "backend unavailable" make_backend realtype err
+        end
     end
     return backends
 end
@@ -82,6 +113,27 @@ function has_cuda_backend()
     end
 end
 
+"""
+    kernel_arg(backend, x)
+
+`x` as it must look to be passed into a kernel on `backend`.
+
+A device may refuse a kernel argument struct that merely *contains* a Float64 field, even
+when the kernel only reads integer fields out of it -- so a host-built
+`CartesianGrid{..., Float64}` cannot be handed to such a kernel, although every one of
+these loops uses only its integer cell counts. The high level API converts the grid once
+in `ConservedSystem`/`Simulator`; doing it here as well makes the low level loops safe to
+call directly. It is the identity, and therefore free, when the types already agree.
+
+Deliberately narrow: only `Grid`s are converted. Converting everything would copy any
+Float64 *output* array passed through `y...`, and writes would then land in the copy and be
+silently lost. Other parameter structs are the caller's responsibility.
+"""
+kernel_arg(backend, x) = x
+kernel_arg(backend, grid::Grid) = convert_realtype(paramtype(backend), grid)
+
+kernel_args(backend, y::Tuple) = map(x -> kernel_arg(backend, x), y)
+
 @kernel function for_each_inner_cell_kernel(f, grid, direction, ghostcells, y...)
     J = @index(Global, Cartesian)
     I = toint(J)
@@ -90,7 +142,7 @@ end
 
 
 function for_each_inner_cell(f, backend::KernelAbstractionBackend{T}, grid, direction, y...; ghostcells=grid.ghostcells[direction]) where {T}
-    ev = for_each_inner_cell_kernel(backend.backend, 1024)(f, grid, direction, ghostcells, y..., ndrange=inner_cells(grid, direction, ghostcells))
+    ev = for_each_inner_cell_kernel(backend.backend)(f, kernel_arg(backend, grid), direction, ghostcells, kernel_args(backend, y)..., ndrange=inner_cells(grid, direction, ghostcells))
 end
 
 @kernel function for_each_ghost_cell_kernel(f, grid, direction, y...)
@@ -100,7 +152,7 @@ end
 
 
 function for_each_ghost_cell(f, backend::KernelAbstractionBackend{T}, grid, direction, y...) where {T}
-    ev = for_each_ghost_cell_kernel(backend.backend, 1024)(f, grid, direction, y..., ndrange=ghost_cells(grid, direction))
+    ev = for_each_ghost_cell_kernel(backend.backend)(f, kernel_arg(backend, grid), direction, kernel_args(backend, y)..., ndrange=ghost_cells(grid, direction))
 end
 
 
@@ -115,7 +167,7 @@ function for_each_index_value(f, backend::KernelAbstractionBackend{T}, values, y
     # do the ndrange and @index slightly differently.
     @assert firstindex(values) == 1
     @assert lastindex(values) == length(values)
-    ev = for_each_index_value_kernel(backend.backend, 1024)(f, values, y..., ndrange=length(values))
+    ev = for_each_index_value_kernel(backend.backend)(f, values, kernel_args(backend, y)..., ndrange=length(values))
 end
 
 
@@ -134,17 +186,18 @@ function for_each_index_value_2d(f, backend::KernelAbstractionBackend{T}, values
     @assert firstindex(values2) == 1
     @assert lastindex(values2) == length(values2)
 
-    ev = for_each_index_value_2d_kernel(backend.backend, 1024)(f, values1, values2, y..., ndrange=(length(values1), length(values2)))
+    ev = for_each_index_value_2d_kernel(backend.backend)(f, values1, values2, kernel_args(backend, y)..., ndrange=(length(values1), length(values2)))
 end
 
 
 
-@kernel function for_each_cell_kernel(f, grid, y...)
+@kernel function for_each_cell_kernel(f, y...)
     I = @index(Global, Cartesian)
     f(toint(I), y...)
 end
 
 
 function for_each_cell(f, backend::KernelAbstractionBackend{T}, grid, y...;) where {T}
-    ev = for_each_cell_kernel(backend.backend, 1024)(f, grid, y..., ndrange=size(grid))
+    # `grid` is only needed host-side, for the ndrange.
+    ev = for_each_cell_kernel(backend.backend)(f, kernel_args(backend, y)..., ndrange=size(grid))
 end

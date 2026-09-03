@@ -18,25 +18,36 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import CUDA
+import Adapt
 
-convert_to_backend(backend, array::AbstractArray) = array
-convert_to_backend(backend::CUDABackend, array::AbstractArray) = CUDA.CuArray(array)
-convert_to_backend(backend::CPUBackend, array::CUDA.CuArray) = collect(array)
+# Host <-> device transfer and buffer allocation.
+#
+# All three KernelAbstractions backends we support (CPU, CUDA, Metal) implement
+# `KernelAbstractions.zeros` and `Adapt.adapt_storage` for their own device, so these are
+# backend-agnostic rather than one method per backend.
 
-# TODO: Do one for KA?
+"""
+    convert_to_backend(backend, array)
+
+Move `array` onto `backend`'s device, converting its element type to the backend's
+parameter type on the way.
+
+The element type conversion is load-bearing for Metal, which refuses `Float64` buffers
+outright -- and refuses them recursively, so a `Matrix{SVector{3,Float64}}` (exactly what
+`set_current_state!` is handed) is rejected too. It also has to happen *before* the
+transfer for the same reason: there is no Float64 Metal array to convert from.
+"""
+function convert_to_backend(backend, array::AbstractArray)
+    target = paramtype(backend)
+    if converted_eltype(target, eltype(array)) === eltype(array)
+        # Nothing to convert; this is also the identity case when `array` already lives
+        # on `backend`, so it must not force a round trip through the host.
+        return Adapt.adapt(backend.backend, array)
+    end
+    return Adapt.adapt(backend.backend, convert_realtype(target, Adapt.adapt(Array, array)))
+end
 
 function create_buffer(backend, number_of_variables::Int64, spatial_resolution)
-    zeros(backend.realtype, spatial_resolution..., number_of_variables)
-end
-
-function create_buffer(backend::CPUBackend, number_of_variables::Int64, spatial_resolution)
-    # TODO: Fixme
-    # buffer = KernelAbstractions.zeros(backend.backend, prod(spatial_resolution), number_of_variables)
-    buffer = zeros(backend.realtype, spatial_resolution..., number_of_variables)
-    buffer
-end
-
-function create_buffer(backend::CUDABackend, number_of_variables::Int64, spatial_resolution)
-    CUDA.CuArray(zeros(backend.realtype, spatial_resolution..., number_of_variables))
+    KernelAbstractions.zeros(backend.backend, realtype(backend),
+        (spatial_resolution..., number_of_variables))
 end
