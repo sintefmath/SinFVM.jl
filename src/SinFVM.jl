@@ -61,5 +61,5 @@ include("sourceterms/source_terms.jl")
 include("friction.jl")
 include("bc.jl")
 include("callbacks.jl")
-export XDIR, YDIR, ZDIR, Burgers, CartesianGrid, make_cpu_backend, make_cuda_backend, Volume, get_available_backends, IntervalWriter, Simulator, RungeKutta2, ForwardEulerStepper, ShallowWaterEquations, ShallowWaterEquations1D, ShallowWaterEquations1DPure, ShallowWaterEquationsPure, CentralUpwind, Rusanov, Godunov, LinearReconstruction, NoReconstruction, ConservedSystem, simulate_to_time
+export XDIR, YDIR, ZDIR, Burgers, CartesianGrid, make_cpu_backend, make_cuda_backend, make_metal_backend, has_cuda_backend, has_metal_backend, Volume, get_available_backends, IntervalWriter, Simulator, RungeKutta2, ForwardEulerStepper, ShallowWaterEquations, ShallowWaterEquations1D, ShallowWaterEquations1DPure, ShallowWaterEquationsPure, CentralUpwind, Rusanov, Godunov, LinearReconstruction, NoReconstruction, ConservedSystem, simulate_to_time
 end
